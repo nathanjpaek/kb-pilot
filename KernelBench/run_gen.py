@@ -5,10 +5,10 @@ import concurrent.futures
 from typing import List, Tuple
 import glob
 
-def should_generate_kernel(level: int, problem_id: int) -> bool:
+def should_generate_kernel(level: int, problem_id: int, language: str = "tilelang") -> bool:
     """Check if we need to generate a kernel for this problem."""
     # Look for existing kernel files
-    pattern = f"src/prompts/correct_tilelang/level{level}/{level}_{problem_id}.py"
+    pattern = f"src/prompts/correct_{language}/level{level}/{level}_{problem_id}.py"
     existing_files = glob.glob(pattern)
     
     # If no files exist, we need to generate
@@ -43,6 +43,9 @@ def run_generation_and_eval():
         6: range(1, 101),  # Level 6 has 100 problems
     }
 
+    # Language configuration
+    language = "tilelang"  # Can be changed to "thunderkittens" for ThunderKittens
+
     # Base command template
     base_cmd = [
         "python", "scripts/generate_and_eval_single_sample_modal.py",
@@ -50,7 +53,7 @@ def run_generation_and_eval():
         "server_type=openai",
         "model_name=o3",
         "verbose=true",
-        "language=tilelang",
+        f"language={language}",
         "log=true",
         "log_prompt=true",
         "log_generated_kernel=true",
@@ -62,7 +65,9 @@ def run_generation_and_eval():
     jobs: List[Tuple[int, int]] = []
     for level in problems_per_level.keys():
         for problem_id in problems_per_level[level]:
-            jobs.append((level, problem_id))
+            # Skip if kernel already exists and is correct
+            if should_generate_kernel(level, problem_id, language):
+                jobs.append((level, problem_id))
 
     # Run jobs in parallel with max 5 concurrent processes
     with concurrent.futures.ProcessPoolExecutor(max_workers=32) as executor:

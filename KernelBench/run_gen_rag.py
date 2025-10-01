@@ -6,10 +6,10 @@ from typing import List, Tuple
 import glob
 
 
-def should_generate_kernel(level: int, problem_id: int) -> bool:
+def should_generate_kernel(level: int, problem_id: int, language: str = "tilelang") -> bool:
     """Check if we need to generate a kernel for this problem."""
     # Look for existing kernel files
-    pattern = f"src/prompts/correct_tilelang/level{level}/{level}_{problem_id}*.py"
+    pattern = f"src/prompts/correct_{language}/level{level}/{level}_{problem_id}*.py"
     existing_files = glob.glob(pattern)
 
     # If no files exist, we need to generate
@@ -62,10 +62,12 @@ def run_generation_and_eval():
     }
 
     # Base command template
+    language = "tilelang"  # Can be changed to "thunderkittens" for ThunderKittens
     base_cmd = [
         "python",
         "scripts/generate_and_eval_rag_modal.py",
         "dataset_src=huggingface",
+        f"language={language}",
         "rag_k=7",
         "gpu=H100",
     ]
@@ -76,7 +78,7 @@ def run_generation_and_eval():
         for problem_id in problems_per_level[level]:
 
             # Skip if kernel already exists and is correct
-            if should_generate_kernel(level, problem_id):
+            if should_generate_kernel(level, problem_id, language):
                 jobs.append((level, problem_id))
                 # print(f"Adding job: Level {level}, Problem {problem_id}")
                 

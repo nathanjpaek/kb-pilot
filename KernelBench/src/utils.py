@@ -623,3 +623,97 @@ def maybe_multiprocess_cuda(
                     print("Got an error!", e)
                     continue
     return output_data
+
+
+
+################################################################################
+# ThunderKitten specific utils
+################################################################################
+
+def extract_code_block(text: str, language: str) -> str:
+    """
+    Extract a specific code block by language from markdown-formatted text.
+    
+    Args:
+        text: Text containing code blocks
+        language: Language identifier (e.g., 'python', 'cpp', 'cuda')
+    
+    Returns:
+        Extracted code or None if not found
+    """
+    # Try exact language match
+    pattern = rf"```{language}\n(.*?)```"
+    match = re.search(pattern, text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    
+    # For cpp, also try c++ variant
+    if language == "cpp":
+        pattern = r"```c\+\+\n(.*?)```"
+        match = re.search(pattern, text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+    
+    return None
+
+
+def extract_all_code_blocks(text: str) -> dict:
+    """
+    Extract all code blocks with their language identifiers.
+    
+    Args:
+        text: Text containing code blocks
+    
+    Returns:
+        Dictionary mapping language -> code
+    """
+    blocks = {}
+    pattern = r"```(\w+)\n(.*?)```"
+    for match in re.finditer(pattern, text, re.DOTALL):
+        lang = match.group(1)
+        code = match.group(2).strip()
+        blocks[lang] = code
+    return blocks
+
+
+def create_tk_makefile(kernel_dir: str, gpu: str = "H100"):
+    """
+    Write a makefile for ThunderKitten (Pybind) to the kernel directory
+
+    Args:
+        kernel_dir: Directory where Makefile should be created
+        gpu: Target GPU (H100, A100, or 4090)
+    """
+    
+    makefile_content = f"""# Compiler
+NVCC=nvcc
+GPU={gpu}
+
+TARGET=tk_kernels
+SRC=custom_tk.cu
+
+NVCCFLAGS=-DNDEBUG -Xcompiler=-fPIE --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler=-Wno-psabi -Xcompiler=-fno-strict-aliasing --use_fast_math -forward-unknown-to-host-compiler -O3 -Xnvlink=--verbose -Xptxas=--verbose -Xptxas=--warn-on-spills -std=c++20 -x cu -lrt -lpthread -ldl -lcuda -lcudadevrt -lcudart_static -lcublas
+NVCCFLAGS+= -I${{THUNDERKITTENS_ROOT}}/include -I${{THUNDERKITTENS_ROOT}}/prototype $(shell python3 -m pybind11 --includes) $(shell python3-config --ldflags) -shared -fPIC -lpython3.10
+
+# Conditional setup based on the target GPU
+ifeq ($(GPU),4090)
+\tNVCCFLAGS+= -DKITTENS_4090 -arch=sm_89
+else ifeq ($(GPU),A100)
+\tNVCCFLAGS+= -DKITTENS_A100 -arch=sm_80
+else
+\tNVCCFLAGS+= -DKITTENS_HOPPER -arch=sm_90a
+endif
+
+# Default target
+all: $(TARGET)
+
+$(TARGET): $(SRC)
+\t$(NVCC) $(SRC) $(NVCCFLAGS) -o $(TARGET)$(shell python3-config --extension-suffix)
+
+# Clean target
+clean:
+\trm -f $(TARGET)
+"""
+
+    with open(os.path.join(kernel_dir, "Makefile"), "w") as f:
+        f.write(makefile_content)

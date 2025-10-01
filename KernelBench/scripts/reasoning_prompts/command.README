@@ -1,1 +1,0 @@
-python create_reasoning_data.py level=1 start_problem_id=5 end_problem_id=10 prompt=good_reasoning num_chains=4

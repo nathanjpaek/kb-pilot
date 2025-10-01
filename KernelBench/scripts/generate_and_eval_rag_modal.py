@@ -1,10 +1,10 @@
 """
-Generate and Evaluate TileLang Kernels using DSPy RAG + Modal
+Generate and Evaluate DSL Kernels using DSPy RAG + Modal
 
-This script uses the high-performance DSPy RAG system for TileLang generation,
+This script uses the high-performance DSPy RAG system for DSL generation,
 then evaluates the generated kernels on Modal infrastructure.
 
-Optimized for use with OpenAI O3 and resource-unconstrained environments.
+Optimized for use with OpenAI O3 and resouce-unconstrained environments.
 """
 
 import pydra
@@ -14,6 +14,7 @@ import torch
 import json
 import modal
 import dspy
+import textwrap
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -22,10 +23,17 @@ from datasets import load_dataset
 
 from src.dataset import construct_kernelbench_dataset
 from src.eval import eval_kernel_against_ref
-from src.prompt_constructor_rag import prompt_generate_custom_tilelang_rag_enhanced
-from src.utils import extract_first_code, set_gpu_arch, read_file
-from scripts.tilelang_paperinfo_prompt import PAPER_PROMPT
-from scripts.tilelang_guideline_prompt import GUIDELINE_PROMPT
+from src.prompt_constructor_rag import prompt_generate_custom_dsl_rag_enhanced
+from src.utils import extract_first_code, extract_code_block, extract_all_code_blocks, create_tk_makefile, set_gpu_arch, read_file
+
+# TileLang-specific prompts
+from scripts.tilelang_paperinfo_prompt import TILELANG_PAPER_PROMPT
+from scripts.tilelang_guideline_prompt import TILELANG_GUIDELINE_PROMPT
+
+# ThunderKittens-specific prompts
+from scripts.tk_paperinfo_prompt import TK_PAPER_PROMPT
+from scripts.tk_guideline_prompt import TK_GUIDELINE_PROMPT
+
 
 
 def strip_docstring_from_code(code: str) -> str:
@@ -62,7 +70,7 @@ def strip_docstring_from_code(code: str) -> str:
     return code
 
 
-app = modal.App("eval_rag_tilelang")
+app = modal.App("eval_rag_dsl")
 
 REPO_TOP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -78,6 +86,9 @@ class RAGEvalConfig(Config):
 
         # name of dataset name on Hugging Face
         self.dataset_name = "ScalingIntelligence/KernelBench"
+
+        # Language/DSL
+        self.language = "tilelang"  # Options: "tilelang", "tk", "cuda"
 
         # Problem Specification
         self.level = REQUIRED
@@ -115,7 +126,7 @@ class RAGEvalConfig(Config):
         return f"RAGEvalConfig({self.to_dict()})"
 
 
-cuda_version = "12.4.0"
+cuda_version = "12.8.0"  # Updated from 12.4.0 to 12.8.0
 flavor = "devel"
 operating_sys = "ubuntu22.04"
 tag = f"{cuda_version}-{flavor}-{operating_sys}"
@@ -140,29 +151,222 @@ image = (
         "google-generativeai",
         "together",
         "pytest",
+        "pyutils",
         "ninja",
         "utils",
+        "pybind11",
         "python-dotenv",
         "tilelang",
         "apache-tvm",
         "dspy-ai"
     )
+    .env({"THUNDERKITTENS_ROOT": "/root/ThunderKittens"})
     .add_local_python_source("scripts", "src")
     .add_local_dir("KernelBench", "/root/KernelBench")
+    .add_local_dir("correct_tk", "/root/correct_tk")
+    .add_local_dir("ThunderKittens", "/root/ThunderKittens")
 )
-
 
 @app.cls(image=image)
 class EvalFunc:
 
     @modal.method()
-    def eval_single_sample_modal(self, ref_arch_src, custom_cuda, verbose, gpu_arch, language, entry_point=None):
-        # SET DEFAULT DTYPE TO FLOAT16 AT THE VERY BEGINNING OF MODAL FUNCTION
-        torch.set_default_dtype(torch.float16)
+    def eval_single_sample_modal(self, ref_arch_src, custom_cuda, verbose, gpu_arch, language, entry_point=None, cu_code: str | None = None):
+        # SET DEFAULT DTYPE TO FLOAT16 ONLY FOR TILELANG
+        if language == "tilelang":
+            torch.set_default_dtype(torch.float16)
         
         from src.eval import eval_kernel_against_ref
-        from src.utils import set_gpu_arch
+        from src.utils import set_gpu_arch, create_tk_makefile
+        import os, subprocess, sys
+
+        py_code = """
+        import tk_kernels
+import torch
+import torch.nn as nn
+
+INPUT_DTYPE = torch.bfloat16
+OUTPUT_DTYPE = torch.float
+
+M = 16
+N = 16384
+K = N
+
+class ModelNew(nn.Module):
+    def __init__(self):
+        super(ModelNew, self).__init__()
+    
+    def forward(self, A, B):
+        output = torch.zeros(M, M, dtype=OUTPUT_DTYPE, device='cuda')
+
+        A = A.cuda()
+        B = B.cuda()
+        tk_kernels.dispatch_micro(A, B, output, K)
+        
+        return output
+
+
+A = torch.rand(M, N, dtype=INPUT_DTYPE) / N # [16, 1024]
+B = torch.rand(N, M, dtype=INPUT_DTYPE) / N # [1024, 16]
+
+A = A.cuda()
+B = B.cuda()
+
+output_ref = torch.matmul(A, B).to(OUTPUT_DTYPE)
+print("Ref output shape:", output_ref.shape)
+print("Ref output mean:", output_ref.mean())
+
+
+model = ModelNew().cuda()
+output = model(A, B)
+print("TK Output shape:", output.shape)
+print("TK Output mean:", output.mean())
+
+# import pdb; pdb.set_trace()
+
+assert torch.allclose(output, output_ref, atol=1e-2)
+        """
+
+        cu_code = """
+        #include "kittens.cuh"
+#include "pyutils/pyutils.cuh"
+using namespace kittens;
+
+#define NUM_WORKERS (1)
+#define NUM_THREADS (NUM_WORKERS * kittens::WARP_THREADS)
+
+// Tile dimensions
+#define TILE_M 16
+#define TILE_N 16
+#define TILE_K 16
+
+// Global memory descriptors
+using a_gl = gl<bf16, -1, -1, -1, -1, st<bf16, TILE_M, TILE_K>>;
+using b_gl = gl<bf16, -1, -1, -1, -1, st<bf16, TILE_K, TILE_N>>;
+using c_gl = gl<float, -1, -1, -1, -1, st<float, TILE_M, TILE_N>>;
+
+struct micro_globals {
+    a_gl a;
+    b_gl b;
+    c_gl c;
+    int K; // Total K dimension to loop over
+    
+    dim3 grid() const { 
+        return dim3((c.cols() + TILE_N - 1) / TILE_N, 
+                   (c.rows() + TILE_M - 1) / TILE_M); 
+    }
+    dim3 block() const { return dim3(NUM_THREADS); }
+    int dynamic_shared_memory() const { return 224000; }
+};
+
+__global__ __launch_bounds__(NUM_THREADS, 1)
+void micro_tk(const __grid_constant__ micro_globals g) {
+    const int tile_row = blockIdx.y;
+    const int tile_col = blockIdx.x;
+    
+    extern __shared__ alignment_dummy __shm[];
+    shared_allocator al((int*)&__shm[0]);
+
+    // Allocate shared memory tiles
+    st<bf16, TILE_M, TILE_K> (&a_s) = al.allocate<st<bf16, TILE_M, TILE_K>>();
+    st<bf16, TILE_K, TILE_N> (&b_s) = al.allocate<st<bf16, TILE_K, TILE_N>>();
+    st<float, TILE_M, TILE_N> (&c_s) = al.allocate<st<float, TILE_M, TILE_N>>();
+
+    // Register tiles
+    rt<bf16, TILE_M, TILE_K, ducks::rt_layout::row> a_reg;
+    rt<bf16, TILE_K, TILE_N, ducks::rt_layout::col> b_reg;
+    rt<float, TILE_M, TILE_N, ducks::rt_layout::row> accum;
+    kittens::warp::zero(accum);
+
+    // Loop over K dimension in tiles
+    for (int k = 0; k < g.K; k += TILE_K) {
+        // if (blockIdx.x == 0 && blockIdx.y == 0) {
+        // }
+
+        // Load tiles from global memory
+        kittens::warpgroup::load(a_s, g.a, {0, k});
+        kittens::warpgroup::load(b_s, g.b, {0, k});
+        __syncthreads();
+
+        // Load to registers
+        kittens::warp::load(a_reg, a_s);
+        kittens::warp::load(b_reg, b_s);
+        __syncthreads();
+
+        // Perform matrix multiplication on tiles
+        kittens::warp::mma_AB(accum, a_reg, b_reg, accum);
+
+        // if (blockIdx.x == 0 && blockIdx.y == 0) {
+        // }
+
+        __syncthreads();
+    }
+
+    // Store result
+    kittens::warp::store(c_s, accum);
+    __syncthreads();
+    kittens::warpgroup::store(g.c, c_s, {0, 0});
+    __syncthreads(); // SIMON: I added this
+
+}
+
+void dispatch_micro(micro_globals g) {
+    unsigned long mem_size = 50480;
+    cudaFuncSetAttribute(
+        micro_tk,
+        cudaFuncAttributeMaxDynamicSharedMemorySize,
+        mem_size
+    );
+    micro_tk<<<g.grid(), g.block(), mem_size>>>(g);
+    cudaDeviceSynchronize();
+}
+
+PYBIND11_MODULE(tk_kernels, m) {
+    m.doc() = "tk_kernels python module";
+    kittens::py::bind_kernel<micro_tk, micro_globals>(m, "micro_tk", 
+        &micro_globals::a, 
+        &micro_globals::b, 
+        &micro_globals::c, 
+        &micro_globals::K);
+    kittens::py::bind_function<dispatch_micro, micro_globals>(m, "dispatch_micro", 
+        &micro_globals::a, 
+        &micro_globals::b, 
+        &micro_globals::c, 
+        &micro_globals::K);
+}
+        """
+        
+        # If ThunderKittens, write and compile the kernel inside Modal container
+        if language == "thunderkittens" and cu_code is not None:
+            # Determine TK kernel dir consistently with src.eval
+            # src.eval computes TK dir as parent_of_src/correct_tk
+            src_dir = os.path.dirname(__import__('src').__file__)
+            repo_top = os.path.abspath(os.path.join(src_dir, ".."))
+            tk_kernel_dir = os.path.join(repo_top, "correct_tk")
+            os.makedirs(tk_kernel_dir, exist_ok=True)
+
+            cu_file_path = os.path.join(tk_kernel_dir, "custom_tk.cu")
+            with open(cu_file_path, "w") as f:
+                f.write(cu_code)
+
+            # Create Makefile and compile
+            create_tk_makefile(tk_kernel_dir, gpu="H100")
+            try:
+                subprocess.run(["make", "clean"], cwd=tk_kernel_dir, check=False, capture_output=True, text=True)
+                result = subprocess.run(["make"], cwd=tk_kernel_dir, check=True, capture_output=True, text=True, env={**os.environ})
+            except subprocess.CalledProcessError as e:
+                print("[Modal TK Compile] Failed to compile ThunderKittens kernel")
+                print("STDOUT:\n" + (e.stdout or ""))
+                print("STDERR:\n" + (e.stderr or ""))
+                raise
+            # Ensure path is importable
+            if tk_kernel_dir not in sys.path:
+                sys.path.append(tk_kernel_dir)
+                
         set_gpu_arch(gpu_arch)
+        # Sanitize custom CUDA/Python wrapper code to avoid indentation errors
+        if isinstance(custom_cuda, str):
+            custom_cuda = textwrap.dedent(custom_cuda).lstrip()
         return eval_kernel_against_ref(
             ref_arch_src, custom_cuda, verbose=verbose, measure_performance=True, 
             num_correct_trials=5, num_perf_trials=100, language=language, entry_point=entry_point
@@ -188,8 +392,10 @@ def main(config: RAGEvalConfig):
     """
     print(f"Starting RAG Evaluation with config: {config}")
     
-    print(">>> Setting default dtype to float16 <<<")
-    torch.set_default_dtype(torch.float16)
+    
+    if config.language == "tilelang":
+        print(">>> Setting default dtype to float16 (TileLang only) <<<")
+        torch.set_default_dtype(torch.float16)
 
     # Configure DSPy with the specified model
     lm = configure_dspy(config.dspy_model, config.dspy_temperature)
@@ -228,14 +434,24 @@ def main(config: RAGEvalConfig):
     problem_number = int(problem_name.split("_")[0])
     assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
     
-    # 2. Generate TileLang Code using DSPy RAG
+    # 2. Generate DSL Code using DSPy RAG
     if not config.eval_only:
-        print(">>> GENERATING TILELANG CODE USING DSPY RAG <<<")
+        print(f">>> GENERATING {config.language.upper()} CODE USING DSPY RAG <<<")
+
+        if config.language == "tilelang":
+            PAPER_PROMPT = TILELANG_PAPER_PROMPT
+            GUIDELINE_PROMPT = TILELANG_GUIDELINE_PROMPT
+        elif config.language == "thunderkittens":
+            PAPER_PROMPT = TK_PAPER_PROMPT
+            GUIDELINE_PROMPT = TK_GUIDELINE_PROMPT
+        else:
+            raise ValueError(f"Unsupported language: {config.language}. Use 'tilelang' or 'thunderkittens'")
         
         try:
             # Use the high-performance RAG system
-            tilelang_code = prompt_generate_custom_tilelang_rag_enhanced(
+            tilelang_code = prompt_generate_custom_dsl_rag_enhanced(
                 ref_arch_src=ref_arch_src,
+                language=config.language,
                 paper_prompt=PAPER_PROMPT,
                 guideline_prompt=GUIDELINE_PROMPT,
                 problem_description=f"Optimize {problem_name}",
@@ -290,24 +506,148 @@ def main(config: RAGEvalConfig):
         if config.eval_file_path:
             path = config.eval_file_path
         else:
-            path = f"src/prompts/correct_tilelang/level{config.level}/{config.level}_{config.problem_id}.py"
+            path = f"src/prompts/correct_{config.language}/level{config.level}/{config.level}_{config.problem_id}.py"
 
         raw_code = open(path).read()
         clean_code = strip_docstring_from_code(raw_code)
         tilelang_code = "```python\n" + clean_code + "\n```"
         print(f">>> Stripped old docstring, using clean code for evaluation <<<")
+        
+        # For ThunderKittens eval_only, ensure kernel is compiled
+        if config.language == "thunderkittens":
+            tk_kernel_dir = os.path.join(REPO_TOP_DIR, "correct_tk")
+            cu_file_path = os.path.join(tk_kernel_dir, "custom_tk.cu")
+            
+            # Check if .cu file exists
+            if not os.path.exists(cu_file_path):
+                raise FileNotFoundError(f"ThunderKittens kernel file not found: {cu_file_path}. Please ensure custom_tk.cu exists in correct_tk/")
+            
+            # Check if compiled .so exists
+            so_files = [f for f in os.listdir(tk_kernel_dir) if f.startswith("tk_kernels") and f.endswith(".so")]
+            
+            if not so_files:
+                print(f"⚠️ No compiled .so found, compiling {cu_file_path}...")
+                create_tk_makefile(tk_kernel_dir, gpu=config.gpu)
+                
+                import subprocess
+                compile_result = subprocess.run(
+                    ["make", "clean"],
+                    cwd=tk_kernel_dir,
+                    capture_output=True,
+                    text=True
+                )
+                compile_result = subprocess.run(
+                    ["make"],
+                    cwd=tk_kernel_dir,
+                    capture_output=True,
+                    text=True,
+                    env={**os.environ}
+                )
+                
+                if compile_result.returncode != 0:
+                    raise RuntimeError(f"ThunderKittens compilation failed: {compile_result.stderr}")
+                
+                print(f"✅ Compiled ThunderKittens kernel")
+            else:
+                print(f"✅ Using existing compiled kernel: {so_files[0]}")
 
-    # Extract code from markdown
-    custom_cuda = extract_first_code(tilelang_code, ["python", "cpp"])
+    # Extract and process code based on language
+    if config.language == "thunderkittens":
+        print(">>> PROCESSING THUNDERKITTENS CODE <<<")
+        
+        # ThunderKittens requires TWO code blocks: .cu kernel and .py wrapper
+        all_blocks = extract_all_code_blocks(tilelang_code)
+        
+        # Extract .cu kernel (can be marked as cpp, c++, or cuda)
+        cu_code = all_blocks.get("cpp") or all_blocks.get("c++") or all_blocks.get("cuda")
+        py_code = all_blocks.get("python")
+        
+        if cu_code is None:
+            raise ValueError(f"ThunderKittens requires .cu kernel code block (```cpp). Found blocks: {list(all_blocks.keys())}")
+        if py_code is None:
+            raise ValueError(f"ThunderKittens requires Python wrapper code block (```python). Found blocks: {list(all_blocks.keys())}")
+        
+        print(f"✅ Extracted both .cu kernel ({len(cu_code)} chars) and .py wrapper ({len(py_code)} chars)")
+        
+        import re
+        tk_kernel_dir = os.path.join(REPO_TOP_DIR, "correct_tk")
+        os.makedirs(tk_kernel_dir, exist_ok=True)
+
+        cu_file_path = os.path.join(tk_kernel_dir, "custom_tk.cu")
+        with open(cu_file_path, "w") as f:
+            f.write(cu_code)
+        print(f"📝 Wrote .cu kernel to {cu_file_path}")
+
+        # Create Makefile for reference only; do not run make locally
+        create_tk_makefile(tk_kernel_dir, gpu=config.gpu)
+        print(f"📝 Created Makefile in {tk_kernel_dir}")
+
+
+        py_code = """
+        import tk_kernels
+import torch
+import torch.nn as nn
+
+INPUT_DTYPE = torch.bfloat16
+OUTPUT_DTYPE = torch.float
+
+M = 16
+N = 16384
+K = N
+
+class ModelNew(nn.Module):
+    def __init__(self):
+        super(ModelNew, self).__init__()
+    
+    def forward(self, A, B):
+        output = torch.zeros(M, M, dtype=OUTPUT_DTYPE, device='cuda')
+
+        A = A.cuda()
+        B = B.cuda()
+        tk_kernels.dispatch_micro(A, B, output, K)
+        
+        return output
+
+
+A = torch.rand(M, N, dtype=INPUT_DTYPE) / N # [16, 1024]
+B = torch.rand(N, M, dtype=INPUT_DTYPE) / N # [1024, 16]
+
+A = A.cuda()
+B = B.cuda()
+
+output_ref = torch.matmul(A, B).to(OUTPUT_DTYPE)
+print("Ref output shape:", output_ref.shape)
+print("Ref output mean:", output_ref.mean())
+
+
+model = ModelNew().cuda()
+output = model(A, B)
+print("TK Output shape:", output.shape)
+print("TK Output mean:", output.mean())
+
+# import pdb; pdb.set_trace()
+
+assert torch.allclose(output, output_ref, atol=1e-2)
+        """
+
+        # Use Python wrapper for execution; pass ORIGINAL cu_code to Modal for remote compile
+        # (Modal has ThunderKittens installed, so includes are needed)
+        custom_cuda = textwrap.dedent(py_code).lstrip()
+        # Keep cu_code as original with includes intact for Modal compilation
+        
+    else:
+        # Standard code extraction for other languages
+        custom_cuda = extract_first_code(tilelang_code, ["python", "cpp"])
     
     # Validate generation
-    assert custom_cuda is not None, "TileLang code generation failed"
+    assert custom_cuda is not None, f"{config.language} code generation failed"
     
     # Print out costs
     history = lm.history
     total_cost = 0
     for entry in history:
-        total_cost += entry["cost"]
+        if entry.get("cost") is not None:
+            total_cost += entry["cost"]
     print(f"Number of interactions: {len(history)}")
     print(f"Total cost: ${total_cost}")
 
@@ -326,7 +666,7 @@ def main(config: RAGEvalConfig):
     
     with app.run():
         kernel_exec_result = EvalFunc.with_options(gpu=config.gpu)().eval_single_sample_modal.remote(
-            ref_arch_src, custom_cuda, config.verbose, gpu_arch_mapping[config.gpu], "tilelang", entry_point
+            ref_arch_src, custom_cuda, config.verbose, gpu_arch_mapping[config.gpu], config.language, entry_point, cu_code if config.language == "thunderkittens" else None
         )
         
         print(f"\n{'='*60}")
@@ -341,7 +681,11 @@ def main(config: RAGEvalConfig):
         # Save successful kernels
         if kernel_exec_result.correctness:
             if config.eval_file_path is None:
-                base_path = f"src/prompts/correct_tilelang/level{config.level}/{config.level}_{config.problem_id}.py"
+                # Map language to correct directory
+                base_dir = f"src/prompts/correct_{config.language}/level{config.level}"
+                
+                os.makedirs(base_dir, exist_ok=True)
+                base_path = f"{base_dir}/{config.level}_{config.problem_id}.py"
                 path = base_path
                 
                 # Extract speedup ratio from current result
@@ -375,6 +719,22 @@ Evaluation Result:
 """
 
 {custom_cuda}''')
+            
+            # For ThunderKittens, also save the .cu file in the same directory
+            if config.language == "thunderkittens" and not config.eval_only:
+                cu_save_path = path.replace(".py", ".cu")
+                # cu_code was extracted earlier, save it
+                if 'cu_code' in locals():
+                    with open(cu_save_path, "w") as f:
+                        f.write(cu_code)
+                    print(f"💾 Also saved .cu kernel to {cu_save_path}")
+                else:
+                    # Copy from correct_tk/custom_tk.cu if it exists
+                    tk_cu_source = os.path.join(REPO_TOP_DIR, "correct_tk/custom_tk.cu")
+                    if os.path.exists(tk_cu_source):
+                        import shutil
+                        shutil.copy(tk_cu_source, cu_save_path)
+                        print(f"💾 Copied .cu kernel to {cu_save_path}")
         
         if config.log_eval_result:
             with open(os.path.join(config.logdir, f"rag_eval_result_level_{config.level}_problem_{config.problem_id}.txt"), "w") as f:

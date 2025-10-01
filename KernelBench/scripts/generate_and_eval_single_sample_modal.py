@@ -13,16 +13,19 @@ from datasets import load_dataset
 
 from src.dataset import construct_kernelbench_dataset
 from src.eval import eval_kernel_against_ref
-from src.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template, prompt_generate_custom_tilelang_from_prompt_template, prompt_generate_custom_tilelang_fewshot_and_template
+from src.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template, prompt_generate_custom_tilelang_from_prompt_template, prompt_generate_custom_tilelang_fewshot_and_template, prompt_generate_custom_thunderkitten_from_prompt_template
 from src.utils import extract_first_code, query_server, set_gpu_arch, read_file, create_inference_server_from_presets
 from scripts.debug_suggestor_plan import PLAN_2_12, PLAN_3_9, PLAN_3_2
-from scripts.tilelang_icl_prompt import ICL_PROMPT
-from scripts.tilelang_guideline_prompt import GUIDELINE_PROMPT
-from scripts.tilelang_paperinfo_prompt import PAPER_PROMPT
-from scripts.tilelang_elemdocs_prompt import ELEMDOCS_PROMPT
-from scripts.tilelang_flashmladocs_prompt import FLASHMLADOCS_PROMPT
-from scripts.tilelang_cumsum_prompt import CUMSUM_PROMPT
-from scripts.tilelang_conv_prompt import CONV_PROMPT
+
+# TileLang-specific prompts
+from scripts.tilelang_icl_prompt import TILELANG_ICL_PROMPT
+from scripts.tilelang_guideline_prompt import TILELANG_GUIDELINE_PROMPT
+from scripts.tilelang_paperinfo_prompt import TILELANG_PAPER_PROMPT
+
+# ThunderKittens-specific prompts
+from scripts.tk_icl_prompt import TK_ICL_PROMPT
+from scripts.tk_guideline_prompt import TK_GUIDELINE_PROMPT
+from scripts.tk_paperinfo_prompt import TK_PAPER_PROMPT
 
 
 def strip_docstring_from_code(code: str) -> str:
@@ -166,8 +169,9 @@ class EvalFunc:
 
     @modal.method()
     def eval_single_sample_modal(self, ref_arch_src, custom_cuda, verbose, gpu_arch, language, entry_point=None):
-        # SET DEFAULT DTYPE TO FLOAT16 AT THE VERY BEGINNING OF MODAL FUNCTION
-        torch.set_default_dtype(torch.float16)
+        # SET DEFAULT DTYPE TO FLOAT16 ONLY FOR TILELANG
+        if language == "tilelang":
+            torch.set_default_dtype(torch.float16)
         
         # 3. Evaluate Kernel
         # NOTE: no need to wrap around process here as only a single sample
@@ -187,8 +191,10 @@ def main(config: EvalConfig):
     """
     print(f"Starting Eval with config: {config}")
     
-    print(">>> Setting default dtype to float16 <<<")
-    torch.set_default_dtype(torch.float16)
+    
+    if config.language == "tilelang":
+        print(">>> Setting default dtype to float16 (TileLang only) <<<")
+        torch.set_default_dtype(torch.float16)
 
     # Configurations
     
@@ -248,6 +254,10 @@ def main(config: EvalConfig):
     if config.language == "cuda":
         custom_cuda_prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
     elif config.language == "tilelang":
+        PAPER_PROMPT = TILELANG_PAPER_PROMPT
+        GUIDELINE_PROMPT = TILELANG_GUIDELINE_PROMPT
+        ICL_PROMPT = TILELANG_ICL_PROMPT
+        
         if config.use_tilelang_fewshot:
             # Use few-shot prompting with examples from correct_tilelang
             print(">>> Using TileLang few-shot examples (all available) <<<")
@@ -283,14 +293,29 @@ Now, here is your task:
 """
             # Then add the specific task prompt
             custom_cuda_prompt += prompt_generate_custom_tilelang_from_prompt_template(ref_arch_src)
+    elif config.language == "thunderkittens":
+        PAPER_PROMPT = TK_PAPER_PROMPT
+        GUIDELINE_PROMPT = TK_GUIDELINE_PROMPT
+        ICL_PROMPT = TK_ICL_PROMPT
+        
+        print(">>> Using ThunderKittens prompting <<<")
+        custom_cuda_prompt = f"""
+You are given information about ThunderKittens here: \n{PAPER_PROMPT}\n
+You are given additional tips about ThunderKittens here: \n{GUIDELINE_PROMPT}\n
+You are given in context examples of ThunderKittens kernels here: \n{ICL_PROMPT}\n
 
-            # # Add error information if available
-            # ERR = """
-            # compiled=True correctness=False metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'runtime_error': 'Kernel call failed: TMA Desc Addr:   0x7fc24e6b5e80\nformat         6\ndim            2\ngmem_address   0x2b97e2000000\nglobalDim      0x7fc24e6b5e40\nglobalStrides  0x7fc24e6b5e58\nboxDim         0x7fc24e6b5e30\nelementStrides 0x7fc24e6b5e38\ninterleave     0\nswizzle        2\nl2Promotion    2\noobFill        0\nError: Failed to initialize the TMA descriptor A_desc'} runtime=-1.0 runtime_stats={}
-            # """
-            # custom_cuda_prompt += f"\nYou are given a previous error message here: {ERR}\n"
+IMPORTANT GUIDELINES:
+- DO NOT USE torch.nn (except for Parameter, containers, and init). This means you cannot use torch.nn.functional, F, torch.nn.Conv3d, or any other torch.nn modules.
+- When giving your output PLEASE remember to not add additional text within your code block!
+- Focus on generating efficient ThunderKittens implementations using TK-specific optimizations
+- Optimize for performance on NVIDIA H100 (e.g. shared memory, warp-level primitives, tensor cores,...)
+
+Now, here is your task:
+"""
+        # Use TileLang template for now (can be customized later)
+        custom_cuda_prompt += prompt_generate_custom_thunderkitten_from_prompt_template(ref_arch_src)
     else:
-        raise ValueError(f"Unsupported language specified: {config.language}. Choose 'cuda' or 'tilelang'.")
+        raise ValueError(f"Unsupported language specified: {config.language}. Choose 'cuda', 'tilelang', or 'thunderkittens'.")
 
     if config.log_prompt:
         with open(os.path.join(config.logdir, f"prompt_level_{config.level}_problem_{config.problem_id}.txt"), "w") as f:
@@ -305,7 +330,7 @@ Now, here is your task:
         if config.eval_file_path:
             path = config.eval_file_path
         else:
-            path = f"src/prompts/correct_tilelang/level{config.level}/{config.level}_{config.problem_id}.py"
+            path = f"src/prompts/correct_{config.language}/level{config.level}/{config.level}_{config.problem_id}.py"
 
         # Read the file and strip the old docstring to get fresh evaluation results
         raw_code = open(path).read()
@@ -336,13 +361,13 @@ Now, here is your task:
         
         if kernel_exec_result.correctness:
             if config.eval_file_path is None:
-                os.makedirs("src/prompts/correct_tilelang2", exist_ok=True)
-                path = f"src/prompts/correct_tilelang2/{config.level}_{config.problem_id}.py"
+                os.makedirs(f"src/prompts/correct_{config.language}/level{config.level}", exist_ok=True)
+                path = f"src/prompts/correct_{config.language}/level{config.level}/{config.level}_{config.problem_id}.py"
             else:
                 path = config.eval_file_path
 
             with open(path, "w") as f:
-                print(f">>> Writing correct TileLang kernel to {f.name} <<<")
+                print(f">>> Writing correct {config.language.upper()} kernel to {f.name} <<<")
                 f.write(f'''"""
 Problem Name: {problem_name}
 Evaluation Result:

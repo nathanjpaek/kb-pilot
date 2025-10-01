@@ -18,10 +18,7 @@ from scripts.debug_suggestor_plan import PLAN_2_12, PLAN_3_9, PLAN_3_2
 from scripts.tilelang_icl_prompt import ICL_PROMPT
 from scripts.tilelang_guideline_prompt import GUIDELINE_PROMPT
 from scripts.tilelang_paperinfo_prompt import PAPER_PROMPT
-from scripts.tilelang_elemdocs_prompt import ELEMDOCS_PROMPT
-from scripts.tilelang_flashmladocs_prompt import FLASHMLADOCS_PROMPT
-from scripts.tilelang_cumsum_prompt import CUMSUM_PROMPT
-from scripts.tilelang_conv_prompt import CONV_PROMPT
+
 
 app = modal.App("debug_conv3d")
 

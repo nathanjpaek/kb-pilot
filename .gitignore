@@ -179,3 +179,5 @@ cython_debug/
 
 
 KernelBench/reasoning_data/
+
+KernelBench/KernelBook/dataset_permissive.parquet

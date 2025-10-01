@@ -24,6 +24,8 @@ REPO_TOP_PATH = os.path.abspath(
 )
 KERNEL_BENCH_PATH = os.path.join(REPO_TOP_PATH, "KernelBench")
 
+TK_KERNEL_DIR = os.path.join(REPO_TOP_PATH, "correct_tk")
+
 
 def fetch_kernel_from_database(
     run_name: str, problem_id: int, sample_id: int, server_url: str
@@ -117,6 +119,9 @@ def load_original_model_and_inputs(
         Model = context.get("Model")
     return (Model, get_init_inputs_fn, get_inputs_fn)
 
+###########################################
+##### model loader for both CUDA and TK ###
+###########################################
 
 def load_custom_model(
     model_custom_src: str, context: dict, build_directory: str = None
@@ -143,7 +148,20 @@ def load_custom_model(
     ModelNew = context.get("ModelNew")
     return ModelNew
 
-##### added model loader for Tilelang #####
+# TK environment helper
+def prepare_thunderkittens_env():
+    if TK_KERNEL_DIR not in sys.path:
+        sys.path.append(TK_KERNEL_DIR)
+    try:
+        import tk_kernels
+    except Exception as e:
+        raise ImportError(
+            f"Could not import 'tk_kernels' from {TK_KERNEL_DIR}. Error: {e}"
+        )
+
+###########################################
+##### Added model loader for Tilelang #####
+###########################################
 
 import hashlib, linecache, textwrap, os, types
 
@@ -353,8 +371,9 @@ def eval_kernel_against_ref(
     # TODO: check device is busy
     assert torch.cuda.is_available(), "CUDA is not available, cannot run Eval"
     
-    # SET DEFAULT DTYPE TO FLOAT16 AT THE VERY BEGINNING
-    torch.set_default_dtype(torch.float16)
+    # SET DEFAULT DTYPE TO FLOAT16 ONLY FOR TILELANG
+    if language.lower() == "tilelang":
+        torch.set_default_dtype(torch.float16)
     
     torch.set_printoptions(
         precision=4,  # Decimal places
@@ -436,6 +455,9 @@ def eval_kernel_against_ref(
 
         if language.lower() == "tilelang":  
             ModelNew = load_tilelang_model(custom_model_src, context, build_dir)  
+        elif language.lower() == "thunderkittens":
+            prepare_thunderkittens_env()
+            ModelNew = load_custom_model(custom_model_src, context, build_dir)
         else:  
             ModelNew = load_custom_model(custom_model_src, context, build_dir)  
 
@@ -701,7 +723,8 @@ def run_and_check_correctness(
             if verbose:
                 print(f"[Eval] Generating Random Input with seed {trial_seed}")
                 
-            torch.set_default_dtype(torch.float16)
+            if language.lower() == "tilelang":
+                torch.set_default_dtype(torch.float16)
 
             set_seed(trial_seed)
             inputs = get_inputs_fn()
@@ -759,6 +782,11 @@ def run_and_check_correctness(
                         
                     if output.dtype != output_new.dtype:
                         output = output.to(output_new.dtype)
+                
+                elif language.lower() == "thunderkittens":
+                    if verbose:
+                        print(f"ThunderKittens: atol={current_atol}, rtol={current_rtol}")
+
 
                 #####################################################
 

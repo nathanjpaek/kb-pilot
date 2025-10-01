@@ -1,4 +1,4 @@
-PAPER_PROMPT = """
+TILELANG_PAPER_PROMPT = """
 TileLang is a Python-based domain-specific language that simplifies high-performance AI kernel development on GPUs by combining Pythonic syntax, dataflow-centric programming, and composability. The language decouples scheduling aspects—such as thread binding, memory layout, tensorization, and pipelining—from dataflow, encapsulating them as a set of customization annotations and primitives. This approach enables users to concentrate on the kernel's dataflow, leaving most optimizations to the compiler.
 
 In TileLang, tiles are treated as first-class objects representing shaped portions of data owned by warps, thread blocks, or parallel units. The language provides explicit control over hardware memory allocation: T.alloc_shared() allocates memory in fast, on-chip storage corresponding to shared memory on NVIDIA GPUs; T.alloc_fragment() allocates accumulators in fragment memory, corresponding to register files; and T.alloc_local() provides thread-private storage for individual thread operations. These allocations are crucial for optimizing data reuse and minimizing latency.

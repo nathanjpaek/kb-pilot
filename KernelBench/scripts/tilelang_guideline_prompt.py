@@ -1,4 +1,4 @@
-GUIDELINE_PROMPT = """
+TILELANG_GUIDELINE_PROMPT = """
 Your goal is to create a `ModelNew(nn.Module)` class that replaces specified PyTorch operators with high-performance, numerically correct TileLang kernels.
 
 **I. Core Task Requirements for `ModelNew`:**
@@ -58,4 +58,34 @@ Your goal is to create a `ModelNew(nn.Module)` class that replaces specified PyT
 10. **Mixed Precision:** Use `dtype="float16"` for I/O and shared memory, and `accum_dtype="float32"` for reductions, for a good speed/accuracy trade-off.
 
 By strictly adhering to these prioritized guidelines, focusing on correct parameter initialization and GEMM transpose logic, your system will have a much higher chance of generating correct and performant TileLang kernels for `ModelNew` tasks.
+
+CRITICAL GUIDELINES:
+- PRIMARY GOAL: Generate a CORRECT and FAST TileLang implementation
+- PERFORMANCE IS IMPORTANT: Your optimization decisions should prioritize performance
+- DO NOT USE torch.nn (except for Parameter, containers, and init)
+- Generate efficient TileLang implementations using @T.prim_func
+- Use tilelang.jit(out_idx=-1) for output tensor creation
+- Use (val > a and val < b) instead of (a < val < b) for boundary checks
+
+SPEED OPTIMIZATION STRATEGIES:
+1. MEMORY COALESCING: Ensure coalesced memory access patterns
+2. REGISTER USAGE: Use T.alloc_local() for register-level computations
+3. SHARED MEMORY: Use T.alloc_shared() for block-level data sharing
+4. THREAD PARALLELISM: Maximize T.Parallel usage and thread utilization
+5. MEMORY HIERARCHY: Optimize data movement between global/shared/register memory
+6. BLOCK/GRID SIZING: Choose optimal block and grid dimensions for the target GPU
+7. CONTEXT: You may see similar problems in the context, but they may not necessarily be efficient. You should use the context as a guide, but not as a strict rule, and try to generate a better implementation.
+
+TARGET HARDWARE: NVIDIA H100 (Hopper architecture)
+- Optimize for high memory bandwidth utilization
+- Leverage tensor cores when applicable
+- Design for maximum occupancy and warp efficiency
+
+OUTPUT REQUIREMENTS:
+- Generate ONLY the ModelNew class code
+- No additional text, comments, or explanations
+- Focus on the most performance-critical optimizations
+- Focus on replacing and fusing all PyTorch operators with efficient TileLang implementations
+- If a module has multiple operators, try to fuse them as much as possible into a single TileLang kernel or write multiple efficient TileLang kernels to replace all of those operators.
+- Your highest priority should be correctness, then speed and finally code simplicity
 """

@@ -31,9 +31,110 @@ def get_arch_definition(arch_src):
     prompt = f"Here is a pytorch defintion of a neural network architecture in the file model.py: ```{arch_src}```\n"
     return prompt
 
+
+
 ############################################
-# tilelang Prompt
+# ThunderKittens Prompt
 ############################################
+
+PROBLEM_TK_STATEMENT = """You write custom ThunderKitten kernels to replace the PyTorch operators in the given architecture to get speedups. \n
+    ThunderKitten (TK) provides tile primitives to write CUDA Kernels for GPUs. You can make the decision to replace some operators in the given Torch architecture with custom ThunderKitten kernels and leave others unchanged.\n
+"""
+
+PROBLEM_TK_INSTRUCTION = """
+Optimize the architecture named Model with custom ThunderKitten operators! Please output two piece of code wrapped in 2 codeblocks: 
+1. ThunderKitten Kernel in .cu. Wrap this in ```cpp and ```
+2. Optimized Torch Architecture in .py. It should have imports tk_kernels at the top and uses the replaced ThunderKitten kernels. Name your optimized output architecture ModelNew. Just output the new model code, no other text, and NO testing code! Wrap this in ```python and ```
+
+Please generate real code, NOT pseudocode, make sure the code compiles and is fully functional.  \n
+"""
+
+
+def prompt_generate_custom_thunderkitten(
+    arc_src: str, 
+    example_arch_src: str, 
+    example_new_arch_src: str, 
+    example_new_kernel_src: str, 
+    example_complex_kernel_src: str,
+) -> str:
+    # NOTE: Maybe replace this with TK MegaPrompt with some TK knoweldge.
+    prompt = PROBLEM_TK_STATEMENT
+
+    if example_arch_src != "" and example_new_arch_src != "":
+        prompt += f"""
+        Here's an example to show you how to write and use ThunderKitten kernel for an example problem: The example given PyTorch architecture to optimize is: \n
+        ``` \n
+        {example_arch_src}
+        ``` \n
+        The example new ThunderKitten kernel looks like this: 
+        ```
+        {example_new_kernel_src}
+        ``` \n
+        The example new PyTorch architecture calling custom ThunderKitten kernels looks like this: 
+        ```
+        {example_new_arch_src}
+        ``` \n
+        
+        """
+
+    if example_complex_kernel_src:
+        prompt += f"""
+        Here's an example of TK Kernel that tiles the computation because the tensors are too big: \n
+        ``` \n
+        {example_complex_kernel_src}
+        ``` \n
+        """
+
+    prompt += f"""
+    You are given the following architecture: \n
+    ```
+    {arc_src}
+    ```
+    """
+    prompt += PROBLEM_TK_INSTRUCTION
+    return prompt
+
+
+# NOTE: For TK Integration
+def prompt_generate_custom_thunderkitten_from_prompt_template(ref_arch_src: str) -> str:
+    """
+    Using prompt example (an element-wise addition) for prompt templates
+    The most basic form of example just to show LLM the task and the expected output format
+    """
+    arch = ref_arch_src # this is the problem to
+    # These are strictly defined for now
+
+    # path to prompt template, show an example of Model (torch specifications) and ModelNew (torch + custom CUDA kernels)
+    example_arch_path = os.path.join(
+        REPO_TOP_PATH, f"src/tk_prompts/model_ref_ex_mul.py"
+    )
+    example_new_arch_path = os.path.join(
+        REPO_TOP_PATH, f"src/tk_prompts/model_new_ex_mul.py"
+    )
+    example_new_kernel_path = os.path.join(
+        REPO_TOP_PATH, f"src/tk_prompts/kernel_new_ex_mul.cu"
+    )
+
+    example_complex_kernel_path = os.path.join(
+        REPO_TOP_PATH, f"src/tk_prompts/kernel_new_ex_attn.cu"
+    )
+
+
+    tk_knowledge_path = os.path.join(REPO_TOP_PATH, "src/tk_prompts/tk_knowledge.txt")
+
+    example_arch = read_file(example_arch_path)
+    example_new_arch = read_file(example_new_arch_path)
+    example_new_kernel = read_file(example_new_kernel_path)
+    example_complex_kernel = read_file(example_complex_kernel_path)
+    tk_knowledge = read_file(tk_knowledge_path)
+
+    return prompt_generate_custom_thunderkitten(arch, example_arch, example_new_arch, example_new_kernel, example_complex_kernel, tk_knowledge)
+
+
+############################################
+# TileLang Prompt
+############################################
+
 PROBLEM_STATEMENT_TILELANG = """You write custom TileLang kernels using the tilelang library to replace the PyTorch operators in the given architecture to get speedups.
 
 You should output a Python class `ModelNew(nn.Module)` that defines and compiles the TileLang kernel within its `__init__` method and calls the compiled kernel in its `forward` method. Focus on generating the `@T.prim_func` definition based on the PyTorch logic.

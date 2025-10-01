@@ -1,4 +1,4 @@
-ICL_PROMPT = """
+TILELANG_ICL_PROMPT = """
 TILELANG RMS NORM EXAMPLE: 
 
 import torch
