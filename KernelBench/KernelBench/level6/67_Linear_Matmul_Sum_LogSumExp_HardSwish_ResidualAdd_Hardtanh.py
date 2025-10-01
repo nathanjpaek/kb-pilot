@@ -1,0 +1,51 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class Model(nn.Module):
+    """
+    Model utilizing Matmul, Sum, LogSumExp, HardSwish, ResidualAdd, and Hardtanh.
+    Operators used: Matmul, Sum, LogSumExp, HardSwish, ResidualAdd, Hardtanh
+    """
+    def __init__(self, feature_size, hidden_size):
+        super(Model, self).__init__()
+        self.linear = nn.Linear(feature_size, hidden_size)
+        self.hardtanh = nn.Hardtanh(-3, 3)
+
+    def forward(self, x, y):
+        """
+        Forward pass of the model.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, feature_size).
+            y (torch.Tensor): Input tensor of shape (batch_size, feature_size).
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, hidden_size).
+        """
+        residual = self.linear(x)
+        matmul_result = torch.matmul(x, y.transpose(0, 1))
+        summed = torch.sum(matmul_result, dim=1, keepdim=True)
+        log_sum_exp = torch.logsumexp(summed, dim=1, keepdim=True)
+        hardswish = F.hardswish(log_sum_exp)
+        added = residual + hardswish
+        output = self.hardtanh(added)
+        return output
+
+
+def get_inputs():
+    """
+    Returns a list of input tensors for the model.
+    """
+    batch_size = 2048
+    feature_size = 128
+
+    return [torch.randn(batch_size, feature_size), torch.randn(batch_size, feature_size)]
+
+def get_init_inputs():
+    """
+    Returns a list of initialization arguments for the model.
+    """
+    feature_size = 128
+    hidden_size = 256
+    return [feature_size, hidden_size]

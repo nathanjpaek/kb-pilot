@@ -1,0 +1,62 @@
+import math
+import torch
+import torch.nn as nn
+
+
+class LocallyConnected(nn.Module):
+    """Local linear layer, i.e. Conv1dLocal() with filter size 1.
+
+    Args:
+        num_linear: num of local linear layers, i.e.
+        in_features: m1
+        out_features: m2
+        bias: whether to include bias or not
+
+    Shape:
+        - Input: [n, d, m1]
+        - Output: [n, d, m2]
+
+    Attributes:
+        weight: [d, m1, m2]
+        bias: [d, m2]
+    """
+
+    def __init__(self, num_linear, input_features, output_features, bias=True):
+        super(LocallyConnected, self).__init__()
+        self.num_linear = num_linear
+        self.input_features = input_features
+        self.output_features = output_features
+        self.weight = nn.Parameter(torch.Tensor(num_linear, input_features,
+            output_features))
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(num_linear, output_features))
+        else:
+            self.register_parameter('bias', None)
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        k = 1.0 / self.input_features
+        bound = math.sqrt(k)
+        nn.init.uniform_(self.weight, -bound, bound)
+        if self.bias is not None:
+            nn.init.uniform_(self.bias, -bound, bound)
+
+    def forward(self, input: 'torch.Tensor'):
+        out = torch.einsum('abc,bcd->abd', input, self.weight)
+        if self.bias is not None:
+            out += self.bias
+        return out
+
+    def extra_repr(self):
+        return ('num_linear={}, in_features={}, out_features={}, bias={}'.
+            format(self.num_linear, self.in_features, self.out_features, 
+            self.bias is not None))
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'num_linear': 4, 'input_features': 4, 'output_features': 4}]

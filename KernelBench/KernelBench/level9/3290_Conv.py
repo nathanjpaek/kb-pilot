@@ -1,0 +1,27 @@
+import torch
+import torch.nn as nn
+
+
+class Conv(nn.Module):
+
+    def __init__(self, input_size, output_size, kernel_size, pad_type):
+        super(Conv, self).__init__()
+        padding = (kernel_size - 1, 0) if pad_type == 'left' else (
+            kernel_size // 2, (kernel_size - 1) // 2)
+        self.pad = nn.ConstantPad1d(padding, 0)
+        self.conv = nn.Conv1d(input_size, output_size, kernel_size=
+            kernel_size, padding=0)
+
+    def forward(self, inputs):
+        inputs = self.pad(inputs.permute(0, 2, 1))
+        outputs = self.conv(inputs).permute(0, 2, 1)
+        return outputs
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'input_size': 4, 'output_size': 4, 'kernel_size': 4,
+        'pad_type': 4}]

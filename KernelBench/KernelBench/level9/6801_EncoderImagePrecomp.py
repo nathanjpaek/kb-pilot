@@ -1,0 +1,51 @@
+import torch
+import numpy as np
+import torch.nn as nn
+from collections import OrderedDict
+import torch.nn.init
+
+
+def l2norm(x, dim=-1):
+    return x / x.norm(2, dim=dim, keepdim=True).clamp(min=1e-06)
+
+
+class EncoderImagePrecomp(nn.Module):
+    """ image encoder """
+
+    def __init__(self, img_dim, embed_size, no_imgnorm=False):
+        super(EncoderImagePrecomp, self).__init__()
+        self.embed_size = embed_size
+        self.no_imgnorm = no_imgnorm
+        self.fc = nn.Linear(img_dim, embed_size)
+        self.init_weights()
+
+    def init_weights(self):
+        """ Xavier initialization for the fully connected layer """
+        r = np.sqrt(6.0) / np.sqrt(self.fc.in_features + self.fc.out_features)
+        self.fc.weight.data.uniform_(-r, r)
+        self.fc.bias.data.fill_(0)
+
+    def forward(self, images):
+        """ extract image feature vectors """
+        features = self.fc(images.float())
+        if not self.no_imgnorm:
+            features = l2norm(features)
+        return features
+
+    def load_state_dict(self, state_dict):
+        """ copies parameters, overwritting the default one to
+            accept state_dict from Full model """
+        own_state = self.state_dict()
+        new_state = OrderedDict()
+        for name, param in state_dict.items():
+            if name in own_state:
+                new_state[name] = param
+        super(EncoderImagePrecomp, self).load_state_dict(new_state)
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'img_dim': 4, 'embed_size': 4}]

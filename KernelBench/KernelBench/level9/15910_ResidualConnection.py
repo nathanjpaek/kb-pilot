@@ -1,0 +1,22 @@
+import torch
+from torch import nn
+
+
+class ResidualConnection(nn.Module):
+
+    def __init__(self, alpha=0.5):
+        super(ResidualConnection, self).__init__()
+        self.alpha = alpha
+
+    def forward(self, Xs: 'list'):
+        assert len(Xs) >= 1
+        return Xs[-1] if len(Xs) == 1 else (1 - self.alpha) * Xs[-1
+            ] + self.alpha * Xs[-2]
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {}]

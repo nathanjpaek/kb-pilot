@@ -1,0 +1,86 @@
+# Problem: 6_Matmul_with_large_K_dimension_
+# Model: Qwen/Qwen2.5-Coder-14B-Instruct
+# Generated: 20250529_224726
+# Tokens used: 872
+
+<think>
+The given PyTorch model performs a matrix multiplication (Gemm), multiplies the result by a scalar, and applies a LeakyReLU activation function. The key operations to optimize are the matrix multiplication and the element-wise multiplication.
+</think>
+
+<code>
+import torch
+import torch.nn as nn
+
+import tilelang
+import tilelang.language as T
+
+def _build_gemm_kernel(M, N, K, block_M=128, block_N=128, block_K=32, dtype="float16", accum_dtype="float"):
+    @tilelang.jit(out_idx=-1)
+    @T.prim_func
+    def gemm_kernel(
+        A: T.Tensor((M, K), dtype),
+        B: T.Tensor((K, N), dtype),
+        C: T.Tensor((M, N), dtype),
+    ):
+        with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M), threads=128) as (bx, by):
+            A_shared = T.alloc_shared((block_M, block_K), dtype)
+            B_shared = T.alloc_shared((block_K, block_N), dtype)
+            C_local = T.alloc_fragment((block_M, block_N), accum_dtype)
+
+            T.clear(C_local)
+
+            for ko in T.Pipelined(T.ceildiv(K, block_K), num_stages=3):
+                T.copy(A[by * block_M, ko * block_K], A_shared)
+                T.copy(B[ko * block_K, bx * block_N], B_shared)
+                T.gemm(A_shared, B_shared, C_local)
+
+            T.copy(C_local, C[by * block_M, bx * block_N])
+
+    return gemm_kernel
+
+def _build_elementwise_mul_kernel(M, N, dtype="float16"):
+    @tilelang.jit(out_idx=-1)
+    @T.prim_func
+    def elementwise_mul_kernel(
+        A: T.Tensor((M, N), dtype),
+        B: T.Tensor((M, N), dtype),
+        C: T.Tensor((M, N), dtype),
+    ):
+        with T.Kernel(T.ceildiv(N, 32), T.ceildiv(M, 32), threads=128) as (bx, by):
+            A_shared = T.alloc_shared((32, 32), dtype)
+            B_shared = T.alloc_shared((32, 32), dtype)
+            C_local = T.alloc_fragment((32, 32), dtype)
+
+            T.clear(C_local)
+
+            T.copy(A[by * 32, bx * 32], A_shared)
+            T.copy(B[by * 32, bx * 32], B_shared)
+            T.elementwise_mul(A_shared, B_shared, C_local)
+
+            T.copy(C_local, C[by * 32, bx * 32])
+
+    return elementwise_mul_kernel
+
+class ModelNew(nn.Module):
+    def __init__(self, in_features, out_features, multiplier, negative_slope):
+        super(ModelNew, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.multiplier = multiplier
+        self.negative_slope = negative_slope
+        self._cached_kernels = {}
+
+    def forward(self, x):
+        x = x.to(device="cuda", dtype=torch.float16)
+        key = (self.in_features, self.out_features, x.dtype)
+        if key not in self._cached_kernels:
+            self._cached_kernels[key] = (
+                _build_gemm_kernel(self.in_features, self.out_features, self.in_features),
+                _build_elementwise_mul_kernel(self.out_features, x.shape[1])
+            )
+
+        gemm_kernel, elementwise_mul_kernel = self._cached_kernels[key]
+        x = gemm_kernel(x, torch.randn(self.in_features, self.out_features).to(device="cuda", dtype=torch.float16))
+        x = elementwise_mul_kernel(x, torch.full_like(x, self.multiplier))
+        x = torch.nn.functional.leaky_relu(x, negative_slope=self.negative_slope)
+        return x

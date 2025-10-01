@@ -1,0 +1,143 @@
+import torch
+from torch import Tensor
+from torch import nn as nn
+import torch.nn.functional as F
+
+
+class MonteCarloDropout(nn.Dropout):
+    """
+    Defines Monte Carlo dropout Module as defined
+    in the paper https://arxiv.org/pdf/1506.02142.pdf.
+    In summary, This technique uses the regular dropout
+    which can be interpreted as a Bayesian approximation of
+    a well-known probabilistic model: the Gaussian process.
+    We can treat the many different networks
+    (with different neurons dropped out) as Monte Carlo samples
+    from the space of all available models. This provides mathematical
+    grounds to reason about the model’s uncertainty and, as it turns out,
+    often improves its performance.
+    """
+    mc_dropout_enabled: 'bool' = False
+
+    def train(self, mode: 'bool'=True):
+        if mode:
+            self.mc_dropout_enabled = True
+
+    def forward(self, input: 'Tensor') ->Tensor:
+        return F.dropout(input, self.p, self.mc_dropout_enabled, self.inplace)
+
+
+class _TimeDistributedInterpolation(nn.Module):
+
+    def __init__(self, output_size: 'int', batch_first: 'bool'=False,
+        trainable: 'bool'=False):
+        super().__init__()
+        self.output_size = output_size
+        self.batch_first = batch_first
+        self.trainable = trainable
+        if self.trainable:
+            self.mask = nn.Parameter(torch.zeros(self.output_size, dtype=
+                torch.float32))
+            self.gate = nn.Sigmoid()
+
+    def interpolate(self, x):
+        upsampled = F.interpolate(x.unsqueeze(1), self.output_size, mode=
+            'linear', align_corners=True).squeeze(1)
+        if self.trainable:
+            upsampled = upsampled * self.gate(self.mask.unsqueeze(0)) * 2.0
+        return upsampled
+
+    def forward(self, x):
+        if len(x.size()) <= 2:
+            return self.interpolate(x)
+        x_reshape = x.contiguous().view(-1, x.size(-1))
+        y = self.interpolate(x_reshape)
+        if self.batch_first:
+            y = y.contiguous().view(x.size(0), -1, y.size(-1))
+        else:
+            y = y.view(-1, x.size(1), y.size(-1))
+        return y
+
+
+class _GatedLinearUnit(nn.Module):
+    """Gated Linear Unit"""
+
+    def __init__(self, input_size: 'int', hidden_size: 'int'=None, dropout:
+        'float'=None):
+        super().__init__()
+        if dropout is not None:
+            self.dropout = MonteCarloDropout(dropout)
+        else:
+            self.dropout = dropout
+        self.hidden_size = hidden_size or input_size
+        self.fc = nn.Linear(input_size, self.hidden_size * 2)
+        self.init_weights()
+
+    def init_weights(self):
+        for n, p in self.named_parameters():
+            if 'bias' in n:
+                torch.nn.init.zeros_(p)
+            elif 'fc' in n:
+                torch.nn.init.xavier_uniform_(p)
+
+    def forward(self, x):
+        if self.dropout is not None:
+            x = self.dropout(x)
+        x = self.fc(x)
+        x = F.glu(x, dim=-1)
+        return x
+
+
+class _AddNorm(nn.Module):
+
+    def __init__(self, input_size: 'int', skip_size: 'int'=None,
+        trainable_add: 'bool'=True):
+        super().__init__()
+        self.input_size = input_size
+        self.trainable_add = trainable_add
+        self.skip_size = skip_size or input_size
+        if self.input_size != self.skip_size:
+            self.resample = _TimeDistributedInterpolation(self.input_size,
+                batch_first=True, trainable=False)
+        if self.trainable_add:
+            self.mask = nn.Parameter(torch.zeros(self.input_size, dtype=
+                torch.float))
+            self.gate = nn.Sigmoid()
+        self.norm = nn.LayerNorm(self.input_size)
+
+    def forward(self, x: 'torch.Tensor', skip: 'torch.Tensor'):
+        if self.input_size != self.skip_size:
+            skip = self.resample(skip)
+        if self.trainable_add:
+            skip = skip * self.gate(self.mask) * 2.0
+        output = self.norm(x + skip)
+        return output
+
+
+class _GateAddNorm(nn.Module):
+
+    def __init__(self, input_size: 'int', hidden_size: 'int'=None,
+        skip_size: 'int'=None, trainable_add: 'bool'=False, dropout:
+        'float'=None):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size or input_size
+        self.skip_size = skip_size or self.hidden_size
+        self.dropout = dropout
+        self.glu = _GatedLinearUnit(self.input_size, hidden_size=self.
+            hidden_size, dropout=self.dropout)
+        self.add_norm = _AddNorm(self.hidden_size, skip_size=self.skip_size,
+            trainable_add=trainable_add)
+
+    def forward(self, x, skip):
+        output = self.glu(x)
+        output = self.add_norm(output, skip)
+        return output
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4]), torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'input_size': 4}]

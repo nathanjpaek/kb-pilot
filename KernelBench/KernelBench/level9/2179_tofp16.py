@@ -1,0 +1,29 @@
+import torch
+import torch.nn as nn
+import torch.utils.data
+import torch.utils.data.distributed
+import torch.nn.parallel
+import torch.optim
+
+
+class tofp16(nn.Module):
+    """
+    Model wrapper that implements::
+
+        def forward(self, input):
+            return input.half()
+    """
+
+    def __init__(self):
+        super(tofp16, self).__init__()
+
+    def forward(self, input):
+        return input.half()
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {}]

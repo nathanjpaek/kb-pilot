@@ -1,0 +1,78 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from sklearn.metrics import *
+
+
+class InteractingLayer(nn.Module):
+    """A Layer used in AutoInt that model the correlations between different feature fields by multi-head self-attention mechanism.
+      Input shape
+            - A 3D tensor with shape: ``(batch_size,field_size,embedding_size)``.
+      Output shape
+            - 3D tensor with shape:``(batch_size,field_size,att_embedding_size * head_num)``.
+      Arguments
+            - **in_features** : Positive integer, dimensionality of input features.
+            - **att_embedding_size**: int.The embedding size in multi-head self-attention network.
+            - **head_num**: int.The head number in multi-head  self-attention network.
+            - **use_res**: bool.Whether or not use standard residual connections before output.
+            - **seed**: A Python integer to use as random seed.
+      References
+            - [Song W, Shi C, Xiao Z, et al. AutoInt: Automatic Feature Interaction Learning via Self-Attentive Neural Networks[J]. arXiv preprint arXiv:1810.11921, 2018.](https://arxiv.org/abs/1810.11921)
+    """
+
+    def __init__(self, in_features, att_embedding_size=8, head_num=2,
+        use_res=True, scaling=False, seed=1024, device='cpu'):
+        super(InteractingLayer, self).__init__()
+        if head_num <= 0:
+            raise ValueError('head_num must be a int > 0')
+        self.att_embedding_size = att_embedding_size
+        self.head_num = head_num
+        self.use_res = use_res
+        self.scaling = scaling
+        self.seed = seed
+        embedding_size = in_features
+        self.W_Query = nn.Parameter(torch.Tensor(embedding_size, self.
+            att_embedding_size * self.head_num))
+        self.W_key = nn.Parameter(torch.Tensor(embedding_size, self.
+            att_embedding_size * self.head_num))
+        self.W_Value = nn.Parameter(torch.Tensor(embedding_size, self.
+            att_embedding_size * self.head_num))
+        if self.use_res:
+            self.W_Res = nn.Parameter(torch.Tensor(embedding_size, self.
+                att_embedding_size * self.head_num))
+        for tensor in self.parameters():
+            nn.init.normal_(tensor, mean=0.0, std=0.05)
+        self
+
+    def forward(self, inputs):
+        if len(inputs.shape) != 3:
+            raise ValueError(
+                'Unexpected inputs dimensions %d, expect to be 3 dimensions' %
+                len(inputs.shape))
+        querys = torch.tensordot(inputs, self.W_Query, dims=([-1], [0]))
+        keys = torch.tensordot(inputs, self.W_key, dims=([-1], [0]))
+        values = torch.tensordot(inputs, self.W_Value, dims=([-1], [0]))
+        querys = torch.stack(torch.split(querys, self.att_embedding_size,
+            dim=2))
+        keys = torch.stack(torch.split(keys, self.att_embedding_size, dim=2))
+        values = torch.stack(torch.split(values, self.att_embedding_size,
+            dim=2))
+        inner_product = torch.einsum('bnik,bnjk->bnij', querys, keys)
+        if self.scaling:
+            inner_product /= self.att_embedding_size ** 0.5
+        self.normalized_att_scores = F.softmax(inner_product, dim=-1)
+        result = torch.matmul(self.normalized_att_scores, values)
+        result = torch.cat(torch.split(result, 1), dim=-1)
+        result = torch.squeeze(result, dim=0)
+        if self.use_res:
+            result += torch.tensordot(inputs, self.W_Res, dims=([-1], [0]))
+        result = F.relu(result)
+        return result
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'in_features': 4}]

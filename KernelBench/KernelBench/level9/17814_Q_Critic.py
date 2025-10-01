@@ -1,0 +1,40 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class Q_Critic(nn.Module):
+
+    def __init__(self, state_dim, action_dim, net_width):
+        super(Q_Critic, self).__init__()
+        self.l1 = nn.Linear(state_dim + action_dim, net_width)
+        self.l2 = nn.Linear(net_width, net_width)
+        self.l3 = nn.Linear(net_width, 1)
+        self.l4 = nn.Linear(state_dim + action_dim, net_width)
+        self.l5 = nn.Linear(net_width, net_width)
+        self.l6 = nn.Linear(net_width, 1)
+
+    def forward(self, state, action):
+        sa = torch.cat([state, action], 1)
+        q1 = F.relu(self.l1(sa))
+        q1 = F.relu(self.l2(q1))
+        q1 = self.l3(q1)
+        q2 = F.relu(self.l4(sa))
+        q2 = F.relu(self.l5(q2))
+        q2 = self.l6(q2)
+        return q1, q2
+
+    def Q1(self, state, action):
+        sa = torch.cat([state, action], 1)
+        q1 = F.relu(self.l1(sa))
+        q1 = F.relu(self.l2(q1))
+        q1 = self.l3(q1)
+        return q1
+
+
+def get_inputs():
+    return [torch.rand([4, 4]), torch.rand([4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'state_dim': 4, 'action_dim': 4, 'net_width': 4}]

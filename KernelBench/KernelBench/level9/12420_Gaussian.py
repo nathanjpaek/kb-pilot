@@ -1,0 +1,19 @@
+import torch
+from torch import Tensor
+import torch.utils.tensorboard
+import torch.utils.data
+
+
+class Gaussian(torch.nn.Module):
+    """Gaussian activation"""
+
+    def forward(self, x: 'Tensor') ->Tensor:
+        return torch.exp(-x * x)
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {}]

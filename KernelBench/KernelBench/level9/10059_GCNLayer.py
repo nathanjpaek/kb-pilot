@@ -1,0 +1,38 @@
+import torch
+import torch.nn as nn
+
+
+class GCNLayer(nn.Module):
+
+    def __init__(self, in_ft, out_ft, bias=True):
+        super(GCNLayer, self).__init__()
+        self.fc = nn.Linear(in_ft, out_ft, bias=False)
+        self.act = nn.PReLU()
+        if bias:
+            self.bias = nn.Parameter(torch.FloatTensor(out_ft))
+            self.bias.data.fill_(0.0)
+        else:
+            self.register_parameter('bias', None)
+        for m in self.modules():
+            self.weights_init(m)
+
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
+
+    def forward(self, feat, adj):
+        feat = self.fc(feat)
+        out = torch.bmm(adj, feat)
+        if self.bias is not None:
+            out += self.bias
+        return self.act(out)
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4]), torch.rand([4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'in_ft': 4, 'out_ft': 4}]

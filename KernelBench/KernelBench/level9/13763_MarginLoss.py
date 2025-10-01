@@ -1,0 +1,48 @@
+from torch.nn import Module
+import torch
+from torch import ones_like
+from torch.nn import MarginRankingLoss
+
+
+class MarginLoss(Module):
+    """Margin loss as it was defined in `TransE paper
+    <https://papers.nips.cc/paper/5071-translating-embeddings-for-modeling-multi-relational-data>`_
+    by Bordes et al. in 2013. This class implements :class:`torch.nn.Module`
+    interface.
+
+    """
+
+    def __init__(self, margin):
+        super().__init__()
+        self.loss = MarginRankingLoss(margin=margin, reduction='sum')
+
+    def forward(self, positive_triplets, negative_triplets):
+        """
+        Parameters
+        ----------
+        positive_triplets: torch.Tensor, dtype: torch.float, shape: (b_size)
+            Scores of the true triplets as returned by the `forward` methods of
+            the models.
+        negative_triplets: torch.Tensor, dtype: torch.float, shape: (b_size)
+            Scores of the negative triplets as returned by the `forward`
+            methods of the models.
+
+        Returns
+        -------
+        loss: torch.Tensor, shape: (n_facts, dim), dtype: torch.float
+            Loss of the form
+            :math:`\\max\\{0, \\gamma - f(h,r,t) + f(h',r',t')\\}` where
+            :math:`\\gamma` is the margin (defined at initialization),
+            :math:`f(h,r,t)` is the score of a true fact and
+            :math:`f(h',r',t')` is the score of the associated negative fact.
+        """
+        return self.loss(positive_triplets, negative_triplets, target=
+            ones_like(positive_triplets))
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4]), torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'margin': 4}]

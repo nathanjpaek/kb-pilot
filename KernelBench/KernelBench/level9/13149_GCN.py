@@ -1,0 +1,82 @@
+import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn.parameter import Parameter
+
+
+class GraphConvolution(nn.Module):
+    """
+    Description
+    -----------
+    The downstream GCN layer.
+    """
+
+    def __init__(self, in_features, out_features, bias=True):
+
+        def reset_parameters(self):
+            stdv = 1.0 / math.sqrt(self.weight.size(1))
+            self.weight.data.uniform_(-stdv, stdv)
+            if self.bias is not None:
+                self.bias.data.uniform_(-stdv, stdv)
+        super(GraphConvolution, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = Parameter(torch.FloatTensor(in_features, out_features))
+        if bias:
+            self.bias = Parameter(torch.FloatTensor(out_features))
+        else:
+            self.register_parameter('bias', None)
+        reset_parameters(self)
+
+    def forward(self, inputs, adj):
+        """
+        Parameters
+        ----------
+        inputs : tensor
+            The feature matrix.
+        adj : tensor
+            The adjacent matrix.
+        """
+        support = torch.mm(inputs, self.weight)
+        output = torch.mm(adj, support)
+        if self.bias is not None:
+            return output + self.bias
+        else:
+            return output
+
+
+class GCN(nn.Module):
+    """
+    Description
+    -----------
+    The downstream GCN model.
+    """
+
+    def __init__(self, nfeat, nhid, nclass, dropout):
+        super(GCN, self).__init__()
+        self.gc1 = GraphConvolution(nfeat, nhid)
+        self.gc2 = GraphConvolution(nhid, nclass)
+        self.dropout = dropout
+
+    def forward(self, x, adj):
+        """
+        Parameters
+        ----------
+        x : tensor
+            The feature matrix.
+        adj : tensor
+            The adjacent matrix.
+        """
+        x = F.relu(self.gc1(x, adj))
+        x = F.dropout(x, self.dropout, training=self.training)
+        x = self.gc2(x, adj)
+        return x
+
+
+def get_inputs():
+    return [torch.rand([4, 4]), torch.rand([4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'nfeat': 4, 'nhid': 4, 'nclass': 4, 'dropout': 0.5}]

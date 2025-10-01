@@ -1,0 +1,44 @@
+from _paritybench_helpers import _mock_config
+import torch
+from torch import nn
+
+
+class BertLayerNorm(nn.Module):
+
+    def __init__(self, config, variance_epsilon=1e-12):
+        """Construct a layernorm module in the TF style (epsilon inside the square root).
+        """
+        super(BertLayerNorm, self).__init__()
+        self.gamma = nn.Parameter(torch.ones(config.hidden_size))
+        self.beta = nn.Parameter(torch.zeros(config.hidden_size))
+        self.variance_epsilon = variance_epsilon
+
+    def forward(self, x):
+        u = x.mean(-1, keepdim=True)
+        s = (x - u).pow(2).mean(-1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.variance_epsilon)
+        return self.gamma * x + self.beta
+
+
+class BertSelfOutput(nn.Module):
+
+    def __init__(self, config):
+        super(BertSelfOutput, self).__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.LayerNorm = BertLayerNorm(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+
+    def forward(self, hidden_states, input_tensor):
+        hidden_states = self.dense(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+        hidden_states = self.LayerNorm(hidden_states + input_tensor)
+        return hidden_states
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4]), torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'config': _mock_config(hidden_size=4, hidden_dropout_prob=
+        0.5)}]

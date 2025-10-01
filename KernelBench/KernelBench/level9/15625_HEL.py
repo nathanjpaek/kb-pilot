@@ -1,0 +1,40 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class HEL(nn.Module):
+
+    def __init__(self):
+        super(HEL, self).__init__()
+        None
+        self.eps = 1e-06
+
+    def edge_loss(self, pred, target):
+        edge = target - F.avg_pool2d(target, kernel_size=5, stride=1, padding=2
+            )
+        edge[edge != 0] = 1
+        numerator = (edge * (pred - target).abs_()).sum([2, 3])
+        denominator = edge.sum([2, 3]) + self.eps
+        return numerator / denominator
+
+    def region_loss(self, pred, target):
+        numerator_fore = (target - target * pred).sum([2, 3])
+        denominator_fore = target.sum([2, 3]) + self.eps
+        numerator_back = ((1 - target) * pred).sum([2, 3])
+        denominator_back = (1 - target).sum([2, 3]) + self.eps
+        return (numerator_fore / denominator_fore + numerator_back /
+            denominator_back)
+
+    def forward(self, pred, target):
+        edge_loss = self.edge_loss(pred, target)
+        region_loss = self.region_loss(pred, target)
+        return (edge_loss + region_loss).mean()
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4]), torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {}]

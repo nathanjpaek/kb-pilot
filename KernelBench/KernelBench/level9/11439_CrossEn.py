@@ -1,0 +1,22 @@
+import torch
+from torch import nn
+import torch.nn.functional as F
+import torch.cuda
+
+
+class CrossEn(nn.Module):
+
+    def forward(self, sim_matrix):
+        logpt = F.log_softmax(sim_matrix, dim=-1)
+        logpt = torch.diag(logpt)
+        nce_loss = -logpt
+        sim_loss = nce_loss.mean()
+        return sim_loss
+
+
+def get_inputs():
+    return [torch.rand([4, 4])]
+
+
+def get_init_inputs():
+    return [[], {}]

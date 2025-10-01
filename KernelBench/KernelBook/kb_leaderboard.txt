@@ -1,0 +1,252 @@
+"Kernelsseum" – KernelBench Top Solutions Per Problem (Nvidia L40S GPU)
+Problem	Rank 1 (Speedup over Torch)	Rank 2	Rank 3	Rank 4	Rank 5
+Level 1: 1_Square_matrix_multiplication_	0.17 (claude-3.5-sonnet)	0.13 (gemini-1.5-flash)	0.12 (llama-3.1-405b)	0.12 (gpt-o1)	0.12 (deepseek-coder)
+Level 1: 2_Standard_matrix_multiplication_	0.17 (claude-3.5-sonnet)	0.17 (gpt-o1)	0.12 (gemini-1.5-flash)	0.12 (deepseek-coder)	0.12 (gpt-4o)
+Level 1: 3_Batched_matrix_multiplication	0.18 (gpt-o1)	0.18 (llama-3.1-405b)	0.17 (gpt-4o)	0.13 (claude-3.5-sonnet)	0.12 (deepseek-coder)
+Level 1: 4_Matrix_vector_multiplication_	0.89 (gpt-o1)	0.06 (deepseek-coder)	0.04 (claude-3.5-sonnet)	0.01 (gpt-4o)	0.01 (llama-3.1-70b)
+Level 1: 5_Matrix_scalar_multiplication	0.69 (claude-3.5-sonnet)	0.69 (gpt-o1)	0.69 (gpt-4o)	0.48 (gemini-1.5-flash)	0.48 (deepseek-coder)
+Level 1: 6_Matmul_with_large_K_dimension_	0.16 (gpt-o1)	0.16 (claude-3.5-sonnet)	0.12 (gpt-4o)	0.12 (llama-3.1-405b)	0.04 (gemini-1.5-flash)
+Level 1: 7_Matmul_with_small_K_dimension_	0.39 (gpt-o1)	0.32 (deepseek-coder)	0.31 (llama-3.1-405b)	0.31 (gpt-4o)	0.11 (gemini-1.5-flash)
+Level 1: 8_Matmul_with_irregular_shapes_	0.22 (claude-3.5-sonnet)	0.13 (gpt-o1)	0.13 (deepseek-coder)	0.13 (llama-3.1-405b)	0.13 (gpt-4o)
+Level 1: 9_Tall_skinny_matrix_multiplication_	0.61 (claude-3.5-sonnet)	0.59 (gpt-o1)	0.58 (gpt-4o)	0.57 (deepseek-coder)	0.34 (llama-3.1-405b)
+Level 1: 10_3D_tensor_matrix_multiplication	0.20 (claude-3.5-sonnet)	0.08 (gpt-o1)	0.02 (llama-3.1-405b)		
+Level 1: 11_4D_tensor_matrix_multiplication	0.09 (gpt-o1)				
+Level 1: 12_Matmul_with_diagonal_matrices_	13.22 (claude-3.5-sonnet)	13.16 (gpt-o1)	10.48 (llama-3.1-405b)	10.44 (deepseek-coder)	2.70 (gpt-4o)
+Level 1: 13_Matmul_for_symmetric_matrices	0.21 (claude-3.5-sonnet)	0.15 (gpt-4o)	0.15 (llama-3.1-405b)	0.14 (deepseek-coder)	0.04 (llama-3.1-70b)
+Level 1: 14_Matmul_for_upper_triangular_matrices	0.57 (claude-3.5-sonnet)	0.57 (gpt-o1)	0.57 (deepseek-coder)	0.56 (gpt-4o)	0.28 (llama-3.1-405b)
+Level 1: 15_Matmul_for_lower_triangular_matrices	0.49 (gpt-o1)	0.33 (deepseek-coder)	0.32 (gpt-4o)		
+Level 1: 16_Matmul_with_transposed_A	0.16 (gpt-o1)	0.12 (claude-3.5-sonnet)	0.11 (llama-3.1-405b)	0.11 (gpt-4o)	
+Level 1: 17_Matmul_with_transposed_B	0.21 (gpt-o1)	0.04 (claude-3.5-sonnet)	0.04 (gpt-4o)	0.04 (llama-3.1-70b)	0.04 (llama-3.1-405b)
+Level 1: 18_Matmul_with_transposed_both	0.16 (gpt-o1)	0.03 (gpt-4o)			
+Level 1: 19_ReLU	0.58 (gemini-1.5-flash)	0.57 (llama-3.1-405b)	0.56 (llama-3.1-70b)	0.56 (gpt-4o)	0.55 (claude-3.5-sonnet)
+Level 1: 20_LeakyReLU	0.71 (claude-3.5-sonnet)	0.60 (llama-3.1-405b)	0.58 (gpt-4o)	0.58 (gemini-1.5-flash)	0.57 (llama-3.1-70b)
+Level 1: 21_Sigmoid	1.00 (gpt-o1)	0.71 (claude-3.5-sonnet)	0.67 (gemini-1.5-flash)	0.61 (llama-3.1-70b)	0.59 (llama-3.1-405b)
+Level 1: 22_Tanh	0.62 (claude-3.5-sonnet)	0.52 (deepseek-coder)	0.52 (llama-3.1-70b)	0.51 (gemini-1.5-flash)	0.51 (llama-3.1-405b)
+Level 1: 23_Softmax	0.48 (gpt-o1)	0.32 (gpt-4o)	0.29 (claude-3.5-sonnet)	0.00 (llama-3.1-70b)	0.00 (gemini-1.5-flash)
+Level 1: 24_LogSoftmax	0.03 (claude-3.5-sonnet)	0.00 (deepseek-coder)			
+Level 1: 25_Swish	0.97 (claude-3.5-sonnet)	0.83 (gpt-4o)	0.79 (gemini-1.5-flash)	0.78 (deepseek-coder)	0.77 (llama-3.1-70b)
+Level 1: 26_GELU_	0.62 (claude-3.5-sonnet)	0.55 (llama-3.1-405b)	0.55 (gpt-4o)	0.15 (llama-3.1-70b)	0.15 (deepseek-coder)
+Level 1: 27_SELU_	0.69 (gpt-o1)	0.66 (claude-3.5-sonnet)	0.55 (llama-3.1-405b)	0.53 (deepseek-coder)	
+Level 1: 28_HardSigmoid	0.65 (claude-3.5-sonnet)	0.58 (llama-3.1-405b)			
+Level 1: 29_Softplus	0.69 (claude-3.5-sonnet)	0.61 (gemini-1.5-flash)	0.60 (llama-3.1-405b)	0.57 (deepseek-coder)	0.57 (gpt-4o)
+Level 1: 30_Softsign	1.44 (gpt-o1)	1.26 (claude-3.5-sonnet)	1.14 (llama-3.1-70b)	1.13 (gemini-1.5-flash)	1.10 (llama-3.1-405b)
+Level 1: 31_ELU	0.69 (gpt-o1)	0.67 (claude-3.5-sonnet)	0.60 (deepseek-coder)	0.58 (gpt-4o)	0.57 (gemini-1.5-flash)
+Level 1: 32_HardTanh	0.95 (claude-3.5-sonnet)	0.91 (gpt-o1)	0.89 (gemini-1.5-flash)	0.76 (llama-3.1-70b)	0.74 (llama-3.1-405b)
+Level 1: 33_BatchNorm	1.04 (claude-3.5-sonnet)	1.04 (llama-3.1-405b)	0.62 (deepseek-coder)	0.33 (gpt-o1)	
+Level 1: 34_InstanceNorm	1.05 (gpt-o1)	0.81 (gpt-4o)	0.09 (llama-3.1-405b)	0.03 (deepseek-coder)	0.00 (claude-3.5-sonnet)
+Level 1: 35_GroupNorm_					
+Level 1: 36_RMSNorm_	1.00 (gpt-o1)	0.53 (llama-3.1-405b)			
+Level 1: 37_FrobeniusNorm_	1.01 (claude-3.5-sonnet)	1.01 (gpt-4o)	1.00 (llama-3.1-405b)	0.99 (gpt-o1)	0.77 (llama-3.1-70b)
+Level 1: 38_L1Norm_	0.94 (gpt-4o)	0.06 (deepseek-coder)	0.05 (gpt-o1)	0.02 (llama-3.1-70b)	
+Level 1: 39_L2Norm_	0.38 (gpt-o1)	0.09 (claude-3.5-sonnet)	0.03 (gpt-4o)	0.01 (gemini-1.5-flash)	0.01 (llama-3.1-405b)
+Level 1: 40_LayerNorm	0.07 (llama-3.1-405b)	0.01 (deepseek-coder)			
+Level 1: 41_Max_Pooling_1D	1.06 (gpt-o1)	0.98 (claude-3.5-sonnet)			
+Level 1: 42_Max_Pooling_2D	1.11 (gpt-o1)	0.90 (claude-3.5-sonnet)	0.34 (llama-3.1-405b)	0.34 (deepseek-coder)	
+Level 1: 43_Max_Pooling_3D	1.03 (claude-3.5-sonnet)				
+Level 1: 44_Average_Pooling_1D					
+Level 1: 45_Average_Pooling_2D	0.93 (gpt-o1)	0.93 (gpt-4o)	0.93 (deepseek-coder)	0.93 (claude-3.5-sonnet)	
+Level 1: 46_Average_Pooling_3D					
+Level 1: 47_Sum_reduction_over_a_dimension	0.54 (gpt-4o)	0.45 (claude-3.5-sonnet)	0.45 (gpt-o1)		
+Level 1: 48_Mean_reduction_over_a_dimension	0.62 (claude-3.5-sonnet)	0.61 (gpt-4o)	0.56 (gpt-o1)	0.55 (llama-3.1-405b)	0.54 (deepseek-coder)
+Level 1: 49_Max_reduction_over_a_dimension	1.01 (gpt-4o)	0.99 (gpt-o1)	0.98 (claude-3.5-sonnet)		
+Level 1: 50_Product_reduction_over_a_dimension	0.63 (claude-3.5-sonnet)	0.36 (gpt-o1)			
+Level 1: 51_Argmax_over_a_dimension	0.90 (gpt-o1)	0.50 (claude-3.5-sonnet)			
+Level 1: 52_Argmin_over_a_dimension	0.87 (claude-3.5-sonnet)	0.85 (gpt-o1)			
+Level 1: 53_Min_reduction_over_a_dimension	1.00 (claude-3.5-sonnet)	0.98 (gpt-4o)	0.86 (gpt-o1)		
+Level 1: 54_conv_standard_3D__square_input__square_kernel	0.29 (gpt-o1)				
+Level 1: 55_conv_standard_2D__asymmetric_input__square_kernel					
+Level 1: 56_conv_standard_2D__asymmetric_input__asymmetric_kernel					
+Level 1: 57_conv_transposed_2D__square_input__square_kernel					
+Level 1: 58_conv_transposed_3D__asymmetric_input__asymmetric_kernel					
+Level 1: 59_conv_standard_3D__asymmetric_input__square_kernel					
+Level 1: 60_conv_standard_3D__square_input__asymmetric_kernel					
+Level 1: 61_conv_transposed_3D__square_input__square_kernel					
+Level 1: 62_conv_standard_2D__square_input__asymmetric_kernel					
+Level 1: 63_conv_standard_2D__square_input__square_kernel					
+Level 1: 64_conv_transposed_1D					
+Level 1: 65_conv_transposed_2D__square_input__asymmetric_kernel					
+Level 1: 66_conv_standard_3D__asymmetric_input__asymmetric_kernel	0.27 (gpt-o1)				
+Level 1: 67_conv_standard_1D					
+Level 1: 68_conv_transposed_3D__square_input__asymmetric_kernel					
+Level 1: 69_conv_transposed_2D__asymmetric_input__asymmetric_kernel	0.01 (claude-3.5-sonnet)				
+Level 1: 70_conv_transposed_3D__asymmetric_input__square_kernel					
+Level 1: 71_conv_transposed_2D__asymmetric_input__square_kernel					
+Level 1: 72_conv_transposed_3D_asymmetric_input_asymmetric_kernel___strided_padded_grouped_					
+Level 1: 73_conv_transposed_3D_asymmetric_input_square_kernel__strided_padded__grouped					
+Level 1: 74_conv_transposed_1D_dilated					
+Level 1: 75_conv_transposed_2D_asymmetric_input_asymmetric_kernel_strided__grouped____padded____dilated__					
+Level 1: 76_conv_standard_1D_dilated_strided__					
+Level 1: 77_conv_transposed_3D_square_input_square_kernel___padded____dilated____strided__					
+Level 1: 78_conv_transposed_2D_asymmetric_input_asymmetric_kernel___padded__	0.03 (claude-3.5-sonnet)				
+Level 1: 79_conv_transposed_1D_asymmetric_input_square_kernel___padded____strided____dilated__					
+Level 1: 80_conv_standard_2D_square_input_asymmetric_kernel___dilated____padded__					
+Level 1: 81_conv_transposed_2D_asymmetric_input_square_kernel___dilated____padded____strided__					
+Level 1: 82_conv_depthwise_2D_square_input_square_kernel					
+Level 1: 83_conv_depthwise_2D_square_input_asymmetric_kernel					
+Level 1: 84_conv_depthwise_2D_asymmetric_input_square_kernel					
+Level 1: 85_conv_depthwise_2D_asymmetric_input_asymmetric_kernel					
+Level 1: 86_conv_depthwise_separable_2D					
+Level 1: 87_conv_pointwise_2D					
+Level 1: 88_MinGPTNewGelu	4.15 (gpt-o1)	2.38 (llama-3.1-70b)	2.06 (claude-3.5-sonnet)	0.91 (gpt-4o)	0.84 (deepseek-coder)
+Level 1: 89_cumsum	0.10 (claude-3.5-sonnet)				
+Level 1: 90_cumprod	0.16 (gpt-o1)	0.06 (claude-3.5-sonnet)	0.03 (llama-3.1-70b)		
+Level 1: 91_cumsum_reverse	0.21 (gpt-o1)	0.12 (claude-3.5-sonnet)			
+Level 1: 92_cumsum_exclusive					
+Level 1: 93_masked_cumsum	0.06 (claude-3.5-sonnet)	0.06 (llama-3.1-405b)	0.03 (gpt-4o)		
+Level 1: 94_MSELoss	0.81 (deepseek-coder)				
+Level 1: 95_CrossEntropyLoss	2.07 (gpt-o1)	1.87 (claude-3.5-sonnet)			
+Level 1: 96_HuberLoss	0.94 (gemini-1.5-flash)	0.79 (llama-3.1-70b)	0.71 (llama-3.1-405b)	0.67 (claude-3.5-sonnet)	0.58 (deepseek-coder)
+Level 1: 97_CosineSimilarityLoss	2.77 (gpt-o1)	0.16 (gemini-1.5-flash)	0.16 (deepseek-coder)	0.16 (gpt-4o)	0.16 (llama-3.1-405b)
+Level 1: 98_KLDivLoss	1.02 (deepseek-coder)	0.07 (claude-3.5-sonnet)			
+Level 1: 99_TripletMarginLoss	0.09 (llama-3.1-405b)	0.08 (gpt-o1)			
+Level 1: 100_HingeLoss					
+Level 2: 1_Conv2D_ReLU_BiasAdd					
+Level 2: 2_ConvTranspose2d_BiasAdd_Clamp_Scaling_Clamp_Divide	1.10 (gpt-4o)				
+Level 2: 3_ConvTranspose3d_Sum_LayerNorm_AvgPool_GELU	1.02 (gpt-o1)				
+Level 2: 4_Conv2d_Mish_Mish	0.79 (gpt-o1)	0.66 (deepseek-coder)			
+Level 2: 5_ConvTranspose2d_Subtract_Tanh	0.96 (gpt-o1)				
+Level 2: 6_Conv3d_Softmax_MaxPool_MaxPool					
+Level 2: 7_Conv3d_ReLU_LeakyReLU_GELU_Sigmoid_BiasAdd	2.33 (claude-3.5-sonnet)	2.14 (gpt-o1)			
+Level 2: 8_Conv3d_Divide_Max_GlobalAvgPool_BiasAdd_Sum	1.33 (gpt-4o)	1.03 (gpt-o1)			
+Level 2: 9_Matmul_Subtract_Multiply_ReLU	1.89 (gemini-1.5-flash)	0.82 (gpt-o1)	0.78 (deepseek-coder)		
+Level 2: 10_ConvTranspose2d_MaxPool_Hardtanh_Mean_Tanh	0.98 (claude-3.5-sonnet)	0.92 (gpt-o1)	0.88 (deepseek-coder)		
+Level 2: 11_ConvTranspose2d_BatchNorm_Tanh_MaxPool_GroupNorm					
+Level 2: 12_Gemm_Multiply_LeakyReLU					
+Level 2: 13_ConvTranspose3d_Mean_Add_Softmax_Tanh_Scaling	1.02 (claude-3.5-sonnet)				
+Level 2: 14_Gemm_Divide_Sum_Scaling	3.17 (claude-3.5-sonnet)	2.66 (gpt-4o)	1.33 (gpt-o1)		
+Level 2: 15_ConvTranspose3d_BatchNorm_Subtract					
+Level 2: 16_ConvTranspose2d_Mish_Add_Hardtanh_Scaling	1.13 (gpt-o1)	1.12 (claude-3.5-sonnet)	1.05 (gpt-4o)	0.80 (deepseek-coder)	
+Level 2: 17_Conv2d_InstanceNorm_Divide					
+Level 2: 18_Matmul_Sum_Max_AvgPool_LogSumExp_LogSumExp					
+Level 2: 19_ConvTranspose2d_GELU_GroupNorm					
+Level 2: 20_ConvTranspose3d_Sum_ResidualAdd_Multiply_ResidualAdd	1.75 (claude-3.5-sonnet)				
+Level 2: 21_Conv2d_Add_Scale_Sigmoid_GroupNorm					
+Level 2: 22_Matmul_Scale_ResidualAdd_Clamp_LogSumExp_Mish	1.17 (gpt-4o)				
+Level 2: 23_Conv3d_GroupNorm_Mean					
+Level 2: 24_Conv3d_Min_Softmax					
+Level 2: 25_Conv2d_Min_Tanh_Tanh	0.82 (gpt-o1)				
+Level 2: 26_ConvTranspose3d_Add_HardSwish	1.59 (gpt-o1)				
+Level 2: 27_Conv3d_HardSwish_ReLU_Softmax_Mean	1.19 (gpt-o1)				
+Level 2: 28_BMM_InstanceNorm_Sum_ResidualAdd_Multiply	0.73 (gpt-o1)				
+Level 2: 29_Matmul_Mish_Mish	1.20 (gpt-o1)	0.50 (deepseek-coder)			
+Level 2: 30_Gemm_GroupNorm_Hardtanh					
+Level 2: 31_Conv2d_Min_Add_Multiply	1.21 (gpt-o1)				
+Level 2: 32_Conv2d_Scaling_Min					
+Level 2: 33_Gemm_Scale_BatchNorm					
+Level 2: 34_ConvTranspose3d_LayerNorm_GELU_Scaling	0.29 (deepseek-coder)				
+Level 2: 35_Conv2d_Subtract_HardSwish_MaxPool_Mish	0.56 (deepseek-coder)				
+Level 2: 36_ConvTranspose2d_Min_Sum_GELU_Add					
+Level 2: 37_Matmul_Swish_Sum_GroupNorm	0.96 (gpt-o1)	0.69 (deepseek-coder)			
+Level 2: 38_ConvTranspose3d_AvgPool_Clamp_Softmax_Multiply					
+Level 2: 39_Gemm_Scale_BatchNorm					
+Level 2: 40_Matmul_Scaling_ResidualAdd	1.05 (deepseek-coder)	0.71 (gpt-o1)			
+Level 2: 41_Gemm_BatchNorm_GELU_GroupNorm_Mean_ReLU	0.46 (gpt-4o)	0.43 (gemini-1.5-flash)	0.38 (claude-3.5-sonnet)		
+Level 2: 42_ConvTranspose2d_GlobalAvgPool_BiasAdd_LogSumExp_Sum_Multiply	0.94 (gpt-o1)	0.72 (deepseek-coder)			
+Level 2: 43_Conv3d_Max_LogSumExp_ReLU	1.04 (gpt-o1)				
+Level 2: 44_ConvTranspose2d_Multiply_GlobalAvgPool_GlobalAvgPool_Mean	7.08 (gpt-4o)	0.46 (deepseek-coder)			
+Level 2: 45_Gemm_Sigmoid_Sum_LogSumExp					
+Level 2: 46_Conv2d_Subtract_Tanh_Subtract_AvgPool	0.97 (gpt-o1)	0.63 (deepseek-coder)			
+Level 2: 47_Conv3d_Mish_Tanh	0.98 (gpt-o1)	0.81 (deepseek-coder)			
+Level 2: 48_Conv3d_Scaling_Tanh_Multiply_Sigmoid	1.87 (gpt-o1)				
+Level 2: 49_ConvTranspose3d_Softmax_Sigmoid	0.43 (claude-3.5-sonnet)				
+Level 2: 50_ConvTranspose3d_Scaling_AvgPool_BiasAdd_Scaling	1.17 (gpt-o1)				
+Level 2: 51_Gemm_Subtract_GlobalAvgPool_LogSumExp_GELU_ResidualAdd	2.53 (gpt-o1)				
+Level 2: 52_Conv2d_Activation_BatchNorm	1.03 (gpt-o1)				
+Level 2: 53_Gemm_Scaling_Hardtanh_GELU					
+Level 2: 54_Conv2d_Multiply_LeakyReLU_GELU	0.82 (gpt-o1)				
+Level 2: 55_Matmul_MaxPool_Sum_Scale					
+Level 2: 56_Matmul_Sigmoid_Sum	1.79 (gemini-1.5-flash)				
+Level 2: 57_Conv2d_ReLU_HardSwish					
+Level 2: 58_ConvTranspose3d_LogSumExp_HardSwish_Subtract_Clamp_Max					
+Level 2: 59_Matmul_Swish_Scaling	0.77 (deepseek-coder)	0.33 (gpt-o1)			
+Level 2: 60_ConvTranspose3d_Swish_GroupNorm_HardSwish	1.15 (gpt-o1)	1.06 (deepseek-coder)			
+Level 2: 61_ConvTranspose3d_ReLU_GroupNorm					
+Level 2: 62_Matmul_GroupNorm_LeakyReLU_Sum					
+Level 2: 63_Gemm_ReLU_Divide					
+Level 2: 64_Gemm_LogSumExp_LeakyReLU_LeakyReLU_GELU_GELU					
+Level 2: 65_Conv2d_AvgPool_Sigmoid_Sum					
+Level 2: 66_Matmul_Dropout_Mean_Softmax					
+Level 2: 67_Conv2d_GELU_GlobalAvgPool	0.55 (gpt-o1)	0.13 (deepseek-coder)			
+Level 2: 68_Matmul_Min_Subtract	1.08 (gemini-1.5-flash)				
+Level 2: 69_Conv2d_HardSwish_ReLU	0.70 (deepseek-coder)				
+Level 2: 70_Gemm_Sigmoid_Scaling_ResidualAdd	0.88 (gpt-o1)				
+Level 2: 71_Conv2d_Divide_LeakyReLU	0.79 (gpt-o1)	0.73 (deepseek-coder)			
+Level 2: 72_ConvTranspose3d_BatchNorm_AvgPool_AvgPool	1.01 (gpt-o1)				
+Level 2: 73_Conv2d_BatchNorm_Scaling					
+Level 2: 74_ConvTranspose3d_LeakyReLU_Multiply_LeakyReLU_Max	1.43 (gpt-o1)				
+Level 2: 75_Gemm_GroupNorm_Min_BiasAdd					
+Level 2: 76_Gemm_Add_ReLU	0.15 (gemini-1.5-flash)				
+Level 2: 77_ConvTranspose3d_Scale_BatchNorm_GlobalAvgPool	0.57 (deepseek-coder)				
+Level 2: 78_ConvTranspose3d_Max_Max_Sum	1.00 (gpt-o1)				
+Level 2: 79_Conv3d_Multiply_InstanceNorm_Clamp_Multiply_Max					
+Level 2: 80_Gemm_Max_Subtract_GELU					
+Level 2: 81_Gemm_Swish_Divide_Clamp_Tanh_Clamp	1.70 (gpt-o1)				
+Level 2: 82_Conv2d_Tanh_Scaling_BiasAdd_Max	0.82 (gpt-o1)				
+Level 2: 83_Conv3d_GroupNorm_Min_Clamp_Dropout					
+Level 2: 84_Gemm_BatchNorm_Scaling_Softmax	0.30 (gpt-o1)				
+Level 2: 85_Conv2d_GroupNorm_Scale_MaxPool_Clamp					
+Level 2: 86_Matmul_Divide_GELU	0.17 (gemini-1.5-flash)				
+Level 2: 87_Conv2d_Subtract_Subtract_Mish	0.85 (gpt-o1)	0.52 (deepseek-coder)			
+Level 2: 88_Gemm_GroupNorm_Swish_Multiply_Swish	0.74 (gpt-o1)	0.53 (gpt-4o)			
+Level 2: 89_ConvTranspose3d_MaxPool_Softmax_Subtract_Swish_Max					
+Level 2: 90_Conv3d_LeakyReLU_Sum_Clamp_GELU	2.02 (claude-3.5-sonnet)	1.86 (gpt-o1)	0.80 (deepseek-coder)		
+Level 2: 91_ConvTranspose2d_Softmax_BiasAdd_Scaling_Sigmoid	1.24 (gpt-o1)	0.30 (claude-3.5-sonnet)			
+Level 2: 92_Conv2d_GroupNorm_Tanh_HardSwish_ResidualAdd_LogSumExp	1.47 (gpt-o1)	0.24 (deepseek-coder)			
+Level 2: 93_ConvTranspose2d_Add_Min_GELU_Multiply	1.14 (gpt-o1)	1.13 (gpt-4o)	0.88 (deepseek-coder)		
+Level 2: 94_Gemm_BiasAdd_Hardtanh_Mish_GroupNorm	0.90 (gpt-o1)				
+Level 2: 95_Matmul_Add_Swish_Tanh_GELU_Hardtanh	1.09 (gpt-o1)	0.56 (deepseek-coder)			
+Level 2: 96_ConvTranspose3d_Multiply_Max_GlobalAvgPool_Clamp	0.95 (deepseek-coder)				
+Level 2: 97_Matmul_BatchNorm_BiasAdd_Divide_Swish	0.86 (gpt-4o)	0.75 (gpt-o1)			
+Level 2: 98_Matmul_AvgPool_GELU_Scale_Max	1.32 (gpt-o1)				
+Level 2: 99_Matmul_GELU_Softmax	0.76 (gpt-o1)				
+Level 2: 100_ConvTranspose3d_Clamp_Min_Divide	1.14 (gpt-o1)	1.07 (deepseek-coder)			
+Level 3: 1_MLP	1.02 (gemini-1.5-flash)				
+Level 3: 2_ShallowWideMLP	1.04 (gpt-o1)				
+Level 3: 3_DeepNarrowMLP					
+Level 3: 4_LeNet5	1.32 (claude-3.5-sonnet)	0.87 (gpt-o1)			
+Level 3: 5_AlexNet	0.63 (gpt-o1)	0.14 (deepseek-coder)			
+Level 3: 6_GoogleNetInceptionModule					
+Level 3: 7_GoogleNetInceptionV1	0.72 (gpt-o1)				
+Level 3: 8_ResNetBasicBlock					
+Level 3: 9_ResNet18	0.72 (gpt-o1)	0.71 (deepseek-coder)			
+Level 3: 10_ResNet101	0.72 (gpt-o1)	0.67 (deepseek-coder)			
+Level 3: 11_VGG16	0.83 (gpt-o1)	0.07 (gpt-4o)			
+Level 3: 12_VGG19	0.60 (gpt-o1)				
+Level 3: 13_DenseNet121TransitionLayer	0.81 (claude-3.5-sonnet)				
+Level 3: 14_DenseNet121DenseBlock	1.00 (gpt-o1)				
+Level 3: 15_DenseNet121	0.92 (gpt-o1)	0.82 (gpt-4o)	0.81 (deepseek-coder)		
+Level 3: 16_DenseNet201	0.82 (gpt-o1)	0.81 (gpt-4o)	0.80 (deepseek-coder)		
+Level 3: 17_SqueezeNetFireModule					
+Level 3: 18_SqueezeNet	0.77 (gpt-4o)	0.66 (deepseek-coder)	0.57 (gpt-o1)		
+Level 3: 19_MobileNetV1	0.80 (deepseek-coder)	0.75 (gpt-4o)			
+Level 3: 20_MobileNetV2	0.70 (deepseek-coder)	0.65 (gpt-o1)			
+Level 3: 21_EfficientNetMBConv					
+Level 3: 22_EfficientNetB0	0.71 (deepseek-coder)				
+Level 3: 23_EfficientNetB1					
+Level 3: 24_EfficientNetB2					
+Level 3: 25_ShuffleNetUnit	0.95 (claude-3.5-sonnet)	0.62 (deepseek-coder)			
+Level 3: 26_ShuffleNet	0.96 (gpt-o1)	0.95 (gpt-4o)	0.88 (gemini-1.5-flash)		
+Level 3: 27_RegNet	0.99 (gemini-1.5-flash)	0.98 (gpt-o1)			
+Level 3: 28_VisionTransformer	0.77 (deepseek-coder)	0.77 (gpt-4o)	0.76 (claude-3.5-sonnet)		
+Level 3: 29_SwinMLP	1.01 (llama-3.1-405b)	0.99 (deepseek-coder)	0.99 (gemini-1.5-flash)		
+Level 3: 30_SwinTransformerV2	0.85 (gemini-1.5-flash)				
+Level 3: 31_VisionAttention					
+Level 3: 32_ConvolutionalVisionTransformer	0.71 (deepseek-coder)	0.70 (claude-3.5-sonnet)			
+Level 3: 33_VanillaRNN	0.01 (claude-3.5-sonnet)				
+Level 3: 34_VanillaRNNHidden					
+Level 3: 35_LTSM					
+Level 3: 36_LTSMHn					
+Level 3: 37_LTSMCn					
+Level 3: 38_LTSMBidirectional					
+Level 3: 39_GRU					
+Level 3: 40_GRUHidden					
+Level 3: 41_GRUBirectional					
+Level 3: 42_GRUBidirectionalHidden					
+Level 3: 43_MinGPTCausalAttention					
+Level 3: 44_MiniGPTBlock					
+Level 3: 45_UNetSoftmax					
+Level 3: 46_NetVladWithGhostClusters					
+Level 3: 47_NetVladNoGhostClusters	0.91 (llama-3.1-405b)				
+Level 3: 48_Mamba2ReturnY					
+Level 3: 49_Mamba2ReturnFinalState					
+Level 3: 50_ReLUSelfAttention	

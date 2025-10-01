@@ -1,0 +1,46 @@
+from torch.nn import Module
+import torch
+from torch import ones_like
+from torch.nn import SoftMarginLoss
+
+
+class LogisticLoss(Module):
+    """Logistic loss as it was defined in `TransE paper
+    <https://papers.nips.cc/paper/5071-translating-embeddings-for-modeling-multi-relational-data>`_
+    by Bordes et al. in 2013. This class implements :class:`torch.nn.Module`
+    interface.
+
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.loss = SoftMarginLoss(reduction='sum')
+
+    def forward(self, positive_triplets, negative_triplets):
+        """
+        Parameters
+        ----------
+        positive_triplets: torch.Tensor, dtype: torch.float, shape: (b_size)
+            Scores of the true triplets as returned by the `forward` methods
+            of the models.
+        negative_triplets: torch.Tensor, dtype: torch.float, shape: (b_size)
+            Scores of the negative triplets as returned by the `forward`
+            methods of the models.
+        Returns
+        -------
+        loss: torch.Tensor, shape: (n_facts, dim), dtype: torch.float
+            Loss of the form :math:`\\log(1+ \\exp(\\eta \\times f(h,r,t))`
+            where :math:`f(h,r,t)` is the score of the fact and :math:`\\eta`
+            is either 1 or -1 if the fact is true or false.
+        """
+        targets = ones_like(positive_triplets)
+        return self.loss(positive_triplets, targets) + self.loss(
+            negative_triplets, -targets)
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4]), torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {}]

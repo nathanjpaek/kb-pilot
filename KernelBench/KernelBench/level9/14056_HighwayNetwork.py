@@ -1,0 +1,30 @@
+import torch
+from torch import nn
+import torch.nn.functional as F
+import torch.utils.data
+import torch.optim
+import torch.distributions
+
+
+class HighwayNetwork(nn.Module):
+
+    def __init__(self, size):
+        super().__init__()
+        self.W1 = nn.Linear(size, size)
+        self.W2 = nn.Linear(size, size)
+        self.W1.bias.data.fill_(0.0)
+
+    def forward(self, x):
+        x1 = self.W1(x)
+        x2 = self.W2(x)
+        g = torch.sigmoid(x2)
+        y = g * F.relu(x1) + (1.0 - g) * x
+        return y
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'size': 4}]

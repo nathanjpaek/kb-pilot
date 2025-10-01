@@ -1,0 +1,90 @@
+<think>
+The given PyTorch model performs a Softmax activation on the input tensor. The Softmax function is defined as:
+
+\[ \text{softmax}(x_i) = \frac{e^{x_i}}{\sum_{j} e^{x_j}} \]
+
+To optimize this using TileLang, we need to implement the following steps:
+
+1. **Exponentiation**: Compute \( e^{x_i} \) for each element in the tensor.
+2. **Summation**: Compute the sum of the exponentiated values along the specified dimension.
+3. **Division**: Divide each exponentiated value by the sum computed in the previous step.
+
+We can leverage TileLang's parallelism and memory access patterns to efficiently perform these operations. The key is to ensure that the operations are tile-based and can be parallelized effectively.
+
+### Implementation Plan:
+1. **Exponentiation**: Use parallelism to compute the exponential of each element.
+2. **Summation**: Use a reduction operation to sum the exponentiated values along the specified dimension.
+3. **Division**: Use parallelism to divide each element by the sum.
+
+By using TileLang's constructs, we can ensure that these operations are performed efficiently on the GPU.
+</think>
+
+<code>
+import torch
+import torch.nn as nn
+import tilelang
+import tilelang.language as T
+
+
+def softmax(batch_size, dim):
+    @T.prim_func
+    def main(
+        x: T.Tensor((batch_size, dim), "float32"),
+        y: T.Tensor((batch_size, dim), "float32"),
+    ):
+        with T.Kernel(batch_size, threads=128) as bx:
+            # Allocate a local fragment for exponentiation results
+            exp_x = T.alloc_fragment((dim,), "float32")
+
+            # Exponentiate each element in the input tensor
+            for idx in range(dim):
+                exp_x[idx] = T.exp(x[bx, idx])
+
+            # Allocate a local fragment for the sum of exponentiated values
+            sum_exp_x = T.alloc_fragment((1,), "float32")
+            T.clear(sum_exp_x)
+
+            # Compute the sum of exponentiated values
+            for idx in range(dim):
+                sum_exp_x[0] = T.add(sum_exp_x[0], exp_x[idx])
+
+            # Normalize the exponentiated values by the sum
+            for idx in range(dim):
+                y[bx, idx] = T.div(exp_x[idx], sum_exp_x[0])
+
+    return main
+
+
+def tilelang_softmax(x):
+    M, N = x.shape
+    func = softmax(M, N)
+    kernel = tilelang.compile(func, out_idx=-1)
+    return kernel(x)
+
+
+class ModelNew(nn.Module):
+    """
+    Optimized model using TileLang for Softmax activation.
+    """
+
+    def __init__(self):
+        super(ModelNew, self).__init__()
+        # Define and compile TileLang kernel
+        self.kernel = tilelang_softmax
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Applies Softmax activation to the input tensor.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, num_features).
+
+        Returns:
+            torch.Tensor: Output tensor with Softmax applied, same shape as input.
+        """
+        return self.kernel(x)
+
+
+batch_size = 16
+dim = 16384
+</code>

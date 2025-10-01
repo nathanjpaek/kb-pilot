@@ -1,0 +1,111 @@
+from _paritybench_helpers import _mock_config
+import math
+import torch
+import torch.utils.data
+import torch.nn as nn
+import torch
+import torch.nn.parallel
+
+
+class BertSelfAttention(nn.Module):
+
+    def __init__(self, config):
+        super(BertSelfAttention, self).__init__()
+        if config.hidden_size % config.num_attention_heads != 0:
+            raise ValueError(
+                'The hidden size (%d) is not a multiple of the number of attention heads (%d)'
+                 % (config.hidden_size, config.num_attention_heads))
+        self.num_attention_heads = config.num_attention_heads
+        self.attention_head_size = int(config.hidden_size / config.
+            num_attention_heads)
+        self.all_head_size = (self.num_attention_heads * self.
+            attention_head_size)
+        self.query = nn.Linear(config.hidden_size, self.all_head_size)
+        self.key = nn.Linear(config.hidden_size, self.all_head_size)
+        self.value = nn.Linear(config.hidden_size, self.all_head_size)
+        self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+
+    def transpose_for_scores(self, x):
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.
+            attention_head_size)
+        x = x.view(*new_x_shape)
+        return x.permute(0, 2, 1, 3)
+
+    def forward(self, query_states, key_states, value_states, attention_mask):
+        """
+        Args:
+            query_states: (N, Lq, D)
+            key_states: (N, L, D)
+            value_states: (N, L, D)
+            attention_mask: (N, Lq, L)
+
+        Returns:
+
+        """
+        attention_mask = (1 - attention_mask.unsqueeze(1)) * -10000.0
+        mixed_query_layer = self.query(query_states)
+        mixed_key_layer = self.key(key_states)
+        mixed_value_layer = self.value(value_states)
+        query_layer = self.transpose_for_scores(mixed_query_layer)
+        key_layer = self.transpose_for_scores(mixed_key_layer)
+        value_layer = self.transpose_for_scores(mixed_value_layer)
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1,
+            -2))
+        attention_scores = attention_scores / math.sqrt(self.
+            attention_head_size)
+        attention_scores = attention_scores + attention_mask.float()
+        attention_probs = nn.Softmax(dim=-1)(attention_scores)
+        attention_probs = self.dropout(attention_probs)
+        context_layer = torch.matmul(attention_probs, value_layer)
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (self.
+            all_head_size,)
+        context_layer = context_layer.view(*new_context_layer_shape)
+        return context_layer
+
+
+class MemoryUpdater(nn.Module):
+
+    def __init__(self, config):
+        super(MemoryUpdater, self).__init__()
+        self.memory_update_attention = BertSelfAttention(config)
+        self.mc = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
+        self.sc = nn.Linear(config.hidden_size, config.hidden_size, bias=True)
+        self.mz = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
+        self.sz = nn.Linear(config.hidden_size, config.hidden_size, bias=True)
+
+    def forward(self, prev_m, input_states, attention_mask):
+        """ This module should have access to all the text at this step,
+        since its state will not be used for generation at current step
+        Args:
+            prev_m: (N, M, D), M is memory size
+            input_states: (N, L, D)
+            attention_mask: (N, L)
+        Returns:
+
+        """
+        n_memory_cells = prev_m.shape[1]
+        if len(attention_mask.shape) == 2:
+            update_mask = attention_mask.unsqueeze(1).repeat(1,
+                n_memory_cells, 1)
+        elif len(attention_mask.shape) == 3:
+            update_mask = torch.diagonal(attention_mask, dim1=-2, dim2=-1
+                ).unsqueeze(1).repeat(1, n_memory_cells, 1)
+        else:
+            raise ValueError
+        s_t = self.memory_update_attention(prev_m, input_states,
+            input_states, update_mask)
+        c_t = torch.tanh(self.mc(prev_m) + self.sc(s_t))
+        z_t = torch.sigmoid(self.mz(prev_m) + self.sz(s_t))
+        updated_memory = (1 - z_t) * c_t + z_t * prev_m
+        return updated_memory
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4]), torch.rand([4, 4, 4]), torch.rand([4, 4, 4])
+        ]
+
+
+def get_init_inputs():
+    return [[], {'config': _mock_config(hidden_size=4, num_attention_heads=
+        4, attention_probs_dropout_prob=0.5)}]

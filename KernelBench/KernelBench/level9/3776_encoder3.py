@@ -1,0 +1,60 @@
+import torch
+import torch.nn
+import torch
+import torch.nn as nn
+
+
+class encoder3(nn.Module):
+
+    def __init__(self, W, v2):
+        super(encoder3, self).__init__()
+        self.conv1 = nn.Conv2d(3, 3, 1, 1, 0)
+        self.reflecPad1 = nn.ZeroPad2d((1, 1, 1, 1))
+        self.conv2 = nn.Conv2d(3, 32 if v2 else int(64 * W), 3, 1, 0)
+        self.relu2 = nn.ReLU(inplace=True)
+        self.reflecPad3 = nn.ZeroPad2d((1, 1, 1, 1))
+        self.conv3 = nn.Conv2d(32 if v2 else int(64 * W), int(64 * W), 3, 1, 0)
+        self.relu3 = nn.ReLU(inplace=True)
+        self.maxPool = nn.MaxPool2d(kernel_size=2, stride=2, return_indices
+            =False)
+        self.reflecPad4 = nn.ZeroPad2d((1, 1, 1, 1))
+        self.conv4 = nn.Conv2d(int(64 * W), int(128 * W), 3, 1, 0)
+        self.relu4 = nn.ReLU(inplace=True)
+        self.reflecPad5 = nn.ZeroPad2d((1, 1, 1, 1))
+        self.conv5 = nn.Conv2d(int(128 * W), int(128 * W), 3, 1, 0)
+        self.relu5 = nn.ReLU(inplace=True)
+        self.maxPool2 = nn.MaxPool2d(kernel_size=2, stride=2,
+            return_indices=False)
+        self.reflecPad6 = nn.ZeroPad2d((1, 1, 1, 1))
+        self.conv6 = nn.Conv2d(int(128 * W), int(256 * W), 3, 1, 0)
+        self.relu6 = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        x = x / 255.0
+        out = self.conv1(x)
+        out = self.reflecPad1(out)
+        out = self.conv2(out)
+        out = self.relu2(out)
+        out = self.reflecPad3(out)
+        out = self.conv3(out)
+        pool1 = self.relu3(out)
+        out = self.maxPool(pool1)
+        out = self.reflecPad4(out)
+        out = self.conv4(out)
+        out = self.relu4(out)
+        out = self.reflecPad5(out)
+        out = self.conv5(out)
+        pool2 = self.relu5(out)
+        out = self.maxPool2(pool2)
+        out = self.reflecPad6(out)
+        out = self.conv6(out)
+        out = self.relu6(out)
+        return out
+
+
+def get_inputs():
+    return [torch.rand([4, 3, 64, 64])]
+
+
+def get_init_inputs():
+    return [[], {'W': 4, 'v2': 4}]

@@ -1,0 +1,54 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+def weight_init(m):
+    if isinstance(m, nn.Linear):
+        size = m.weight.size()
+        size[0]
+        size[1]
+        variance = 0.001
+        m.weight.data.normal_(0.0, variance)
+        try:
+            m.bias.data.normal_(0.0, 0.0001)
+        except:
+            pass
+
+
+class mlp_layer(nn.Module):
+
+    def __init__(self, input_size, output_size, activation='tanh',
+        drouput_prob=0.0):
+        super(mlp_layer, self).__init__()
+        self.affine = nn.Linear(input_size, output_size)
+        weight_init(self.affine)
+        if activation.lower() == 'tanh':
+            self.activation = torch.tanh
+        elif activation.lower() == 'relu':
+            self.activation = F.relu()
+
+    def forward(self, x):
+        x = self.activation(self.affine(x))
+        return x
+
+
+class custom_embedding(nn.Module):
+
+    def __init__(self, input_size, output_size):
+        super(custom_embedding, self).__init__()
+        self.affine1 = mlp_layer(input_size, output_size)
+        self.affine2 = mlp_layer(output_size, output_size)
+        weight_init(self.affine1)
+        weight_init(self.affine2)
+
+    def forward(self, x):
+        return self.affine2(self.affine1(x))
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'input_size': 4, 'output_size': 4}]

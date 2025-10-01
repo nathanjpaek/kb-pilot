@@ -1,0 +1,360 @@
+import collections
+import torch
+import torch.utils.data
+from torch import nn
+
+
+def get_redistribution(kind: 'str', num_states: 'int', num_features: 'int'=
+    None, num_out: 'int'=None, normaliser: 'nn.Module'=None, **kwargs):
+    if kind == 'linear':
+        return LinearRedistribution(num_states, num_features, num_out,
+            normaliser)
+    elif kind == 'outer':
+        return OuterRedistribution(num_states, num_features, num_out,
+            normaliser, **kwargs)
+    elif kind == 'gate':
+        return GateRedistribution(num_states, num_features, num_out, normaliser
+            )
+    else:
+        raise ValueError('unknown kind of redistribution: {}'.format(kind))
+
+
+class SummaryWriterNamespaceNoLoggingScope:
+
+    def __init__(self, writer):
+        self._writer = writer
+
+    def __enter__(self):
+        self._writer._logging_enabled = False
+
+    def __exit__(self, type, value, traceback):
+        self._writer._logging_enabled = True
+        return False
+
+
+class DummySummaryWriter:
+
+    def __init__(self, **kwargs):
+        self._logging_enabled = False
+        pass
+
+    def add_scalar(self, name, value, verbose_only=True):
+        pass
+
+    def add_summary(self, name, tensor, verbose_only=True):
+        pass
+
+    def add_histogram(self, name, tensor, verbose_only=True):
+        pass
+
+    def add_tensor(self, name, tensor, verbose_only=True):
+        pass
+
+    def print(self, name, tensor, verbose_only=True):
+        pass
+
+    def namespace(self, name):
+        return self
+
+    def every(self, epoch_interval):
+        return self
+
+    def verbose(self, verbose):
+        return self
+
+    def no_logging(self):
+        return SummaryWriterNamespaceNoLoggingScope(self)
+
+
+class NoRandomScope:
+
+    def __init__(self, module):
+        self._module = module
+
+    def __enter__(self):
+        self._module._disable_random()
+
+    def __exit__(self, type, value, traceback):
+        self._module._enable_random()
+        return False
+
+
+class ExtendedTorchModule(torch.nn.Module):
+
+    def __init__(self, default_name, *args, writer=None, name=None, **kwargs):
+        super().__init__()
+        if writer is None:
+            writer = DummySummaryWriter()
+        self.writer = writer.namespace(default_name if name is None else name)
+        self.allow_random = True
+
+    def set_parameter(self, name, value):
+        parameter = getattr(self, name, None)
+        if isinstance(parameter, torch.nn.Parameter):
+            parameter.fill_(value)
+        for module in self.children():
+            if isinstance(module, ExtendedTorchModule):
+                module.set_parameter(name, value)
+
+    def regualizer(self, merge_in=None):
+        regualizers = collections.defaultdict(int)
+        if merge_in is not None:
+            for key, value in merge_in.items():
+                self.writer.add_scalar(f'regualizer/{key}', value)
+                regualizers[key] += value
+        for module in self.children():
+            if isinstance(module, ExtendedTorchModule):
+                for key, value in module.regualizer().items():
+                    regualizers[key] += value
+        return regualizers
+
+    def optimize(self, loss):
+        for module in self.children():
+            if isinstance(module, ExtendedTorchModule):
+                module.optimize(loss)
+
+    def log_gradients(self):
+        for name, parameter in self.named_parameters(recurse=False):
+            if parameter.requires_grad:
+                gradient, *_ = parameter.grad.data
+                self.writer.add_summary(f'{name}/grad', gradient)
+                self.writer.add_histogram(f'{name}/grad', gradient)
+        for module in self.children():
+            if isinstance(module, ExtendedTorchModule):
+                module.log_gradients()
+
+    def no_internal_logging(self):
+        return self.writer.no_logging()
+
+    def _disable_random(self):
+        self.allow_random = False
+        for module in self.children():
+            if isinstance(module, ExtendedTorchModule):
+                module._disable_random()
+
+    def _enable_random(self):
+        self.allow_random = True
+        for module in self.children():
+            if isinstance(module, ExtendedTorchModule):
+                module._enable_random()
+
+    def no_random(self):
+        return NoRandomScope(self)
+
+
+class NormalisedSigmoid(nn.Module):
+    """ Normalised logistic sigmoid function. """
+
+    def __init__(self, p: 'float'=1, dim: 'int'=-1):
+        super().__init__()
+        self.p = p
+        self.dim = dim
+
+    def forward(self, s: 'torch.Tensor') ->torch.Tensor:
+        a = torch.sigmoid(s)
+        return torch.nn.functional.normalize(a, p=self.p, dim=self.dim)
+
+
+class Redistribution(nn.Module):
+    """ Base class for modules that generate redistribution vectors/matrices. """
+
+    def __init__(self, num_states: 'int', num_features: 'int'=None, num_out:
+        'int'=None, normaliser: 'nn.Module'=None):
+        """
+        Parameters
+        ----------
+        num_states : int
+            The number of states this redistribution is to be applied on.
+        num_features : int, optional
+            The number of features to use for configuring the redistribution.
+            If the redistribution is not input-dependent, this argument will be ignored.
+        num_out : int, optional
+            The number of outputs to redistribute the states to.
+            If nothing is specified, the redistribution matrix is assumed to be square.
+        normaliser : Module, optional
+            Function to use for normalising the redistribution matrix.
+        """
+        super().__init__()
+        self.num_features = num_features
+        self.num_states = num_states
+        self.num_out = num_out or num_states
+        self.normaliser = normaliser or NormalisedSigmoid(dim=-1)
+
+    def _compute(self, x: 'torch.Tensor') ->torch.Tensor:
+        raise NotImplementedError('subclass must implement this method')
+
+    def forward(self, x: 'torch.Tensor') ->torch.Tensor:
+        r = self._compute(x)
+        return self.normaliser(r)
+
+
+class Gate(Redistribution):
+    """
+    Classic gate as used in e.g. LSTMs.
+
+    Notes
+    -----
+    The vector that is computed by this module gives rise to a diagonal redistribution matrix,
+    i.e. a redistribution matrix that does not really redistribute (not normalised).
+    """
+
+    def __init__(self, num_states, num_features, num_out=None, sigmoid=None):
+        super().__init__(num_states, num_features, 1, sigmoid or nn.Sigmoid())
+        self.fc = nn.Linear(num_features, num_states)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.orthogonal_(self.fc.weight)
+        nn.init.zeros_(self.fc.bias)
+
+    def _compute(self, x: 'torch.Tensor') ->torch.Tensor:
+        return self.fc(x)
+
+
+class GateRedistribution(Redistribution):
+    """
+    Gate-like redistribution that only depends on input.
+
+    This module directly computes all entries for the redistribution matrix
+    from a linear combination of the input values and is normalised by the activation function.
+    """
+
+    def __init__(self, num_states, num_features, num_out=None, normaliser=None
+        ):
+        super().__init__(num_states, num_features, num_out, normaliser)
+        self.fc = nn.Linear(num_features, self.num_states * self.num_out)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.orthogonal_(self.fc.weight)
+        nn.init.zeros_(self.fc.bias)
+        if self.num_states == self.num_out:
+            with torch.no_grad():
+                self.fc.bias[0::self.num_out + 1] = 3
+
+    def _compute(self, x: 'torch.Tensor') ->torch.Tensor:
+        logits = self.fc(x)
+        return logits.view(-1, self.num_states, self.num_out)
+
+
+class LinearRedistribution(Redistribution):
+    """
+    Redistribution by normalising a learned matrix.
+
+    This module has an unnormalised version of the redistribution matrix as parameters
+    and is normalised by applying a non-linearity (the normaliser).
+    The redistribution does not depend on any of the input values,
+    but is updated using the gradients to fit the data.
+    """
+
+    def __init__(self, num_states, num_features=0, num_out=None, normaliser
+        =None):
+        super(LinearRedistribution, self).__init__(num_states, 0, num_out,
+            normaliser)
+        self.r = nn.Parameter(torch.empty(self.num_states, self.num_out),
+            requires_grad=True)
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        if self.num_states == self.num_out:
+            nn.init.eye_(self.r)
+            if type(self.normaliser) is NormalisedSigmoid:
+                torch.mul(self.r, 2, out=self.r)
+                torch.sub(self.r, 1, out=self.r)
+        else:
+            nn.init.orthogonal_(self.r)
+
+    def _compute(self, x: 'torch.Tensor') ->torch.Tensor:
+        return self.r.unsqueeze(0)
+
+
+class OuterRedistribution(Redistribution):
+    """
+    Redistribution by (weighted) outer product of two input-dependent vectors.
+
+    This module computes the entries for the redistribution matrix as
+    the outer product of two vectors that are linear combinations of the input values.
+    There is an option to include a weight matrix parameter
+    to weight each entry in the resulting matrix, which is then normalised using a non-linearity.
+    The weight matrix parameter is updated through the gradients to fit the data.
+    """
+
+    def __init__(self, num_states, num_features, num_out=None, normaliser=
+        None, weighted: 'bool'=False):
+        """
+        Parameters
+        ----------
+        weighted : bool, optional
+            Whether or not to use a weighted outer product.
+        """
+        super(OuterRedistribution, self).__init__(num_states, num_features,
+            num_out, normaliser)
+        self.weighted = weighted
+        self.r = nn.Parameter(torch.empty(self.num_states, self.num_out),
+            requires_grad=weighted)
+        self.fc1 = nn.Linear(num_features, self.num_states)
+        self.fc2 = nn.Linear(num_features, self.num_out)
+        self.phi = lambda x: x
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.ones_(self.r)
+        nn.init.orthogonal_(self.fc1.weight)
+        nn.init.zeros_(self.fc1.bias)
+        nn.init.orthogonal_(self.fc2.weight)
+        nn.init.zeros_(self.fc2.bias)
+
+    def _compute(self, x: 'torch.Tensor') ->torch.Tensor:
+        a1 = self.phi(self.fc1(x))
+        a2 = self.phi(self.fc2(x))
+        outer = a1.unsqueeze(-1) * a2.unsqueeze(-2)
+        if self.weighted:
+            outer *= self.r
+        return outer
+
+
+class MCFullyConnected(ExtendedTorchModule):
+
+    def __init__(self, in_features: 'int', out_features: 'int', **kwargs):
+        super().__init__('MCFC', **kwargs)
+        self.mass_input_size = in_features
+        self.aux_input_size = 1
+        self.hidden_size = out_features
+        self.normaliser = nn.Softmax(dim=-1)
+        self.out_gate = Gate(self.hidden_size, self.aux_input_size)
+        self.junction = get_redistribution('linear', num_states=self.
+            mass_input_size, num_features=self.aux_input_size, num_out=self
+            .hidden_size, normaliser=self.normaliser)
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.out_gate.reset_parameters()
+        self.junction.reset_parameters()
+
+    def log_gradients(self):
+        for name, parameter in self.named_parameters():
+            gradient, *_ = parameter.grad.data
+            self.writer.add_summary(f'{name}/grad', gradient)
+            self.writer.add_histogram(f'{name}/grad', gradient)
+
+    def regualizer(self, merge_in=None):
+        r1 = -torch.mean(self.junction.r ** 2)
+        r2 = -torch.mean(self.out_gate.fc.weight ** 2)
+        r3 = -torch.mean(self.out_gate.fc.bias ** 2)
+        return super().regualizer({'W': r1 + r2 + r3})
+
+    def forward(self, x):
+        x_m, x_a = x, x.new_ones(1)
+        j = self.junction(x_a)
+        o = self.out_gate(x_a)
+        m_in = torch.matmul(x_m.unsqueeze(-2), j).squeeze(-2)
+        return o * m_in
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'in_features': 4, 'out_features': 4}]

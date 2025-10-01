@@ -1,0 +1,29 @@
+import torch
+import torch.nn as nn
+
+
+class BiaffineAttention(nn.Module):
+
+    def __init__(self, in_features, out_features):
+        super(BiaffineAttention, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.bilinear = torch.nn.Bilinear(in_features, in_features,
+            out_features, bias=False)
+        self.linear = torch.nn.Linear(2 * in_features, out_features, bias=True)
+        self.reset_parameters()
+
+    def forward(self, x1, x2):
+        return self.bilinear(x1, x2) + self.linear(torch.cat((x1, x2), dim=-1))
+
+    def reset_parameters(self):
+        self.bilinear.reset_parameters()
+        self.linear.reset_parameters()
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4]), torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'in_features': 4, 'out_features': 4}]

@@ -1,0 +1,30 @@
+import torch
+import torch.nn as nn
+import torch.nn.parallel
+import torch.optim
+import torch.utils.data
+from torch.optim.lr_scheduler import *
+import torch.optim.lr_scheduler
+import torch.onnx
+import torch.testing
+
+
+class DummyDenseWithRelu(nn.Module):
+
+    def __init__(self, input_size, output_size, relu=None):
+        super(DummyDenseWithRelu, self).__init__()
+        self.input_size = input_size
+        self.output_size = output_size
+        self.relu = relu or nn.ReLU()
+        self.linear = nn.Linear(input_size, output_size)
+
+    def forward(self, x):
+        return self.relu(self.linear(x))
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'input_size': 4, 'output_size': 4}]

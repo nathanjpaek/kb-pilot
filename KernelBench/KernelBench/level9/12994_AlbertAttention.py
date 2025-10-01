@@ -1,0 +1,184 @@
+from _paritybench_helpers import _mock_config
+import math
+import torch
+from typing import List
+from typing import Tuple
+from torch import nn
+from typing import Set
+import torch.utils.checkpoint
+
+
+def find_pruneable_heads_and_indices(heads: 'List[int]', n_heads: 'int',
+    head_size: 'int', already_pruned_heads: 'Set[int]') ->Tuple[Set[int],
+    torch.LongTensor]:
+    """
+    Finds the heads and their indices taking :obj:`already_pruned_heads` into account.
+
+    Args:
+        heads (:obj:`List[int]`): List of the indices of heads to prune.
+        n_heads (:obj:`int`): The number of heads in the model.
+        head_size (:obj:`int`): The size of each head.
+        already_pruned_heads (:obj:`Set[int]`): A set of already pruned heads.
+
+    Returns:
+        :obj:`Tuple[Set[int], torch.LongTensor]`: A tuple with the remaining heads and their corresponding indices.
+    """
+    mask = torch.ones(n_heads, head_size)
+    heads = set(heads) - already_pruned_heads
+    for head in heads:
+        head = head - sum(1 if h < head else 0 for h in already_pruned_heads)
+        mask[head] = 0
+    mask = mask.view(-1).contiguous().eq(1)
+    index: 'torch.LongTensor' = torch.arange(len(mask))[mask].long()
+    return heads, index
+
+
+def prune_linear_layer(layer: 'nn.Linear', index: 'torch.LongTensor', dim:
+    'int'=0) ->nn.Linear:
+    """
+    Prune a linear layer to keep only entries in index.
+
+    Used to remove heads.
+
+    Args:
+        layer (:obj:`torch.nn.Linear`): The layer to prune.
+        index (:obj:`torch.LongTensor`): The indices to keep in the layer.
+        dim (:obj:`int`, `optional`, defaults to 0): The dimension on which to keep the indices.
+
+    Returns:
+        :obj:`torch.nn.Linear`: The pruned layer as a new layer with :obj:`requires_grad=True`.
+    """
+    index = index
+    W = layer.weight.index_select(dim, index).clone().detach()
+    if layer.bias is not None:
+        if dim == 1:
+            b = layer.bias.clone().detach()
+        else:
+            b = layer.bias[index].clone().detach()
+    new_size = list(layer.weight.size())
+    new_size[dim] = len(index)
+    new_layer = nn.Linear(new_size[1], new_size[0], bias=layer.bias is not None
+        )
+    new_layer.weight.requires_grad = False
+    new_layer.weight.copy_(W.contiguous())
+    new_layer.weight.requires_grad = True
+    if layer.bias is not None:
+        new_layer.bias.requires_grad = False
+        new_layer.bias.copy_(b.contiguous())
+        new_layer.bias.requires_grad = True
+    return new_layer
+
+
+class AlbertAttention(nn.Module):
+
+    def __init__(self, config):
+        super().__init__()
+        if (config.hidden_size % config.num_attention_heads != 0 and not
+            hasattr(config, 'embedding_size')):
+            raise ValueError(
+                f'The hidden size ({config.hidden_size}) is not a multiple of the number of attention heads ({config.num_attention_heads}'
+                )
+        self.num_attention_heads = config.num_attention_heads
+        self.hidden_size = config.hidden_size
+        self.attention_head_size = (config.hidden_size // config.
+            num_attention_heads)
+        self.all_head_size = (self.num_attention_heads * self.
+            attention_head_size)
+        self.query = nn.Linear(config.hidden_size, self.all_head_size)
+        self.key = nn.Linear(config.hidden_size, self.all_head_size)
+        self.value = nn.Linear(config.hidden_size, self.all_head_size)
+        self.attention_dropout = nn.Dropout(config.attention_probs_dropout_prob
+            )
+        self.output_dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.
+            layer_norm_eps)
+        self.pruned_heads = set()
+        self.position_embedding_type = getattr(config,
+            'position_embedding_type', 'absolute')
+        if (self.position_embedding_type == 'relative_key' or self.
+            position_embedding_type == 'relative_key_query'):
+            self.max_position_embeddings = config.max_position_embeddings
+            self.distance_embedding = nn.Embedding(2 * config.
+                max_position_embeddings - 1, self.attention_head_size)
+
+    def transpose_for_scores(self, x):
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.
+            attention_head_size)
+        x = x.view(*new_x_shape)
+        return x.permute(0, 2, 1, 3)
+
+    def prune_heads(self, heads):
+        if len(heads) == 0:
+            return
+        heads, index = find_pruneable_heads_and_indices(heads, self.
+            num_attention_heads, self.attention_head_size, self.pruned_heads)
+        self.query = prune_linear_layer(self.query, index)
+        self.key = prune_linear_layer(self.key, index)
+        self.value = prune_linear_layer(self.value, index)
+        self.dense = prune_linear_layer(self.dense, index, dim=1)
+        self.num_attention_heads = self.num_attention_heads - len(heads)
+        self.all_head_size = (self.attention_head_size * self.
+            num_attention_heads)
+        self.pruned_heads = self.pruned_heads.union(heads)
+
+    def forward(self, hidden_states, attention_mask=None, head_mask=None,
+        output_attentions=False):
+        mixed_query_layer = self.query(hidden_states)
+        mixed_key_layer = self.key(hidden_states)
+        mixed_value_layer = self.value(hidden_states)
+        query_layer = self.transpose_for_scores(mixed_query_layer)
+        key_layer = self.transpose_for_scores(mixed_key_layer)
+        value_layer = self.transpose_for_scores(mixed_value_layer)
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1,
+            -2))
+        attention_scores = attention_scores / math.sqrt(self.
+            attention_head_size)
+        if attention_mask is not None:
+            attention_scores = attention_scores + attention_mask
+        if (self.position_embedding_type == 'relative_key' or self.
+            position_embedding_type == 'relative_key_query'):
+            seq_length = hidden_states.size()[1]
+            position_ids_l = torch.arange(seq_length, dtype=torch.long,
+                device=hidden_states.device).view(-1, 1)
+            position_ids_r = torch.arange(seq_length, dtype=torch.long,
+                device=hidden_states.device).view(1, -1)
+            distance = position_ids_l - position_ids_r
+            positional_embedding = self.distance_embedding(distance + self.
+                max_position_embeddings - 1)
+            positional_embedding = positional_embedding
+            if self.position_embedding_type == 'relative_key':
+                relative_position_scores = torch.einsum('bhld,lrd->bhlr',
+                    query_layer, positional_embedding)
+                attention_scores = attention_scores + relative_position_scores
+            elif self.position_embedding_type == 'relative_key_query':
+                relative_position_scores_query = torch.einsum('bhld,lrd->bhlr',
+                    query_layer, positional_embedding)
+                relative_position_scores_key = torch.einsum('bhrd,lrd->bhlr',
+                    key_layer, positional_embedding)
+                attention_scores = (attention_scores +
+                    relative_position_scores_query +
+                    relative_position_scores_key)
+        attention_probs = nn.Softmax(dim=-1)(attention_scores)
+        attention_probs = self.attention_dropout(attention_probs)
+        if head_mask is not None:
+            attention_probs = attention_probs * head_mask
+        context_layer = torch.matmul(attention_probs, value_layer)
+        context_layer = context_layer.transpose(2, 1).flatten(2)
+        projected_context_layer = self.dense(context_layer)
+        projected_context_layer_dropout = self.output_dropout(
+            projected_context_layer)
+        layernormed_context_layer = self.LayerNorm(hidden_states +
+            projected_context_layer_dropout)
+        return (layernormed_context_layer, attention_probs
+            ) if output_attentions else (layernormed_context_layer,)
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'config': _mock_config(hidden_size=4, num_attention_heads=
+        4, attention_probs_dropout_prob=0.5, hidden_dropout_prob=0.5,
+        layer_norm_eps=1, position_embedding_type=4)}]

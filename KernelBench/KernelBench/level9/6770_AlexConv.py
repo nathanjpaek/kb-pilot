@@ -1,0 +1,174 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from inspect import isfunction
+
+
+def get_activation_layer(activation):
+    """
+    Create activation layer from string/function.
+
+    Parameters:
+    ----------
+    activation : function, or str, or nn.Module
+        Activation function or name of activation function.
+
+    Returns
+    -------
+    nn.Module
+        Activation layer.
+    """
+    assert activation is not None
+    if isfunction(activation):
+        return activation()
+    elif isinstance(activation, str):
+        if activation == 'relu':
+            return nn.ReLU(inplace=True)
+        elif activation == 'relu6':
+            return nn.ReLU6(inplace=True)
+        elif activation == 'swish':
+            return Swish()
+        elif activation == 'hswish':
+            return HSwish(inplace=True)
+        elif activation == 'sigmoid':
+            return nn.Sigmoid()
+        elif activation == 'hsigmoid':
+            return HSigmoid()
+        else:
+            raise NotImplementedError()
+    else:
+        assert isinstance(activation, nn.Module)
+        return activation
+
+
+class HSigmoid(nn.Module):
+    """
+    Approximated sigmoid function, so-called hard-version of sigmoid from 'Searching for MobileNetV3,'
+    https://arxiv.org/abs/1905.02244.
+    """
+
+    def forward(self, x):
+        return F.relu6(x + 3.0, inplace=True) / 6.0
+
+
+class HSwish(nn.Module):
+    """
+    H-Swish activation function from 'Searching for MobileNetV3,' https://arxiv.org/abs/1905.02244.
+
+    Parameters:
+    ----------
+    inplace : bool
+        Whether to use inplace version of the module.
+    """
+
+    def __init__(self, inplace=False):
+        super(HSwish, self).__init__()
+        self.inplace = inplace
+
+    def forward(self, x):
+        return x * F.relu6(x + 3.0, inplace=self.inplace) / 6.0
+
+
+class Swish(nn.Module):
+    """
+    Swish activation function from 'Searching for Activation Functions,' https://arxiv.org/abs/1710.05941.
+    """
+
+    def forward(self, x):
+        return x * torch.sigmoid(x)
+
+
+class ConvBlock(nn.Module):
+    """
+    Standard convolution block with Batch normalization and activation.
+
+    Parameters:
+    ----------
+    in_channels : int
+        Number of input channels.
+    out_channels : int
+        Number of output channels.
+    kernel_size : int or tuple/list of 2 int
+        Convolution window size.
+    stride : int or tuple/list of 2 int
+        Strides of the convolution.
+    padding : int or tuple/list of 2 int
+        Padding value for convolution layer.
+    dilation : int or tuple/list of 2 int, default 1
+        Dilation value for convolution layer.
+    groups : int, default 1
+        Number of groups.
+    bias : bool, default False
+        Whether the layer uses a bias vector.
+    use_bn : bool, default True
+        Whether to use BatchNorm layer.
+    bn_eps : float, default 1e-5
+        Small float added to variance in Batch norm.
+    activation : function or str or None, default nn.ReLU(inplace=True)
+        Activation function or name of activation function.
+    """
+
+    def __init__(self, in_channels, out_channels, kernel_size, stride,
+        padding, dilation=1, groups=1, bias=False, use_bn=True, bn_eps=
+        1e-05, activation=lambda : nn.ReLU(inplace=True)):
+        super(ConvBlock, self).__init__()
+        self.activate = activation is not None
+        self.use_bn = use_bn
+        self.conv = nn.Conv2d(in_channels=in_channels, out_channels=
+            out_channels, kernel_size=kernel_size, stride=stride, padding=
+            padding, dilation=dilation, groups=groups, bias=bias)
+        if self.use_bn:
+            self.bn = nn.BatchNorm2d(num_features=out_channels, eps=bn_eps)
+        if self.activate:
+            self.activ = get_activation_layer(activation)
+
+    def forward(self, x):
+        x = self.conv(x)
+        if self.use_bn:
+            x = self.bn(x)
+        if self.activate:
+            x = self.activ(x)
+        return x
+
+
+class AlexConv(ConvBlock):
+    """
+    AlexNet specific convolution block.
+
+    Parameters:
+    ----------
+    in_channels : int
+        Number of input channels.
+    out_channels : int
+        Number of output channels.
+    kernel_size : int or tuple/list of 2 int
+        Convolution window size.
+    stride : int or tuple/list of 2 int
+        Strides of the convolution.
+    padding : int or tuple/list of 2 int
+        Padding value for convolution layer.
+    use_lrn : bool
+        Whether to use LRN layer.
+    """
+
+    def __init__(self, in_channels, out_channels, kernel_size, stride,
+        padding, use_lrn):
+        super(AlexConv, self).__init__(in_channels=in_channels,
+            out_channels=out_channels, kernel_size=kernel_size, stride=
+            stride, padding=padding, bias=True, use_bn=False)
+        self.use_lrn = use_lrn
+
+    def forward(self, x):
+        x = super(AlexConv, self).forward(x)
+        if self.use_lrn:
+            x = F.local_response_norm(x, size=5, k=2.0)
+        return x
+
+
+def get_inputs():
+    return [torch.rand([4, 4, 4, 4])]
+
+
+def get_init_inputs():
+    return [[], {'in_channels': 4, 'out_channels': 4, 'kernel_size': 4,
+        'stride': 1, 'padding': 4, 'use_lrn': 4}]
