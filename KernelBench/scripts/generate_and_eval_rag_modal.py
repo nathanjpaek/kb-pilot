@@ -181,7 +181,7 @@ class EvalFunc:
         import os, subprocess, sys
 
         py_code = """
-        import tk_kernels
+import tk_kernels
 import torch
 import torch.nn as nn
 
@@ -197,7 +197,7 @@ class ModelNew(nn.Module):
         super(ModelNew, self).__init__()
     
     def forward(self, A, B):
-        output = torch.zeros(M, M, dtype=OUTPUT_DTYPE, device='cuda')
+        output = torch.zeros(M, N, dtype=OUTPUT_DTYPE, device='cuda')
 
         A = A.cuda()
         B = B.cuda()
@@ -206,8 +206,8 @@ class ModelNew(nn.Module):
         return output
 
 
-A = torch.rand(M, N, dtype=INPUT_DTYPE) / N # [16, 1024]
-B = torch.rand(N, M, dtype=INPUT_DTYPE) / N # [1024, 16]
+A = torch.rand(M, K, dtype=INPUT_DTYPE) / K  # [16, 16384]
+B = torch.rand(K, N, dtype=INPUT_DTYPE) / K  # [16384, 16384]
 
 A = A.cuda()
 B = B.cuda()
@@ -228,7 +228,7 @@ assert torch.allclose(output, output_ref, atol=1e-2)
         """
 
         cu_code = """
-        #include "kittens.cuh"
+#include "kittens.cuh"
 #include "pyutils/pyutils.cuh"
 using namespace kittens;
 
@@ -280,12 +280,9 @@ void micro_tk(const __grid_constant__ micro_globals g) {
 
     // Loop over K dimension in tiles
     for (int k = 0; k < g.K; k += TILE_K) {
-        // if (blockIdx.x == 0 && blockIdx.y == 0) {
-        // }
-
-        // Load tiles from global memory
-        kittens::warpgroup::load(a_s, g.a, {0, k});
-        kittens::warpgroup::load(b_s, g.b, {0, k});
+        // Load tiles from global memory using block indices
+        kittens::warpgroup::load(a_s, g.a, {tile_row * TILE_M, k});
+        kittens::warpgroup::load(b_s, g.b, {k, tile_col * TILE_N});
         __syncthreads();
 
         // Load to registers
@@ -296,17 +293,14 @@ void micro_tk(const __grid_constant__ micro_globals g) {
         // Perform matrix multiplication on tiles
         kittens::warp::mma_AB(accum, a_reg, b_reg, accum);
 
-        // if (blockIdx.x == 0 && blockIdx.y == 0) {
-        // }
-
         __syncthreads();
     }
 
-    // Store result
+    // Store result using block indices
     kittens::warp::store(c_s, accum);
     __syncthreads();
-    kittens::warpgroup::store(g.c, c_s, {0, 0});
-    __syncthreads(); // SIMON: I added this
+    kittens::warpgroup::store(g.c, c_s, {tile_row * TILE_M, tile_col * TILE_N});
+    __syncthreads();
 
 }
 
@@ -584,7 +578,7 @@ def main(config: RAGEvalConfig):
 
 
         py_code = """
-        import tk_kernels
+import tk_kernels
 import torch
 import torch.nn as nn
 
@@ -600,7 +594,7 @@ class ModelNew(nn.Module):
         super(ModelNew, self).__init__()
     
     def forward(self, A, B):
-        output = torch.zeros(M, M, dtype=OUTPUT_DTYPE, device='cuda')
+        output = torch.zeros(M, N, dtype=OUTPUT_DTYPE, device='cuda')
 
         A = A.cuda()
         B = B.cuda()
@@ -609,8 +603,8 @@ class ModelNew(nn.Module):
         return output
 
 
-A = torch.rand(M, N, dtype=INPUT_DTYPE) / N # [16, 1024]
-B = torch.rand(N, M, dtype=INPUT_DTYPE) / N # [1024, 16]
+A = torch.rand(M, K, dtype=INPUT_DTYPE) / K  # [16, 16384]
+B = torch.rand(K, N, dtype=INPUT_DTYPE) / K  # [16384, 16384]
 
 A = A.cuda()
 B = B.cuda()

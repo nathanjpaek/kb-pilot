@@ -1,0 +1,70 @@
+{
+  "kernel": "matmul_kernel",
+  "ptx": {
+    "file": "matmul_kernel.ptx",
+    "version": "8.4",
+    "target": "sm_90a",
+    "params_abi": []
+  },
+  "block": [
+    128,
+    1,
+    1
+  ],
+  "grid": [
+    1024,
+    1,
+    1
+  ],
+  "args": [],
+  "scalars": {
+    "M": 4096,
+    "N": 4096,
+    "K": 4096,
+    "stride_am": 4096,
+    "stride_ak": 1,
+    "stride_bk": 4096,
+    "stride_bn": 1,
+    "stride_cm": 4096,
+    "stride_cn": 1,
+    "BLOCK_M": 128,
+    "BLOCK_N": 128,
+    "BLOCK_K": 32,
+    "GROUP_SIZE_M": 8
+  },
+  "tensors": {
+    "A_ptr": {
+      "shape": [
+        4096,
+        4096
+      ],
+      "dtype": "torch.float32",
+      "stride": [
+        4096,
+        1
+      ]
+    },
+    "B_ptr": {
+      "shape": [
+        4096,
+        4096
+      ],
+      "dtype": "torch.float32",
+      "stride": [
+        4096,
+        1
+      ]
+    },
+    "C_ptr": {
+      "shape": [
+        4096,
+        4096
+      ],
+      "dtype": "torch.float32",
+      "stride": [
+        4096,
+        1
+      ]
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "kernel": "_softmax_kernel",
+  "ptx": {
+    "file": "_softmax_kernel.ptx",
+    "version": "8.4",
+    "target": "sm_90a",
+    "params_abi": []
+  },
+  "block": [
+    128,
+    1,
+    1
+  ],
+  "grid": [
+    4096,
+    1,
+    1
+  ],
+  "args": [],
+  "scalars": {
+    "n_cols": 393216,
+    "BLOCK_SIZE": 1024
+  },
+  "tensors": {
+    "x_ptr": {
+      "shape": [
+        4096,
+        393216
+      ],
+      "dtype": "torch.float32",
+      "stride": [
+        393216,
+        1
+      ]
+    },
+    "y_ptr": {
+      "shape": [
+        4096,
+        393216
+      ],
+      "dtype": "torch.float32",
+      "stride": [
+        393216,
+        1
+      ]
+    }
+  }
+}

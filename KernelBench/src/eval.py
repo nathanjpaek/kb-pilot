@@ -408,7 +408,11 @@ def eval_kernel_against_ref(
                 if v.dtype in [torch.int32, torch.int64, torch.long]:
                     converted_inputs[k] = v.to(device=device)
                 else:
-                    converted_inputs[k] = v.to(device=device, dtype=torch.float16)
+                    if language.lower() == "tilelang":
+                        converted_inputs[k] = v.to(device=device, dtype=torch.float16)
+                    else:
+                        # For ThunderKittens and others, keep original dtype
+                        converted_inputs[k] = v.to(device=device)
             else:
                 converted_inputs[k] = v
         init_inputs = converted_inputs
@@ -429,7 +433,11 @@ def eval_kernel_against_ref(
                 if x.dtype in [torch.int32, torch.int64, torch.long]:
                     converted_inputs.append(x.to(device=device))
                 else:
-                    converted_inputs.append(x.to(device=device, dtype=torch.float16))
+                    if language.lower() == "tilelang":
+                        converted_inputs.append(x.to(device=device, dtype=torch.float16))
+                    else:
+                        # For ThunderKittens and others, keep original dtype
+                        converted_inputs.append(x.to(device=device))
             else:
                 converted_inputs.append(x)
         init_inputs = converted_inputs
@@ -494,9 +502,13 @@ def eval_kernel_against_ref(
                 custom_model = ModelNew(*init_inputs)
 
             assert hasattr(custom_model, "forward")
-            # Move models to GPU with float16 dtype
-            original_model = original_model.to(device=device, dtype=torch.float16)
-            custom_model = custom_model.to(device=device, dtype=torch.float16)
+            # Move models to GPU with float16 dtype (only for TileLang)
+            if language.lower() == "tilelang":
+                original_model = original_model.to(device=device, dtype=torch.float16)
+                custom_model = custom_model.to(device=device, dtype=torch.float16)
+            else:
+                original_model = original_model.to(device=device)
+                custom_model = custom_model.to(device=device)
             torch.cuda.synchronize(device=device)
         if verbose:
             print("[Eval] New Model with Custom CUDA Kernel Loaded")
@@ -553,13 +565,20 @@ def eval_kernel_against_ref(
                         if x.dtype in [torch.int32, torch.int64, torch.long]:
                             converted_inputs.append(x.to(device=device))
                         else:
-                            converted_inputs.append(x.to(device=device, dtype=torch.float16))
+                            if language.lower() == "tilelang":
+                                converted_inputs.append(x.to(device=device, dtype=torch.float16))
+                            else:
+                                # For ThunderKittens and others, keep original dtype
+                                converted_inputs.append(x.to(device=device))
                     else:
                         converted_inputs.append(x)
                 inputs = converted_inputs
                 
                 # Time the original PyTorch model
-                model_orig = original_model.to(device=device, dtype=torch.float16)
+                if language.lower() == "tilelang":
+                    model_orig = original_model.to(device=device, dtype=torch.float16)
+                else:
+                    model_orig = original_model.to(device=device)
                 torch.cuda.synchronize(device=device)
                 
                 elapsed_times_orig = time_execution_with_cuda_event(
@@ -572,7 +591,10 @@ def eval_kernel_against_ref(
                 runtime_stats_orig = get_timing_stats(elapsed_times_orig, device=device)
 
                 # Time the custom model
-                model_new = custom_model.to(device=device, dtype=torch.float16)
+                if language.lower() == "tilelang":
+                    model_new = custom_model.to(device=device, dtype=torch.float16)
+                else:
+                    model_new = custom_model.to(device=device)
                 torch.cuda.synchronize(device=device)
 
                 elapsed_times_custom = time_execution_with_cuda_event(
@@ -743,10 +765,16 @@ def run_and_check_correctness(
             inputs = converted_inputs
 
             set_seed(trial_seed)
-            model = original_model_instance.to(device=device, dtype=torch.float16)
+            if language.lower() == "tilelang":
+                model = original_model_instance.to(device=device, dtype=torch.float16)
+            else:
+                model = original_model_instance.to(device=device)
 
             set_seed(trial_seed)
-            model_new = new_model_instance.to(device=device, dtype=torch.float16)
+            if language.lower() == "tilelang":
+                model_new = new_model_instance.to(device=device, dtype=torch.float16)
+            else:
+                model_new = new_model_instance.to(device=device)
 
             output = model(*inputs)
             torch.cuda.synchronize(device=device)
