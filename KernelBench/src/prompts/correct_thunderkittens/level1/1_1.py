@@ -12,15 +12,11 @@ class ModelNew(nn.Module):
         super().__init__()
 
     def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
-        # A = A.to(device="cuda", dtype=torch.float16, copy=False).contiguous()
-        # B = B.to(device="cuda", dtype=torch.float16, copy=False).contiguous()
-
 
         M, K = A.shape
         Kb, N = B.shape
         assert K == Kb, "Inner dimensions must match for matmul"
 
-        # C = torch.zeros((M, N), device=A.device, dtype=A.dtype)
         C = torch.zeros((M, N), device=A.device, dtype=torch.float16).contiguous()
 
         # Call into TK pybind wrapper; bindings expect (A, B, C, M, K, N)
