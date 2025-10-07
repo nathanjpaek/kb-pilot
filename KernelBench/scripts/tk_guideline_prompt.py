@@ -15,7 +15,7 @@ Global layouts describe HBM tensors: using x_gl = gl<bf16, -1, -1, -1, -1, st<bf
 
 C++/CUDA File Structure:
 
-Include ThunderKittens headers and namespace: #include "kittens.cuh", #include "pyutils/pyutils.cuh", using namespace kittens;. Define launch configuration constants (e.g., #define NUM_WORKERS (1), #define NUM_THREADS (NUM_WORKERS * kittens::WARP_THREADS)) and tile dimensions as multiples of 16.
+Include ThunderKittens headers: #include "kittens.cuh", #include "pyutils/pyutils.cuh". Do NOT use "using namespace kittens" - always prefix with kittens::. Define launch configuration constants (e.g., #define NUM_WORKERS (1), #define NUM_THREADS (NUM_WORKERS * kittens::WARP_THREADS)) and tile dimensions as multiples of 16.
 
 Create a micro_globals struct containing all inputs and outputs as TK global layouts plus scalar parameters. Each tensor must be declared as gl<dtype, -1, -1, -1, -1, st<dtype, TILE_M, TILE_N>> with runtime 4D shape (unused logical dimensions indexed with zeros). The struct must define dim3 grid() returning grid dimensions (typically based on output tiling), dim3 block() returning dim3(NUM_THREADS), and optionally size_t dynamic_shared_memory() returning required bytes if using shared memory.
 

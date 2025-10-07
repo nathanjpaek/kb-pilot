@@ -676,7 +676,7 @@ def extract_all_code_blocks(text: str) -> dict:
     return blocks
 
 
-def create_tk_makefile(kernel_dir: str, gpu: str = "H100"):
+def create_tk_makefile(kernel_dir: str, gpu: str = "H100", cu_file: str = "custom_tk.cu"):
     """
     Write a makefile for ThunderKitten (Pybind) to the kernel directory
 
@@ -690,7 +690,7 @@ NVCC=nvcc
 GPU={gpu}
 
 TARGET=tk_kernels
-SRC=custom_tk.cu
+SRC={cu_file}
 
 NVCCFLAGS=-DNDEBUG -Xcompiler=-fPIE --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler=-Wno-psabi -Xcompiler=-fno-strict-aliasing --use_fast_math -forward-unknown-to-host-compiler -O3 -Xnvlink=--verbose -Xptxas=--verbose -Xptxas=--warn-on-spills -std=c++20 -x cu -lrt -lpthread -ldl -lcuda -lcudadevrt -lcudart_static -lcublas
 NVCCFLAGS+= -I${{THUNDERKITTENS_ROOT}}/include -I${{THUNDERKITTENS_ROOT}}/prototype $(shell python3 -m pybind11 --includes) $(shell python3-config --ldflags) -shared -fPIC -lpython3.10
@@ -717,3 +717,36 @@ clean:
 
     with open(os.path.join(kernel_dir, "Makefile"), "w") as f:
         f.write(makefile_content)
+
+def strip_docstring_from_code(code: str) -> str:
+    """
+    Remove the docstring from Python code if it exists at the beginning.
+    This is useful for eval_only mode to remove old evaluation results.
+    """
+    lines = code.split('\n')
+    
+    # Find first non-empty, non-comment line
+    start_idx = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped and not stripped.startswith('#'):
+            start_idx = i
+            break
+    
+    # Check if it starts with a docstring
+    if start_idx < len(lines):
+        stripped_line = lines[start_idx].strip()
+        if stripped_line.startswith('"""') or stripped_line.startswith("'''"):
+            quote_type = '"""' if stripped_line.startswith('"""') else "'''"
+            
+            # Find the end of the docstring
+            if stripped_line.count(quote_type) >= 2:
+                # Single line docstring
+                return '\n'.join(lines[start_idx + 1:])
+            else:
+                # Multi-line docstring
+                for i in range(start_idx + 1, len(lines)):
+                    if quote_type in lines[i]:
+                        return '\n'.join(lines[i + 1:])
+    
+    return code
