@@ -466,6 +466,8 @@ def eval_kernel_against_ref(
         elif language.lower() == "thunderkittens":
             prepare_thunderkittens_env()
             ModelNew = load_custom_model(custom_model_src, context, build_dir)
+        elif language.lower() == "cute":
+            ModelNew = load_tilelang_model(custom_model_src, context, build_dir)
         else:  
             ModelNew = load_custom_model(custom_model_src, context, build_dir)  
 
