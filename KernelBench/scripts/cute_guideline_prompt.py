@@ -1,0 +1,2 @@
+CUTE_GUIDELINE_PROMPT = """TODO
+"""

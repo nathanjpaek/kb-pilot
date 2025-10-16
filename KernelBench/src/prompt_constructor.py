@@ -1,7 +1,6 @@
 import os
 from .utils import read_file
 
-
 """
 Construct Prompt
 

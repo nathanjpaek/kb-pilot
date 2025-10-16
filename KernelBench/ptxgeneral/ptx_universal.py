@@ -163,7 +163,25 @@ def _load_ptx(ptx_path: str, func_name: str | None):
 			if not m:
 				raise ValueError("Could not find .entry in PTX")
 			func_name = m.group(1)
-		kern = mod.get_function(func_name)  # <- load happens here; tmp must still exist
+		try:
+			kern = mod.get_function(func_name)  # <- load happens here; tmp must still exist
+		except Exception as e:
+			# Fallback: auto-detect entry from PTX and retry if manifest kernel mismatches
+			try:
+				m2 = re.search(r"(?:\.visible\s+)?\.entry\s+([A-Za-z_][\w$@.]*)\s*\(", ptx_text)
+				alt = m2.group(1) if m2 else None
+				if alt and alt != func_name:
+					print(f"[ptx-universal] get_function('{func_name}') failed; retrying with detected entry '{alt}'")
+					kern = mod.get_function(alt)
+					func_name = alt
+				else:
+					raise
+			except Exception:
+				# Provide diagnostics with any .entry symbols seen in PTX
+				import re as _re
+				cands = _re.findall(r"(?:\.visible\s+)?\.entry\s+([A-Za-z_][\w$@.]*)\s*\(", ptx_text) or []
+				print(f"[ptx-universal] Available PTX entries: {cands}")
+				raise
 		return kern, func_name, ptx_text
 	finally:
 		try:
@@ -287,15 +305,32 @@ def _resolve_scalar_order_with_llm(
 			print("[llm-abi] Lazy import success:", bool(create_inference_server_from_presets))
 		except Exception as ie:
 			print("[llm-abi] Lazy import failed:", repr(ie))
-			# Fallback: search for src/utils.py under /workspace and import by path
+			# Fallback: prefer local KernelBench src, then scan /workspace
 			try:
 				utils_path = None
-				for root, _dirs, files in os.walk("/workspace"):
-					if "utils.py" in files and os.path.basename(root) == "src":
-						candidate = os.path.join(root, "utils.py")
-						if os.path.exists(candidate):
-							utils_path = candidate
-							break
+				# 1) Check local project: ../../src/utils.py relative to this file and CWD
+				candidates = []
+				try:
+					_here = os.path.dirname(__file__)
+					candidates.append(os.path.abspath(os.path.join(_here, "..", "src", "utils.py")))
+				except Exception:
+					pass
+				try:
+					candidates.append(os.path.abspath(os.path.join(os.getcwd(), "src", "utils.py")))
+				except Exception:
+					pass
+				for cand in candidates:
+					if cand and os.path.exists(cand):
+						utils_path = cand
+						break
+				# 2) Fallback scan under /workspace
+				if utils_path is None:
+					for root, _dirs, files in os.walk("/workspace"):
+						if "utils.py" in files and os.path.basename(root) == "src":
+							candidate = os.path.join(root, "utils.py")
+							if os.path.exists(candidate):
+								utils_path = candidate
+								break
 				print("[llm-abi] Fallback utils path:", utils_path)
 				if utils_path:
 					import importlib.util as _ilu
@@ -392,7 +427,8 @@ def launch_from_manifest(manifest_path: str,
                          abi_source: Optional[str] = None,
                          llm_server_type: Optional[str] = None,
                          llm_model_name: Optional[str] = None,
-                         shared_bytes_override: Optional[int] = None) -> LaunchPlan:
+                         shared_bytes_override: Optional[int] = None,
+                         kernel_meta_path: Optional[str] = None) -> LaunchPlan:
     """Read JSON manifest + PTX, construct argv in ABI order, optionally launch, and return outputs/plan.
 
     If dry_run=True, no PTX is loaded or launched. The returned LaunchPlan contains
@@ -418,9 +454,35 @@ def launch_from_manifest(manifest_path: str,
     if len(block) == 1: block = (block[0], 1, 1)
     grid = tuple(man.get("grid") or [1, 1, 1])  # type: ignore
     if len(grid) == 1: grid = (grid[0], 1, 1)
-    shared_bytes = int(man.get("dynamic_smem", 0))
+    
+    # Try to read shared memory size from manifest, then from Triton metadata .json
+    shared_bytes = man.get("dynamic_smem")
+    if shared_bytes is None:
+        # First try explicit kernel_meta_path, then auto-detect companion .json
+        try:
+            import pathlib
+            if kernel_meta_path:
+                json_file = pathlib.Path(kernel_meta_path)
+            else:
+                # Auto-detect: look for <ptx_name>.json (not .runner.json)
+                ptx_file = pathlib.Path(ptx_path)
+                json_file = ptx_file.with_suffix(".json")
+            if json_file.exists():
+                with open(json_file, "r", encoding="utf-8") as f:
+                    triton_meta = json.load(f)
+                    shared_bytes = triton_meta.get("shared")
+                    if shared_bytes is not None:
+                        print(f"[ptx-universal] Using shared memory from {json_file.name}: {shared_bytes} bytes")
+            elif kernel_meta_path:
+                print(f"[ptx-universal] Warning: kernel metadata file not found: {kernel_meta_path}")
+        except Exception as e:
+            print(f"[ptx-universal] Could not read Triton metadata .json: {e}")
+    
+    shared_bytes = int(shared_bytes) if shared_bytes is not None else 0
     if shared_bytes_override is not None:
         shared_bytes = int(shared_bytes_override)
+    
+    print(f"[ptx-universal] Manifest specifies: block={block}, grid={grid}, shared={shared_bytes}")
 
     # ---------------- ABI and param metadata ----------------
     if dry_run:
@@ -465,6 +527,36 @@ def launch_from_manifest(manifest_path: str,
     tensors_meta = man.get("tensors", {})  # name -> {shape,stride,dtype}
     scalars = man.get("scalars", {})       # name -> value
 
+    # Optional: Get LLM-proposed pointer/scalar order BEFORE binding
+    llm_pointer_order = None
+    llm_scalar_order = None
+    if (abi_source or "").lower() == "llm":
+        order_info = _resolve_scalar_order_with_llm(
+            server_type=llm_server_type,
+            model_name=llm_model_name,
+            entry=entry,
+            abi=abi,
+            manifest_scalars=scalars,
+            manifest_tensors=tensors_meta,
+            ptx_text=ptx_text,
+        )
+        if order_info:
+            llm_scalar_order = order_info.get("scalar_order")
+            llm_pointer_order = order_info.get("pointer_order")
+
+    # Build ABI param name -> manifest tensor name mapping for pointers
+    ptr_params = [p for p in abi if p["type"].lstrip(".").lower() in ("u64","s64","b64")]
+    abi_to_manifest: Dict[str, str] = {}
+    if llm_pointer_order and len(llm_pointer_order) == len(ptr_params):
+        for param, manifest_name in zip(ptr_params, llm_pointer_order):
+            abi_to_manifest[param["name"]] = manifest_name
+    else:
+        # Fallback: assume ABI param names match manifest tensor names or use heuristic
+        for param in ptr_params:
+            # Check if param name is in tensors_meta
+            if param["name"] in tensors_meta:
+                abi_to_manifest[param["name"]] = param["name"]
+
     # Prepare pointer objects: map ABI pointer param names -> cp.ndarray
     def _is_output_name(n: str) -> bool:
         ln = n.lower().rstrip("_ptr")
@@ -475,28 +567,58 @@ def launch_from_manifest(manifest_path: str,
     output_tensors: Dict[str, torch.Tensor] = {}
 
     def _shape_dtype_for_name(n: str):
-        meta = tensors_meta.get(n) or {}
+        # n is ABI param name; look up manifest name first
+        manifest_name = abi_to_manifest.get(n, n)
+        meta = tensors_meta.get(manifest_name) or {}
         shp = meta.get("shape")
         dt = _torch_dtype_from_string(meta.get("dtype", "torch.float32"))
         return shp, dt
 
     # 1st pass: try to bind obvious input pointers by exact name/shape
-    for p in abi:
-        t = p["type"].lstrip(".").lower()
-        n = p["name"]
-        if t in ("u64", "s64", "b64"):
-            shp, _ = _shape_dtype_for_name(n)
-            bound = False
-            if shp:
-                for i in list(unused_ref_idxs):
-                    if list(ref_inputs[i].shape) == list(shp):
-                        pointer_arrays[n] = _to_cupy(ref_inputs[i].contiguous())
-                        unused_ref_idxs.remove(i)
-                        bound = True
-                        break
-            if not bound and unused_ref_idxs and n.lower().startswith(("a","b","x","lhs","rhs")) and not _is_output_name(n):
-                i = unused_ref_idxs.pop(0)
-                pointer_arrays[n] = _to_cupy(ref_inputs[i].contiguous())
+    # If LLM order is available, use it directly to map ref_inputs to ABI params in order
+    if llm_pointer_order and len(llm_pointer_order) <= len(ref_inputs):
+        # Map in order: ref_inputs[0] -> A_ptr, ref_inputs[1] -> B_ptr, etc.
+        for i, manifest_name in enumerate(llm_pointer_order):
+            if i < len(ref_inputs):
+                # Find the ABI param that maps to this manifest name
+                for p in abi:
+                    t = p["type"].lstrip(".").lower()
+                    if t in ("u64", "s64", "b64"):
+                        if abi_to_manifest.get(p["name"]) == manifest_name:
+                            if _is_output_name(manifest_name):
+                                # Allocate output tensor
+                                shp, dt = _shape_dtype_for_name(p["name"])
+                                torch_dt = dtype_override or dt
+                                if shp is None:
+                                    shp = list(ref_inputs[i].shape)  # Use ref input shape as fallback
+                                out = torch.empty(tuple(shp), device=device, dtype=torch_dt)
+                                output_tensors[manifest_name] = out
+                                pointer_arrays[p["name"]] = _to_cupy(out)
+                            else:
+                                # Bind input
+                                pointer_arrays[p["name"]] = _to_cupy(ref_inputs[i].contiguous())
+                                if i in unused_ref_idxs:
+                                    unused_ref_idxs.remove(i)
+                            break
+    else:
+        # Fallback: use shape matching
+        for p in abi:
+            t = p["type"].lstrip(".").lower()
+            n = p["name"]
+            if t in ("u64", "s64", "b64"):
+                manifest_name = abi_to_manifest.get(n, n)
+                shp, _ = _shape_dtype_for_name(n)
+                bound = False
+                if shp:
+                    for i in list(unused_ref_idxs):
+                        if list(ref_inputs[i].shape) == list(shp):
+                            pointer_arrays[n] = _to_cupy(ref_inputs[i].contiguous())
+                            unused_ref_idxs.remove(i)
+                            bound = True
+                            break
+                if not bound and unused_ref_idxs and manifest_name.lower().startswith(("a","b","x","lhs","rhs")) and not _is_output_name(manifest_name):
+                    i = unused_ref_idxs.pop(0)
+                    pointer_arrays[n] = _to_cupy(ref_inputs[i].contiguous())
 
     # 2nd pass: allocate outputs or any remaining pointers
     for p in abi:
@@ -505,17 +627,18 @@ def launch_from_manifest(manifest_path: str,
         if t in ("u64", "s64", "b64"):
             if n in pointer_arrays:
                 continue
+            manifest_name = abi_to_manifest.get(n, n)
             shp, dt = _shape_dtype_for_name(n)
             torch_dt = dtype_override or dt
-            if _is_output_name(n) or shp is None:
+            if _is_output_name(manifest_name) or shp is None:
                 M = int(scalars.get("M", 0)); N = int(scalars.get("N", 0))
                 if shp is None and (M and N):
                     shp = [M, N]
                 if shp is None:
-                    raise ValueError(f"Cannot infer shape for output pointer '{n}'. "
-                                     f"Add tensors['{n}'].shape to the manifest or provide M/N/etc.")
+                    raise ValueError(f"Cannot infer shape for output pointer '{n}' (manifest: '{manifest_name}'). "
+                                     f"Add tensors['{manifest_name}'].shape to the manifest or provide M/N/etc.")
                 out = torch.empty(tuple(shp), device=device, dtype=torch_dt)
-                output_tensors[n] = out
+                output_tensors[manifest_name] = out
                 pointer_arrays[n] = _to_cupy(out)
             else:
                 out = torch.empty(tuple(shp), device=device, dtype=torch_dt)
@@ -533,32 +656,59 @@ def launch_from_manifest(manifest_path: str,
             if n not in scalar_values:
                 scalar_values[n] = scalars.get(n, 0)
 
-    # Optional: LLM-proposed scalar order mapping
-    if (abi_source or "").lower() == "llm":
-        order_info = _resolve_scalar_order_with_llm(
-            server_type=llm_server_type,
-            model_name=llm_model_name,
-            entry=entry,
-            abi=abi,
-            manifest_scalars=scalars,
-            manifest_tensors=tensors_meta,
-            ptx_text=ptx_text,
-        )
-        if order_info:
-            scalar_order = order_info.get("scalar_order")
-            pointer_order = order_info.get("pointer_order")
-            if scalar_order:
-                # Map scalar ABI positions in order to these manifest scalar names
-                scalar_params = [p for p in abi if p["type"].lstrip(".").lower() not in ("u64","s64","b64")]
-                for abi_param, symbol in zip(scalar_params, scalar_order):
-                    # Assign if available, else 0
-                    scalar_values[abi_param["name"]] = scalars.get(symbol, 0)
-            if pointer_order:
-                # Map pointer ABI positions in order to these manifest pointer names
-                ptr_param_names = [p["name"] for p in abi if p["type"].lstrip(".").lower() in ("u64","s64","b64")]
-                for abi_name, symbol in zip(ptr_param_names, pointer_order):
-                    # Assign if available, else None (meaning no binding)
-                    pointer_arrays[abi_name] = pointer_arrays.get(symbol)
+    # Apply LLM-proposed scalar order mapping (already fetched above)
+    if llm_scalar_order:
+        # Map scalar ABI positions in order to these manifest scalar names
+        scalar_params = [p for p in abi if p["type"].lstrip(".").lower() not in ("u64","s64","b64")]
+        for abi_param, symbol in zip(scalar_params, llm_scalar_order):
+            # Assign if available, else 0
+            scalar_values[abi_param["name"]] = scalars.get(symbol, 0)
+        
+        # Validate and fix M, N, K from actual tensor shapes (manifest may be wrong)
+        # Find which ABI params correspond to M, N, K
+        m_param = next((p["name"] for p, sym in zip(scalar_params, llm_scalar_order) if sym == "M"), None)
+        n_param = next((p["name"] for p, sym in zip(scalar_params, llm_scalar_order) if sym == "N"), None)
+        k_param = next((p["name"] for p, sym in zip(scalar_params, llm_scalar_order) if sym == "K"), None)
+        
+        # Infer from bound tensor shapes
+        def _get_tensor_shape(manifest_name: str) -> Optional[list]:
+            # Find which ABI param is bound to this manifest name
+            for abi_name, arr in pointer_arrays.items():
+                if abi_to_manifest.get(abi_name) == manifest_name:
+                    return list(arr.shape)
+            return None
+        
+        A_shape = _get_tensor_shape("A_ptr")
+        B_shape = _get_tensor_shape("B_ptr")
+        C_shape = _get_tensor_shape("C_ptr")
+        
+        if A_shape and len(A_shape) >= 2:
+            inferred_M = A_shape[0]
+            inferred_K = A_shape[1]
+            if m_param and (scalar_values.get(m_param, 0) != inferred_M):
+                print(f"[ptx-universal] Warning: Manifest M={scalar_values.get(m_param)} doesn't match A_ptr shape[0]={inferred_M}. Using inferred value.")
+                scalar_values[m_param] = inferred_M
+            if k_param and (scalar_values.get(k_param, 0) != inferred_K):
+                print(f"[ptx-universal] Warning: Manifest K={scalar_values.get(k_param)} doesn't match A_ptr shape[1]={inferred_K}. Using inferred value.")
+                scalar_values[k_param] = inferred_K
+        
+        if B_shape and len(B_shape) >= 2 and n_param:
+            inferred_N = B_shape[1]
+            if scalar_values.get(n_param, 0) != inferred_N:
+                print(f"[ptx-universal] Warning: Manifest N={scalar_values.get(n_param)} doesn't match B_ptr shape[1]={inferred_N}. Using inferred value.")
+                scalar_values[n_param] = inferred_N
+        
+        # Fix strides if needed
+        stride_am_param = next((p["name"] for p, sym in zip(scalar_params, llm_scalar_order) if sym == "stride_am"), None)
+        stride_bk_param = next((p["name"] for p, sym in zip(scalar_params, llm_scalar_order) if sym == "stride_bk"), None)
+        stride_cm_param = next((p["name"] for p, sym in zip(scalar_params, llm_scalar_order) if sym == "stride_cm"), None)
+        
+        if stride_am_param and A_shape and len(A_shape) >= 2:
+            scalar_values[stride_am_param] = A_shape[1]  # K for row-major
+        if stride_bk_param and B_shape and len(B_shape) >= 2:
+            scalar_values[stride_bk_param] = B_shape[1]  # N for row-major
+        if stride_cm_param and C_shape and len(C_shape) >= 2:
+            scalar_values[stride_cm_param] = C_shape[1]  # N for row-major
 
     # Heuristic: GEMM-like ABI with 3 pointers + 6 scalars -> map to M,N,K and leading strides (am,bk,cn)
     ptr_param_names = [p["name"] for p in abi if p["type"].lstrip(".").lower() in ("u64","s64","b64")]
@@ -594,17 +744,69 @@ def launch_from_manifest(manifest_path: str,
             arr = pointer_arrays.get(n)
             if arr is None:
                 raise ValueError(f"Missing device array for pointer param '{n}'.")
-            argv.append(arr)
+            # PTX .param expects raw pointer address as uint64, not the array object
+            argv.append(np.uint64(arr.data.ptr))
         else:
             ctor = _np_for_ptxtype(p["type"])
             val = scalar_values.get(n, 0)
             argv.append(ctor(val))
 
+    # Debug: print actual argv before launch
+    print("\n[ptx-universal] Kernel launch arguments:")
+    for i, (p, arg) in enumerate(zip(abi, argv)):
+        if p["type"].lstrip(".").lower() in ("u64", "s64", "b64"):
+            manifest_name = abi_to_manifest.get(p["name"], p["name"])
+            # arg is now numpy.uint64, get original array from pointer_arrays for display
+            orig_arr = pointer_arrays.get(p["name"])
+            if orig_arr is not None:
+                print(f"  [{i:02d}] {p['type']} {p['name']} -> {manifest_name}: shape={tuple(orig_arr.shape)} dtype={orig_arr.dtype} ptr={hex(int(arg))}")
+            else:
+                print(f"  [{i:02d}] {p['type']} {p['name']} -> {manifest_name}: ptr={hex(int(arg))}")
+        else:
+            print(f"  [{i:02d}] {p['type']} {p['name']} = {arg}")
+    print(f"[ptx-universal] Grid: {grid}, Block: {block}, Shared: {shared_bytes} bytes\n")
+
+    # Debug: show actual argv types and values
+    print("[ptx-universal] Actual argv being passed to kernel:")
+    for i, arg in enumerate(argv):
+        print(f"  argv[{i}] = {arg!r} (type: {type(arg).__name__})")
+    print()
+
+    # Validate arguments before launch
+    if len(argv) != len(abi):
+        raise ValueError(f"Argument count mismatch: expected {len(abi)}, got {len(argv)}")
+    
+    # Check for null pointers (now argv contains numpy.uint64 for pointers, not CuPy arrays)
+    for i, (p, arg) in enumerate(zip(abi, argv)):
+        if p["type"].lstrip(".").lower() in ("u64", "s64", "b64"):
+            if arg is None:
+                raise ValueError(f"Argument {i} ({p['name']}) is None")
+            # arg is now numpy.uint64, check the value directly
+            ptr_val = int(arg)
+            if ptr_val == 0:
+                raise ValueError(f"Argument {i} ({p['name']}) has null pointer")
+    
+    # Validate grid/block dimensions
+    if any(d <= 0 for d in grid):
+        raise ValueError(f"Invalid grid dimensions: {grid}")
+    if any(d <= 0 for d in block):
+        raise ValueError(f"Invalid block dimensions: {block}")
+    if shared_bytes < 0:
+        raise ValueError(f"Invalid shared memory size: {shared_bytes}")
+
     # ---------------- Launch ----------------
     torch_stream = torch.cuda.current_stream().cuda_stream
     stream = cp.cuda.ExternalStream(torch_stream)
-    with stream:
-        kernel(grid, block, tuple(argv), shared_mem=shared_bytes)
+    try:
+        with stream:
+            kernel(grid, block, tuple(argv), shared_mem=shared_bytes)
+    except Exception as e:
+        print(f"\n[ptx-universal] Kernel launch failed: {e}")
+        print(f"[ptx-universal] This usually means:")
+        print(f"  - Argument types don't match PTX signature")
+        print(f"  - Grid/block dimensions are invalid for the kernel")
+        print(f"  - Shared memory size exceeds hardware limits")
+        raise
     torch.cuda.synchronize()
 
     outputs: List[torch.Tensor] = list(output_tensors.values())

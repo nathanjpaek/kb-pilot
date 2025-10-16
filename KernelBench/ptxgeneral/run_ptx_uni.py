@@ -29,6 +29,7 @@ def main():
 	p = argparse.ArgumentParser("Universal PTX evaluator (manifest-driven)")
 	p.add_argument("--manifest", required=True, help="Path to JSON manifest (in ptx_local)")
 	p.add_argument("--ptx", default=None, help="Override PTX path (else use manifest.ptx.file)")
+	p.add_argument("--kernel-meta", default=None, help="Path to Triton kernel metadata JSON (e.g., matmul_kernel.json)")
 	p.add_argument("--ref", required=True, help="Path to reference Python (Model + get_inputs)")
 	p.add_argument("--dtype", default=None, choices=[None, "float32", "float16", "bfloat16"])
 	p.add_argument("--seed", type=int, default=None)
@@ -77,6 +78,7 @@ def main():
 		llm_server_type=args.llm_server_type,
 		llm_model_name=args.llm_model_name,
 		shared_bytes_override=args.shared_bytes,
+		kernel_meta_path=args.kernel_meta,
 	)
 
 	# Print plan info
@@ -99,7 +101,8 @@ def main():
 		tensors = (man.get("tensors") or {})
 		scalars = (man.get("scalars") or {})
 		# LLM order resolution (best effort)
-		llm_order = None
+		llm_scalar_order = None
+		llm_pointer_order = None
 		if (args.abi_source or "").lower() == "llm" and _resolve_scalar_order_with_llm is not None:
 			# We need a PTX text to parse entry/abi for resolver; reuse the manifest's ptx reference if available
 			ptx_path = args.ptx
@@ -120,34 +123,42 @@ def main():
 					manifest_tensors=tensors,
 					ptx_text=ptx_text_src,
 				)
+				if llm_order:
+					llm_scalar_order = llm_order.get("scalar_order")
+					llm_pointer_order = llm_order.get("pointer_order")
 			except Exception:
-				llm_order = None
+				pass
 
 		# Prepare scalar binding strategy
 		print("[dry-run] ABI preview (concrete values/shapes):")
 		scalar_idx = 0
+		ptr_idx = 0
 		for i, p in enumerate(plan.abi):
 			t = p["type"].lstrip(".").lower()
 			name = p["name"]
 			if t in ("u64", "s64", "b64"):
 				# Pointer preview
-				# Try to map A/B/C by common names
-				ptr_name = None
-				for candidate in ("A_ptr","B_ptr","C_ptr","out_ptr","dst_ptr","y_ptr"):
-					if candidate in tensors and candidate.lower()[0] == name.lower()[0]:
-						ptr_name = candidate
-						break
-				# Fallback: first available
-				if not ptr_name:
+				# Use LLM pointer order if available
+				if llm_pointer_order and ptr_idx < len(llm_pointer_order):
+					ptr_name = llm_pointer_order[ptr_idx]
+				else:
+					# Try to map A/B/C by common names
+					ptr_name = None
 					for candidate in ("A_ptr","B_ptr","C_ptr","out_ptr","dst_ptr","y_ptr"):
-						if candidate in tensors:
+						if candidate in tensors and candidate.lower()[0] == name.lower()[0]:
 							ptr_name = candidate; break
+					# Fallback: first available
+					if not ptr_name:
+						for candidate in ("A_ptr","B_ptr","C_ptr","out_ptr","dst_ptr","y_ptr"):
+							if candidate in tensors:
+								ptr_name = candidate; break
 				meta = tensors.get(ptr_name or "", {})
 				print(f"  [{i:02d}] {p['type']} {name} -> ptr {ptr_name or '<unmapped>'} shape={meta.get('shape')} dtype={meta.get('dtype')}")
+				ptr_idx += 1
 			else:
 				# Scalar preview
-				if llm_order and scalar_idx < len(llm_order):
-					sym = llm_order[scalar_idx]
+				if llm_scalar_order and scalar_idx < len(llm_scalar_order):
+					sym = llm_scalar_order[scalar_idx]
 					val = scalars.get(sym, 0)
 					print(f"  [{i:02d}] {p['type']} {name} -> {sym}={val}")
 				else:

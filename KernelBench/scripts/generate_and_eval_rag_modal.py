@@ -4,7 +4,8 @@ Generate and Evaluate DSL Kernels using DSPy RAG + Modal
 This script uses the high-performance DSPy RAG system for DSL generation,
 then evaluates the generated kernels on Modal infrastructure.
 
-Optimized for use with OpenAI O3 and resouce-unconstrained environments.
+Supported DSLs: TileLang, ThunderKittens, CuTe
+Optimized for use with OpenAI O3 and resource-unconstrained environments.
 """
 
 import pydra
@@ -33,6 +34,10 @@ from scripts.tilelang_guideline_prompt import TILELANG_GUIDELINE_PROMPT
 # ThunderKittens-specific prompts
 from scripts.tk_paperinfo_prompt import TK_PAPER_PROMPT
 from scripts.tk_guideline_prompt import TK_GUIDELINE_PROMPT
+
+# CuTe-specific prompts
+from scripts.cute_paperinfo_prompt import CUTE_PAPER_PROMPT
+from scripts.cute_guideline_prompt import CUTE_GUIDELINE_PROMPT
 
 
 app = modal.App("eval_rag_dsl")
@@ -63,7 +68,7 @@ class RAGEvalConfig(Config):
         self.dataset_name = "ScalingIntelligence/KernelBench"
 
         # Language/DSL
-        self.language = "tilelang"  # Options: "tilelang", "tk", "cuda"
+        self.language = "tilelang"  # Options: "tilelang", "thunderkittens", "cuda", "cute"
 
         # Problem Specification
         self.level = REQUIRED
@@ -133,7 +138,8 @@ image = (
         "python-dotenv",
         "tilelang",
         "apache-tvm",
-        "dspy-ai"
+        "dspy-ai",
+        "nvidia-cutlass-dsl"
     )
     .env({"THUNDERKITTENS_ROOT": "/root/ThunderKittens"})
     .add_local_python_source("scripts", "src")
@@ -260,11 +266,11 @@ def main(config: RAGEvalConfig):
     print(f"config: {config.eval_only}")
     ### CASE 1: Eval Only
     if config.eval_only:
-        # This is the eval_only=true case: we don't generate DSPY code, we just use the files in correct_tk
+        # This is the eval_only=true case: we don't generate DSPy code, we just use existing files
         print(">>> USING CODE WITH EVAL ONLY <<<")
 
-        # In Tilelang case, we just need to get a string of the tilelang python code
-        if config.language == "tilelang":
+        # In TileLang or CuTe case, we just need to get a string of the python code
+        if config.language in ["tilelang", "cute"]:
             if config.eval_file_path:
                 path = config.eval_file_path
             else:
@@ -326,11 +332,15 @@ def main(config: RAGEvalConfig):
         elif config.language == "thunderkittens":
             PAPER_PROMPT = TK_PAPER_PROMPT
             GUIDELINE_PROMPT = TK_GUIDELINE_PROMPT
+        elif config.language == "cute":
+            PAPER_PROMPT = CUTE_PAPER_PROMPT
+            GUIDELINE_PROMPT = CUTE_GUIDELINE_PROMPT
         else:
-            raise ValueError(f"Unsupported language: {config.language}. Use 'tilelang' or 'thunderkittens'")
+            raise ValueError(f"Unsupported language: {config.language}. Use 'tilelang', 'thunderkittens', or 'cute'")
         
         try:
             # Use the high-performance RAG system
+            # Note: variable is named 'tilelang_code' for historical reasons but holds code for any DSL
             tilelang_code = prompt_generate_custom_dsl_rag_enhanced(
                 ref_arch_src=ref_arch_src,
                 language=config.language,
@@ -341,7 +351,6 @@ def main(config: RAGEvalConfig):
                 current_level=config.level,
                 current_problem_id=config.problem_id
             )
-            # print(f"TileLang Code: {tilelang_code}")
             print(f"✅ RAG generation successful for {problem_name}")
             # Log DSPy prompt history to file
             if config.log:
@@ -444,13 +453,13 @@ def main(config: RAGEvalConfig):
         custom_cuda = textwrap.dedent(py_code).lstrip()
         
     else:
-        # Standard code extraction for other languages
+        # Standard code extraction for other languages (TileLang, CuTe, CUDA)
+        # These are single-file Python or C++ implementations
         custom_cuda = extract_first_code(tilelang_code, ["python", "cpp"])
         cu_code = custom_cuda
     
     # Validate generation
     assert custom_cuda is not None, f"{config.language} code generation failed"
-
 
 
 
@@ -491,7 +500,7 @@ def main(config: RAGEvalConfig):
         # Save successful kernels
         if kernel_exec_result.correctness:
             if config.eval_file_path is None:
-                # Map language to correct directory
+                # Map language to correct directory (tilelang, cute, thunderkittens, cuda, etc.)
                 base_dir = f"src/prompts/correct_{config.language}/level{config.level}"
                 
                 os.makedirs(base_dir, exist_ok=True)
@@ -515,7 +524,7 @@ def main(config: RAGEvalConfig):
                         else:
                             print(f"💾 Replacing kernel - current speedup ratio {current_ratio:.2f} better than existing {existing_ratio:.2f}")
                 else:
-                    print(f"💾 Writing new TileLang kernel to {path}")
+                    print(f"💾 Writing new {config.language} kernel to {path}")
             else:
                 path = config.eval_file_path
 
