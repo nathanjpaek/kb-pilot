@@ -63,9 +63,9 @@ def prompt_generate_custom_dsl_rag_enhanced(
             current_problem_id=current_problem_id
         )
         
-        # For TileLang, wrap in a single python fence to aid simple extractors.
+        # For TileLang and CuTe, wrap in a single python fence to aid simple extractors.
         # For ThunderKittens/CUDA, return raw so multiple fenced blocks (cpp + python) remain detectable.
-        if language == "tilelang":
+        if language in ["tilelang", "cute"]:
             return f"```python\n{result}\n```"
         return result
         
@@ -73,10 +73,13 @@ def prompt_generate_custom_dsl_rag_enhanced(
         print(f"RAG generation failed for {language}: {e}")
         print("Falling back to template-based generation")
         
-        # Simple fallback (only for TileLang for now)
+        # Simple fallback (only for TileLang and CuTe for now)
         if language == "tilelang":
             from .prompt_constructor import prompt_generate_custom_tilelang_from_prompt_template
             return prompt_generate_custom_tilelang_from_prompt_template(ref_arch_src)
+        elif language == "cute":
+            # For CuTe, we don't have a template fallback yet, so re-raise the error
+            raise Exception(f"CuTe RAG generation failed and no fallback available: {e}")
         else:
             raise Exception(f"No fallback available for {language}")
 
