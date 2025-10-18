@@ -4,6 +4,7 @@ from itertools import product
 import concurrent.futures
 from typing import List, Tuple
 import glob
+import argparse
 
 
 def should_generate_kernel(level: int, problem_id: int, language: str = "tilelang") -> bool:
@@ -52,17 +53,23 @@ def run_single_job(level: int, problem_id: int, base_cmd: List[str]) -> None:
         print(f"Error running level {level} problem {problem_id}: {e}")
 
 
-def run_generation_and_eval():
+def run_generation_and_eval(language: str, levels: List[int]):
     # Define the levels and problems per level
-    problems_per_level = {
+    all_problems_per_level = {
         1: range(1, 101),  # Level 1 has 100 problems
         2: range(1, 101),  # Level 2 has 100 problems
         3: range(1, 51),  # Level 3 has 50 problems
         4: range(1, 21),  # Level 4 has 20 problems
     }
+    
+    # Filter to only requested levels
+    problems_per_level = {level: all_problems_per_level[level] for level in levels if level in all_problems_per_level}
+    
+    if not problems_per_level:
+        print(f"No valid levels specified. Valid levels are: {list(all_problems_per_level.keys())}")
+        return
 
     # Base command template
-    language = "tilelang"  # Can be changed to "thunderkittens" for ThunderKittens
     base_cmd = [
         "python",
         "scripts/generate_and_eval_rag_modal.py",
@@ -82,6 +89,8 @@ def run_generation_and_eval():
                 jobs.append((level, problem_id))
                 # print(f"Adding job: Level {level}, Problem {problem_id}")
                 
+    print(f"Language: {language}")
+    print(f"Levels: {levels}")
     print(f"Total jobs: {len(jobs)}")
 
     # Run jobs in parallel with max 16 concurrent processes
@@ -93,4 +102,24 @@ def run_generation_and_eval():
 
 
 if __name__ == "__main__":
-    run_generation_and_eval()
+    parser = argparse.ArgumentParser(
+        description="Generate and evaluate kernels for specified levels and language"
+    )
+    parser.add_argument(
+        "--language",
+        type=str,
+        default="cute",
+        choices=["cute", "thunderkittens", "tilelang"],
+        help="Target language for kernel generation (default: cute)"
+    )
+    parser.add_argument(
+        "--levels",
+        type=int,
+        nargs="+",
+        default=[1, 2, 3, 4],
+        help="List of levels to generate (default: 1 2 3 4). Example: --levels 1 2"
+    )
+    
+    args = parser.parse_args()
+    
+    run_generation_and_eval(args.language, args.levels)
