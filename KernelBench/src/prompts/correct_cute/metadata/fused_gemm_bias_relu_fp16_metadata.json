@@ -1,0 +1,37 @@
+{
+  "kernel_name": "fused_gemm_bias_relu_fp16",
+  "operation": "fused_gemm_bias_relu",
+  "phase": "advanced_patterns",
+  "learning_focus": "epilogue_patterns",
+  "gpu_arch": "SM80",
+  "data_type": "FP16",
+  "mma_atom": "SM80_16x8x16_F16F16F16F16_TN",
+  "tile_shape": "(1024, 1024, 256)",
+  "thread_layout": "(16, 64)",
+  "pipeline_stages": 3,
+  "gmem_layout": "row_major",
+  "smem_layout": "fused_optimized",
+  "key_patterns": [
+    "static_shapes",
+    "epilogue_patterns",
+    "fused_operations",
+    "bias_addition",
+    "activation_fusion"
+  ],
+  "epilogue_snippet": "// Epilogue: Bias + ReLU",
+  "bias_snippet": "tCrC += bias_val;",
+  "activation_snippet": "tCrC = max(tCrC, zero); // ReLU",
+  "fused_snippet": "// Fused: GEMM + Bias + ReLU in one kernel",
+  "vectorization_width": 8,
+  "shared_memory_bytes": 393216,
+  "registers_per_thread": 30,
+  "speedup_vs_pytorch": 22.0,
+  "memory_bandwidth_utilization": 0.3,
+  "compute_intensity": 4.5,
+  "tensor_core_utilization": 0.96,
+  "prerequisites": [
+    "gemm_swizzled"
+  ],
+  "next_kernels": [],
+  "difficulty_level": 5
+}
