@@ -53,7 +53,7 @@ def run_single_job(level: int, problem_id: int, base_cmd: List[str]) -> None:
         print(f"Error running level {level} problem {problem_id}: {e}")
 
 
-def run_generation_and_eval(language: str, levels: List[int]):
+def run_generation_and_eval(language: str, levels: List[int], model: str):
     # Define the levels and problems per level
     all_problems_per_level = {
         1: range(1, 101),  # Level 1 has 100 problems
@@ -77,6 +77,7 @@ def run_generation_and_eval(language: str, levels: List[int]):
         f"language={language}",
         "rag_k=7",
         "gpu=H100",
+        f"dspy_model={model}",
     ]
 
     # Create list of all (level, problem_id) pairs
@@ -90,6 +91,7 @@ def run_generation_and_eval(language: str, levels: List[int]):
                 # print(f"Adding job: Level {level}, Problem {problem_id}")
                 
     print(f"Language: {language}")
+    print(f"Model: {model}")
     print(f"Levels: {levels}")
     print(f"Total jobs: {len(jobs)}")
 
@@ -119,7 +121,13 @@ if __name__ == "__main__":
         default=[1, 2, 3, 4],
         help="List of levels to generate (default: 1 2 3 4). Example: --levels 1 2"
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="openai/o3",
+        help="DSPy model for code generation (default: openai/o3). Examples: openai/gpt-5, openai/o3-mini, openai/gpt-4o"
+    )
     
     args = parser.parse_args()
     
-    run_generation_and_eval(args.language, args.levels)
+    run_generation_and_eval(args.language, args.levels, args.model)
