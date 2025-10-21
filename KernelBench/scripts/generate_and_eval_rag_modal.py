@@ -53,7 +53,10 @@ def configure_dspy(model_name: str, temperature: float = 0.0):
     print(f"🤖 Configuring DSPy with model: {model_name}")
     
     # Configure the language model
-    lm = dspy.LM(model_name, temperature=temperature, max_tokens=20000)
+    if (model_name.lower() in ['gpt-5']):
+        lm = dspy.LM(model_name, temperature=temperature, max_completion_tokens=20000)
+    else:  
+        lm = dspy.LM(model_name, temperature=temperature, max_tokens=20000)
     dspy.configure(lm=lm)
     
     print(f"✅ DSPy configured successfully with {model_name}")
@@ -224,8 +227,12 @@ def main(config: RAGEvalConfig):
         torch.set_default_dtype(torch.float16)
 
     # Configure DSPy with the specified model
-    lm = dspy.LM(config.dspy_model, temperature=config.dspy_temperature, max_tokens=20000)
+    if (config.dspy_model.lower() in ['gpt-5']):
+        lm = dspy.LM(config.dspy_model, temperature=config.dspy_temperature, max_completion_tokens=20000)
+    else:  
+        lm = dspy.LM(config.dspy_model, temperature=config.dspy_temperature, max_tokens=20000)
     dspy.configure(lm=lm)
+    
     print(f"✅ DSPy configured successfully with {config.dspy_model}")
 
     # Load dataset
