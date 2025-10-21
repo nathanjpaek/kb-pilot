@@ -151,7 +151,7 @@ image = (
 @app.cls(image=image)
 class EvalFunc:
     @modal.method()
-    def eval_single_sample_modal(self, ref_arch_src, custom_cuda, verbose, gpu_arch, language, entry_point=None, cu_code: str | None = None, problem_id: int = None, level: int = None):
+    def eval_single_sample_modal(self, ref_arch_src, custom_cuda, verbose, gpu_arch, language, entry_point=None, cu_code: str | None = None, problem_id: int = None, level: int = None, return_logs_on_failure: bool = False):
         # SET DEFAULT DTYPE TO FLOAT16 ONLY FOR TILELANG
         if language == "tilelang":
             torch.set_default_dtype(torch.float16)
@@ -185,6 +185,14 @@ class EvalFunc:
                 print("[Modal TK Compile] Failed to compile ThunderKittens kernel")
                 print("STDOUT:\n" + (e.stdout or ""))
                 print("STDERR:\n" + (e.stderr or ""))
+                if return_logs_on_failure:
+                    # Return rich error info instead of raising to allow callers to consume logs
+                    return {
+                        "correctness": False,
+                        "stage": "compile",
+                        "stdout": e.stdout or "",
+                        "stderr": e.stderr or "",
+                    }
                 raise
             # Ensure path is importable
             if tk_kernel_dir not in sys.path:
