@@ -1,11 +1,3 @@
-"""
-Problem Name: 1_Square_matrix_multiplication_
-Generated using DSPy RAG with openai/o3
-RAG Examples: 5
-Evaluation Result:
-compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=0.0565 runtime_stats={'mean': 0.0565, 'std': 0.00631, 'min': 0.0509, 'max': 0.085, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 0.0273, 'std': 0.0026, 'min': 0.0258, 'max': 0.0416, 'num_trials': 100}, 'speedup_ratio': 0.483}}
-"""
-
 import torch
 import cutlass
 import cutlass.cute as cute
