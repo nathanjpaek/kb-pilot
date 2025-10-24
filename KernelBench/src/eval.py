@@ -577,7 +577,7 @@ def eval_kernel_against_ref(
                 inputs = converted_inputs
                 
                 # Time the original PyTorch model
-                if language.lower() == "tilelang":
+                if language.lower() in ["tilelang", "cute"]:
                     model_orig = original_model.to(device=device, dtype=torch.float16)
                 else:
                     model_orig = original_model.to(device=device)
@@ -593,7 +593,7 @@ def eval_kernel_against_ref(
                 runtime_stats_orig = get_timing_stats(elapsed_times_orig, device=device)
 
                 # Time the custom model
-                if language.lower() == "tilelang":
+                if language.lower() in ["tilelang", "cute"]:
                     model_new = custom_model.to(device=device, dtype=torch.float16)
                 else:
                     model_new = custom_model.to(device=device)
@@ -767,13 +767,13 @@ def run_and_check_correctness(
             inputs = converted_inputs
 
             set_seed(trial_seed)
-            if language.lower() == "tilelang":
+            if language.lower() in ["tilelang", "cute"]:
                 model = original_model_instance.to(device=device, dtype=torch.float16)
             else:
                 model = original_model_instance.to(device=device)
 
             set_seed(trial_seed)
-            if language.lower() == "tilelang":
+            if language.lower() in ["tilelang", "cute"]:
                 model_new = new_model_instance.to(device=device, dtype=torch.float16)
             else:
                 model_new = new_model_instance.to(device=device)

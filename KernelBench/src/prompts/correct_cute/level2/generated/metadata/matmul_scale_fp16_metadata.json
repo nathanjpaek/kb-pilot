@@ -1,0 +1,36 @@
+{
+  "kernel_name": "matmul_scale_fp16",
+  "operation": "matmul_scale",
+  "level": 2,
+  "phase": "basic_fusion",
+  "fusion_operations": [
+    "matmul",
+    "scale"
+  ],
+  "num_fused_ops": 2,
+  "gpu_arch": "SM80",
+  "data_type": "FP16",
+  "dsl": "cute_python",
+  "key_patterns": [
+    "cute_python_dsl",
+    "scalar_fusion",
+    "epilogue_scale"
+  ],
+  "code_snippets": {
+    "scale_fusion": "result = scale * acc"
+  },
+  "performance": {
+    "expected_speedup": 2.5,
+    "memory_bandwidth_utilization": 0.45,
+    "compute_intensity": 1.3
+  },
+  "learning": {
+    "prerequisites": [
+      "matmul_bias"
+    ],
+    "next_kernels": [
+      "gemm_bias_relu"
+    ],
+    "difficulty_level": 2
+  }
+}

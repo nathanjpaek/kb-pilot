@@ -1,0 +1,39 @@
+{
+  "kernel_name": "gemm_multiply_leakyrelu_fp16",
+  "operation": "gemm_multiply_leakyrelu",
+  "level": 2,
+  "phase": "complex_fusion",
+  "fusion_operations": [
+    "gemm",
+    "multiply",
+    "leakyrelu"
+  ],
+  "num_fused_ops": 3,
+  "kernelbench_problem": "12_Gemm_Multiply_LeakyReLU",
+  "gpu_arch": "SM80",
+  "data_type": "FP16",
+  "dsl": "cute_python",
+  "key_patterns": [
+    "cute_python_dsl",
+    "leakyrelu_fusion",
+    "conditional_activation",
+    "multiply_fusion"
+  ],
+  "code_snippets": {
+    "leakyrelu": "result = scaled if scaled > 0.0 else negative_slope * scaled"
+  },
+  "performance": {
+    "expected_speedup": 5.8,
+    "memory_bandwidth_utilization": 0.29,
+    "compute_intensity": 2.4
+  },
+  "learning": {
+    "prerequisites": [
+      "gemm_bias_relu_scale"
+    ],
+    "next_kernels": [
+      "batched_gemm_bias_relu"
+    ],
+    "difficulty_level": 4
+  }
+}

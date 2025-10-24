@@ -1,0 +1,38 @@
+{
+  "kernel_name": "matmul_add_gelu_fp16",
+  "operation": "matmul_add_gelu",
+  "level": 2,
+  "phase": "complex_fusion",
+  "fusion_operations": [
+    "matmul",
+    "add",
+    "gelu"
+  ],
+  "num_fused_ops": 3,
+  "gpu_arch": "SM80",
+  "data_type": "FP16",
+  "dsl": "cute_python",
+  "key_patterns": [
+    "cute_python_dsl",
+    "residual_connection",
+    "gelu_activation",
+    "complex_activation"
+  ],
+  "code_snippets": {
+    "gelu_approximation": "result = 0.5 * summed * (1.0 + tanh_val)"
+  },
+  "performance": {
+    "expected_speedup": 5.5,
+    "memory_bandwidth_utilization": 0.3,
+    "compute_intensity": 2.3
+  },
+  "learning": {
+    "prerequisites": [
+      "gemm_bias_tanh"
+    ],
+    "next_kernels": [
+      "gemm_multiply_leakyrelu"
+    ],
+    "difficulty_level": 4
+  }
+}

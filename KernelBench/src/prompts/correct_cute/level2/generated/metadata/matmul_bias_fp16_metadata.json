@@ -1,0 +1,43 @@
+{
+  "kernel_name": "matmul_bias_fp16",
+  "operation": "matmul_bias",
+  "level": 2,
+  "phase": "basic_fusion",
+  "fusion_operations": [
+    "matmul",
+    "bias_add"
+  ],
+  "num_fused_ops": 2,
+  "gpu_arch": "SM80",
+  "data_type": "FP16",
+  "dsl": "cute_python",
+  "tile_shape": "(256, 256, 256)",
+  "thread_layout": "2D_16x16",
+  "key_patterns": [
+    "cute_python_dsl",
+    "basic_fusion",
+    "epilogue_bias",
+    "gemm_pattern"
+  ],
+  "code_snippets": {
+    "kernel_decorator": "@cute.kernel",
+    "matmul_computation": "acc += gA[i, k] * gB[k, j]",
+    "bias_epilogue": "result = acc + bias_val",
+    "tensor_params": "gA: cute.Tensor, gB: cute.Tensor, gBias: cute.Tensor"
+  },
+  "performance": {
+    "expected_speedup": 3.0,
+    "memory_bandwidth_utilization": 0.4,
+    "compute_intensity": 1.5
+  },
+  "learning": {
+    "prerequisites": [
+      "small_gemm"
+    ],
+    "next_kernels": [
+      "matmul_relu",
+      "gemm_bias_relu"
+    ],
+    "difficulty_level": 2
+  }
+}

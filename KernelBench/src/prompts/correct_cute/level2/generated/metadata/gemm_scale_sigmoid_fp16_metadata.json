@@ -1,0 +1,40 @@
+{
+  "kernel_name": "gemm_scale_sigmoid_fp16",
+  "operation": "gemm_scale_sigmoid",
+  "level": 2,
+  "phase": "standard_fusion",
+  "fusion_operations": [
+    "gemm",
+    "scale",
+    "sigmoid"
+  ],
+  "num_fused_ops": 3,
+  "gpu_arch": "SM80",
+  "data_type": "FP16",
+  "dsl": "cute_python",
+  "key_patterns": [
+    "cute_python_dsl",
+    "scalar_and_activation_fusion",
+    "sigmoid_epilogue",
+    "numerical_stability"
+  ],
+  "code_snippets": {
+    "sigmoid_fusion": "result = 1.0 / (1.0 + cutlass.exp(-clamped))",
+    "clamping": "clamped = cutlass.maximum(cutlass.minimum(scaled, 88.0), -88.0)"
+  },
+  "performance": {
+    "expected_speedup": 4.5,
+    "memory_bandwidth_utilization": 0.3,
+    "compute_intensity": 2.2
+  },
+  "learning": {
+    "prerequisites": [
+      "matmul_scale",
+      "gemm_bias_relu"
+    ],
+    "next_kernels": [
+      "gemm_bias_tanh"
+    ],
+    "difficulty_level": 3
+  }
+}

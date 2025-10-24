@@ -1,0 +1,38 @@
+{
+  "kernel_name": "gemm_bias_tanh_fp16",
+  "operation": "gemm_bias_tanh",
+  "level": 2,
+  "phase": "standard_fusion",
+  "fusion_operations": [
+    "gemm",
+    "bias_add",
+    "tanh"
+  ],
+  "num_fused_ops": 3,
+  "gpu_arch": "SM80",
+  "data_type": "FP16",
+  "dsl": "cute_python",
+  "key_patterns": [
+    "cute_python_dsl",
+    "multi_operation_fusion",
+    "tanh_activation",
+    "numerical_stability"
+  ],
+  "code_snippets": {
+    "tanh_fusion": "result = (exp_pos - exp_neg) / (exp_pos + exp_neg)"
+  },
+  "performance": {
+    "expected_speedup": 4.8,
+    "memory_bandwidth_utilization": 0.32,
+    "compute_intensity": 2.1
+  },
+  "learning": {
+    "prerequisites": [
+      "gemm_bias_relu"
+    ],
+    "next_kernels": [
+      "gemm_bias_relu_scale"
+    ],
+    "difficulty_level": 3
+  }
+}
