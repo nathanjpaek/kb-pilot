@@ -3,7 +3,7 @@ Problem Name: 12_Gemm_Multiply_LeakyReLU
 Generated using DSPy RAG with openai/o3
 RAG Examples: 5
 Evaluation Result:
-compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)', 'error_during_performance': RuntimeError('mat1 and mat2 must have the same dtype, but got Float and Half')} runtime=-1.0 runtime_stats={}
+compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=0.199 runtime_stats={'mean': 0.199, 'std': 0.0347, 'min': 0.191, 'max': 0.541, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 0.0858, 'std': 0.006, 'min': 0.0785, 'max': 0.107, 'num_trials': 100}, 'speedup_ratio': 0.431}}
 """
 
 # ---------------------------------------------------------------------------

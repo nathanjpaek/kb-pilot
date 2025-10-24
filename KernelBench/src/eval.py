@@ -567,7 +567,7 @@ def eval_kernel_against_ref(
                         if x.dtype in [torch.int32, torch.int64, torch.long]:
                             converted_inputs.append(x.to(device=device))
                         else:
-                            if language.lower() == "tilelang":
+                            if language.lower() in ["tilelang", "cute"]:
                                 converted_inputs.append(x.to(device=device, dtype=torch.float16))
                             else:
                                 # For ThunderKittens and others, keep original dtype

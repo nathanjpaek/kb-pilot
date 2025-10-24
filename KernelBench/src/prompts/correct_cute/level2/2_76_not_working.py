@@ -15,7 +15,7 @@ from cutlass.cute.runtime import from_dlpack
 def _linear_bias_relu_kernel(
     gA:     cute.Tensor,   # (B, K)
     gBTv:   cute.Tensor,   # ((1,V), (K, O/V))
-    gBiasv: cute.Tensor,   # ((V,), (O/V))
+    gBiasv: cute.Tensor,   # ((1,V), (O/V))
     gCv:    cute.Tensor,   # ((1,V), (B, O/V))
     K:      cutlass.Int32  # Pass K as Int32 parameter
 ):
@@ -80,9 +80,9 @@ def _linear_bias_relu_host(
 ):
     B, O = mA.shape[0], mBT.shape[1]
 
-    gBTv   = cute.zipped_divide(mBT,   (1, V))
-    gBiasv = cute.zipped_divide(mBias, (V,))
-    gCv    = cute.zipped_divide(mC,    (1, V))
+    gBTv   = cute.zipped_divide(mBT,   (1, V))      # ((1,V), (K, O/V))
+    gBiasv = cute.zipped_divide(mBias, (V,))        # ((1,V), (O/V))
+    gCv    = cute.zipped_divide(mC,    (1, V))      # ((1,V), (B, O/V))
 
     threads_per_block = 256
     O_groups = O // V
