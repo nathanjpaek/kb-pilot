@@ -66,6 +66,8 @@ class KernelRAG(dspy.Module):
             print(f"Loaded 0 {self.language.upper()} examples for RAG; proceeding without retrieval context.")
         
         # DSL generation module with optimized signature
+        # guidelines
+
         self.generate = dspy.ChainOfThought(
             "dsl_guidelines, context, original_code -> dsl_code"
         )

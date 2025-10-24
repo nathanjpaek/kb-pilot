@@ -4,7 +4,7 @@ Generate and Evaluate DSL Kernels using DSPy RAG + Modal
 This script uses the high-performance DSPy RAG system for DSL generation,
 then evaluates the generated kernels on Modal infrastructure.
 
-Supported DSLs: TileLang, ThunderKittens, CuTe
+Supported DSLs: TileLang, ThunderKittens, CuTe, Helion
 Optimized for use with OpenAI O3 and resource-unconstrained environments.
 """
 
@@ -71,7 +71,7 @@ class RAGEvalConfig(Config):
         self.dataset_name = "ScalingIntelligence/KernelBench"
 
         # Language/DSL
-        self.language = "tilelang"  # Options: "tilelang", "thunderkittens", "cuda", "cute"
+        self.language = "tilelang"  # Options: "tilelang", "thunderkittens", "cuda", "cute", "helion"
 
         # Problem Specification
         self.level = REQUIRED
@@ -284,8 +284,8 @@ def main(config: RAGEvalConfig):
         # This is the eval_only=true case: we don't generate DSPy code, we just use existing files
         print(">>> USING CODE WITH EVAL ONLY <<<")
 
-        # In TileLang or CuTe case, we just need to get a string of the python code
-        if config.language in ["tilelang", "cute"]:
+        # In TileLang, CuTe, or Helion case, we just need to get a string of the python code
+        if config.language in ["tilelang", "cute", "helion"]:
             if config.eval_file_path:
                 path = config.eval_file_path
             else:
@@ -350,8 +350,12 @@ def main(config: RAGEvalConfig):
         elif config.language == "cute":
             PAPER_PROMPT = CUTE_PAPER_PROMPT
             GUIDELINE_PROMPT = CUTE_GUIDELINE_PROMPT
+        elif config.language == "helion":
+            # Reuse CuTe prompts for Helion until dedicated prompts exist
+            PAPER_PROMPT = CUTE_PAPER_PROMPT    # TODO: NATHAN CHANGE THIS PROMPT
+            GUIDELINE_PROMPT = CUTE_GUIDELINE_PROMPT
         else:
-            raise ValueError(f"Unsupported language: {config.language}. Use 'tilelang', 'thunderkittens', or 'cute'")
+            raise ValueError(f"Unsupported language: {config.language}. Use 'tilelang', 'thunderkittens', 'cute', or 'helion'")
         
         try:
             # Use the high-performance RAG system
@@ -468,7 +472,7 @@ def main(config: RAGEvalConfig):
         custom_cuda = textwrap.dedent(py_code).lstrip()
         
     else:
-        # Standard code extraction for other languages (TileLang, CuTe, CUDA)
+        # Standard code extraction for other languages (TileLang, CuTe, Helion, CUDA)
         # These are single-file Python or C++ implementations
         custom_cuda = extract_first_code(tilelang_code, ["python", "cpp"])
         cu_code = custom_cuda
