@@ -1,9 +1,13 @@
 """
-Simplified iterative ThunderKittens kernel fixer.
+SIMPLE KERNEL FIXER
 
-Behavior:
-- Loads an existing ThunderKittens kernel (.py wrapper and .cu kernel) for a given level/problem
-  from /Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/prompts/correct_thunderkittens/level{level}/
+Supports ThunderKittens and CuTe
+
+- Loads an existing kernel for a given level/problem from the repo
+- ThunderKittens: expects .py wrapper and .cu kernel under
+  /Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/prompts/correct_thunderkittens/level{level}/
+- CuTe: expects a single .py file under
+  /Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/prompts/correct_cute/level{level}/
 - Evaluates on Modal; captures full error output (compile/runtime) or result payload.
 - Prompts an LLM with: current kernel (both .cu and .py), full error output, and strict instructions:
   "Fix this kernel so that it compiles correctly, has correctness, and is also as performant as possible."
@@ -12,6 +16,12 @@ Behavior:
 Notes:
 - Reuses Modal evaluation class and image from scripts/generate_and_eval_rag_modal.py.
 - Uses util helpers from src.utils for code extraction and LLM invocation.
+
+
+ThunderKittens (default):
+Example: python KernelBench/multiturn_optimizer_willy.py --level 1 --problem_id 93 --language thunderkittens
+CuTe:
+Example: python KernelBench/multiturn_optimizer_willy.py --level 1 --problem_id 1 --language cute
 """
 
 
@@ -46,10 +56,11 @@ from scripts.generate_and_eval_rag_modal import (
     REPO_TOP_DIR,
 )
 
-# Prompts for TK generation
+# Prompts for TK/CuTe generation
 from scripts.tk_guideline_prompt import TK_GUIDELINE_PROMPT
+from scripts.cute_guideline_prompt import CUTE_GUIDELINE_PROMPT
 
-
+# IMPORTANT: THESE ARE THE KERNEL FIXING LOOP CONFIGURATIONS
 class TKFixLoopConfig(Config):
     def __init__(self):
         # Dataset source and target problem
@@ -62,6 +73,9 @@ class TKFixLoopConfig(Config):
         self.gpu = "H100"
         self.gpu_arch = ["Hopper"]
         self.verbose = True
+
+        # Language/DSL to fix: "thunderkittens" or "cute"
+        self.language = "thunderkittens"
 
         # LLM server presets (uses src.utils SERVER_PRESETS)
         self.server_type = "openai"  # e.g., "openai", "anthropic", "together"
@@ -78,12 +92,14 @@ class TKFixLoopConfig(Config):
 
         # Logging/output
         self.logdir = os.path.join(REPO_TOP_DIR, "results", "tk_fix_loop_logs")
-        self.save_dir = os.path.join(REPO_TOP_DIR, "src", "prompts", "correct_thunderkittens", "level{level}")
+        # Save directory is derived per-language in _save_kernel
+        self.save_dir = None
 
     def __repr__(self):
         return f"TKFixLoopConfig({self.to_dict()})"
 
 
+# This function just returns a tuple of (the pytorch solution code, problem name)
 def _load_problem(config: TKFixLoopConfig) -> Tuple[str, str]:
     """Return (ref_arch_src, problem_name)."""
     if config.dataset_src == "huggingface":
@@ -127,6 +143,20 @@ def _load_existing_tk_code(config: TKFixLoopConfig) -> Tuple[str, str]:
     py_code = read_file(py_path)
     cu_code = read_file(cu_path)
     return py_code, cu_code
+
+
+def _load_existing_cute_code(config: TKFixLoopConfig) -> str:
+    """Load existing CuTe .py for the given level/problem from the repo.
+
+    Expected path:
+      /Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/prompts/correct_cute/level{level}/{level}_{problem_id}.py
+    """
+    cute_dir = f"/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/prompts/correct_cute/level{config.level}"
+    stem = f"{config.level}_{config.problem_id}"
+    py_path = os.path.join(cute_dir, f"{stem}.py")
+    if not os.path.exists(py_path):
+        raise FileNotFoundError(f"Missing CuTe .py file: {py_path}")
+    return read_file(py_path)
 
 
 def _eval_tk_on_modal(
@@ -204,6 +234,67 @@ def _eval_tk_on_modal(
         return False, err_text, None
 
 
+def _eval_cute_on_modal(
+    py_code: str,
+    ref_arch_src: str,
+    problem_name: str,
+    config: TKFixLoopConfig,
+) -> Tuple[bool, Optional[str], Optional[float]]:
+    """Evaluate CuTe kernel on Modal. Returns (success, error_text, speedup)."""
+    entry_point = None
+    if config.level == 9:
+        first_underscore = problem_name.find("_")
+        if first_underscore != -1:
+            entry_point = problem_name[first_underscore + 1 :]
+
+    try:
+        with eval_app.run():
+            result = (
+                EvalFunc.with_options(gpu=config.gpu)()
+                .eval_single_sample_modal
+                .remote(
+                    ref_arch_src,
+                    py_code,
+                    config.verbose,
+                    gpu_arch_mapping[config.gpu],
+                    "cute",
+                    entry_point,
+                    None,  # cu_code not used for CuTe
+                    config.problem_id,
+                    config.level,
+                    True,  # return_logs_on_failure
+                )
+            )
+
+        try:
+            if getattr(result, "correctness", False):
+                result_str = str(result)
+                speedup = None
+                try:
+                    if "speedup_ratio" in result_str:
+                        speedup = float(result_str.split("speedup_ratio': ")[1].split("}")[0])
+                except Exception:
+                    speedup = None
+                return True, None, speedup
+        except Exception:
+            return False, f"Unexpected result object: {repr(result)}", None
+
+        if isinstance(result, dict) and not result.get("correctness", True):
+            stderr = result.get("stderr", "")
+            stdout = result.get("stdout", "")
+            stage = result.get("stage", "unknown")
+            joined = f"[Modal Failure Stage: {stage}]\n\nSTDERR:\n{stderr}\n\nSTDOUT:\n{stdout}"
+            return False, joined, None
+
+        return False, str(result), None
+
+    except Exception as e:
+        err_text = (
+            f"Modal evaluation failed with exception:\n{repr(e)}\n\nTraceback (local):\n{traceback.format_exc()}"
+        )
+        return False, err_text, None
+
+
 def _build_fix_prompt(
     py_code: str,
     cu_code: str,
@@ -241,35 +332,80 @@ def _extract_tk_blocks(llm_response: str) -> Tuple[Optional[str], Optional[str]]
     return py_code, cu_code
 
 
+def _build_cute_fix_prompt(
+    py_code: str,
+    error_text: str,
+    problem_name: str,
+    attempt_idx: int,
+) -> str:
+    """Compose the instruction to the LLM, demanding one python code block (CuTe)."""
+    return (
+        f"You are an expert CuTe engineer. You MUST use the CuTe Python DSL to do this task.\n"
+        f"Task: Fix this CuTe kernel so that it (1) compiles, (2) passes correctness, and (3) is as performant as possible.\n"
+        f"CUTE GUIDELINES:\n"
+        f"{CUTE_GUIDELINE_PROMPT}\n\n"
+        f"Problem: {problem_name}\n"
+        f"Attempt: {attempt_idx}\n\n"
+        f"Current CuTe Python code:\n"
+        f"```python\n{py_code}\n```\n\n"
+        f"Full error output/logs from evaluation (compile/runtime):\n"
+        f"{error_text}\n\n"
+        f"Output requirements:\n"
+        f"- Return ONLY ONE code block:\n"
+        f"  1) the full updated CuTe Python code in a ```python block\n"
+        f"- Do NOT include any other text.\n"
+        f"- Ensure the code is self-contained and importable/compilable.\n"
+    )
+
+
+def _extract_cute_block(llm_response: str) -> Optional[str]:
+    blocks = extract_all_code_blocks(llm_response)
+    return blocks.get("python")
+
+
 def _save_kernel(
     py_code: str,
-    cu_code: str,
+    cu_code: Optional[str],
     config: TKFixLoopConfig,
     suffix: str = "",
     speedup: Optional[float] = None,
 ) -> str:
-    """Save to correct_thunderkittens directory and return base path."""
-    save_dir = config.save_dir.format(level=config.level)
-    os.makedirs(save_dir, exist_ok=True)
-    base = os.path.join(save_dir, f"{config.level}_{config.problem_id}")
-    if suffix:
-        base = f"{base}_{suffix}"
-    py_path = f"{base}.py"
-    cu_path = f"{base}.cu"
-    with open(py_path, "w") as f:
-        f.write(py_code)
-    with open(cu_path, "w") as f:
-        if speedup is not None:
-            f.write(f"// Speedup ratio: {speedup:.3f}x\n\n")
-        f.write(cu_code)
-    # Optionally create a Makefile (for local build reference only)
-    create_tk_makefile(save_dir, gpu=config.gpu, cu_file=os.path.basename(cu_path))
-    return base
+    """Save kernel to the appropriate directory based on language and return base path."""
+    if config.language == "thunderkittens":
+        save_dir = os.path.join(REPO_TOP_DIR, "src", "prompts", "correct_thunderkittens", f"level{config.level}")
+        os.makedirs(save_dir, exist_ok=True)
+        base = os.path.join(save_dir, f"{config.level}_{config.problem_id}")
+        if suffix:
+            base = f"{base}_{suffix}"
+        py_path = f"{base}.py"
+        cu_path = f"{base}.cu"
+        with open(py_path, "w") as f:
+            f.write(py_code)
+        with open(cu_path, "w") as f:
+            if speedup is not None:
+                f.write(f"// Speedup ratio: {speedup:.3f}x\n\n")
+            f.write(cu_code or "")
+        create_tk_makefile(save_dir, gpu=config.gpu, cu_file=os.path.basename(cu_path))
+        return base
+    elif config.language == "cute":
+        save_dir = os.path.join(REPO_TOP_DIR, "src", "prompts", "correct_cute", f"level{config.level}")
+        os.makedirs(save_dir, exist_ok=True)
+        base = os.path.join(save_dir, f"{config.level}_{config.problem_id}")
+        if suffix:
+            base = f"{base}_{suffix}"
+        py_path = f"{base}.py"
+        with open(py_path, "w") as f:
+            if speedup is not None:
+                f.write(f"# Speedup ratio: {speedup:.3f}x\n\n")
+            f.write(py_code)
+        return base
+    else:
+        raise ValueError(f"Unsupported language for saving: {config.language}")
 
 
 @pydra.main(base=TKFixLoopConfig)
 def main(config: TKFixLoopConfig):
-    print(f"Starting simplified TK fix loop with config: {config}")
+    print(f"Starting simplified kernel fix loop with config: {config}")
 
     # Prepare outputs/logs
     os.makedirs(config.logdir, exist_ok=True)
@@ -299,12 +435,24 @@ def main(config: TKFixLoopConfig):
     ref_arch_src, problem_name = _load_problem(config)
     print(f"Level {config.level} Problem {config.problem_id}: {problem_name}")
 
-    # Load existing TK files from repo
-    print("Loading existing ThunderKittens kernel (.py and .cu) from repo...")
-    try:
-        py_code, cu_code = _load_existing_tk_code(config)
-    except Exception as e:
-        print(f"Failed to load TK files: {e}")
+    # Load existing files from repo based on language
+    if config.language == "thunderkittens":
+        print("Loading existing ThunderKittens kernel (.py and .cu) from repo...")
+        try:
+            py_code, cu_code = _load_existing_tk_code(config)
+        except Exception as e:
+            print(f"Failed to load TK files: {e}")
+            sys.exit(1)
+    elif config.language == "cute":
+        print("Loading existing CuTe kernel (.py) from repo...")
+        try:
+            py_code = _load_existing_cute_code(config)
+            cu_code = None
+        except Exception as e:
+            print(f"Failed to load CuTe file: {e}")
+            sys.exit(1)
+    else:
+        print(f"Unsupported language: {config.language}. Choose 'thunderkittens' or 'cute'.")
         sys.exit(1)
 
     # Track intermediate files for cleanup
@@ -315,9 +463,14 @@ def main(config: TKFixLoopConfig):
         print(f"\n=== Attempt {attempt}/{config.max_attempts} ===")
 
         # Evaluate current kernel
-        success, error_text, speedup = _eval_tk_on_modal(
-            py_code, cu_code, ref_arch_src, problem_name, config
-        )
+        if config.language == "thunderkittens":
+            success, error_text, speedup = _eval_tk_on_modal(
+                py_code, cu_code, ref_arch_src, problem_name, config
+            )
+        else:
+            success, error_text, speedup = _eval_cute_on_modal(
+                py_code, ref_arch_src, problem_name, config
+            )
 
         if success:
             print("Success: Kernel compiled and passed correctness.")
@@ -329,7 +482,10 @@ def main(config: TKFixLoopConfig):
                     os.remove(file_path)
                     print(f"Cleaned up intermediate file: {file_path}")
             base = _save_kernel(py_code, cu_code, config, speedup=speedup)
-            print(f"Saved working kernel to: {base}.py and {base}.cu")
+            if config.language == "thunderkittens":
+                print(f"Saved working kernel to: {base}.py and {base}.cu")
+            else:
+                print(f"Saved working kernel to: {base}.py")
             return
 
         # If this is the last attempt, save final version and exit
@@ -341,13 +497,19 @@ def main(config: TKFixLoopConfig):
                     os.remove(file_path)
                     print(f"Cleaned up intermediate file: {file_path}")
             final_base = _save_kernel(py_code, cu_code, config, "final", speedup=None)
-            print(f"Saved final kernel to: {final_base}.py and {final_base}.cu")
+            if config.language == "thunderkittens":
+                print(f"Saved final kernel to: {final_base}.py and {final_base}.cu")
+            else:
+                print(f"Saved final kernel to: {final_base}.py")
             print("\nNot fixable within the specified number of attempts.")
             return
 
         # Build and send fix prompt to LLM
         assert error_text is not None, "Failure without error text; cannot proceed."
-        prompt = _build_fix_prompt(py_code, cu_code, error_text, problem_name, attempt)
+        if config.language == "thunderkittens":
+            prompt = _build_fix_prompt(py_code, cu_code, error_text, problem_name, attempt)
+        else:
+            prompt = _build_cute_fix_prompt(py_code, error_text, problem_name, attempt)
         print(prompt)
         try:
             llm_output = query_llm(prompt)
@@ -356,14 +518,22 @@ def main(config: TKFixLoopConfig):
             print("Stopping.")
             sys.exit(1)
 
-        # Extract updated blocks
-        new_py, new_cu = _extract_tk_blocks(llm_output)
-        if not new_py or not new_cu:
-            print("LLM did not return both python and cpp code blocks; stopping.")
-            print("Raw LLM output (truncated):\n" + llm_output[:1000])
-            sys.exit(1)
-
-        py_code, cu_code = new_py, new_cu
+        # Extract updated blocks based on language
+        if config.language == "thunderkittens":
+            new_py, new_cu = _extract_tk_blocks(llm_output)
+            if not new_py or not new_cu:
+                print("LLM did not return both python and cpp code blocks; stopping.")
+                print("Raw LLM output (truncated):\n" + llm_output[:1000])
+                sys.exit(1)
+            py_code, cu_code = new_py, new_cu
+        else:
+            new_py = _extract_cute_block(llm_output)
+            if not new_py:
+                print("LLM did not return a python code block; stopping.")
+                print("Raw LLM output (truncated):\n" + llm_output[:1000])
+                sys.exit(1)
+            py_code = new_py
+            cu_code = None
 
 
 if __name__ == "__main__":
