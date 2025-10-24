@@ -6,9 +6,7 @@ Behavior:
   from /Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/prompts/correct_thunderkittens/level{level}/
 - Evaluates on Modal; captures full error output (compile/runtime) or result payload.
 - Prompts an LLM with: current kernel (both .cu and .py), full error output, and strict instructions:
-  "Fix this kernel so that it compiles correctly, has correctness, and is also as performant as possible.
-   Make sure to add an in-depth comment for every single significant line of code, along with comments describing
-   the source of the error and precisely how to avoid that specific error."
+  "Fix this kernel so that it compiles correctly, has correctness, and is also as performant as possible."
 - Repeats up to N attempts (default 3) or stops early once correctness is achieved. If still failing, prints not fixable.
 
 Notes:
@@ -49,7 +47,7 @@ from scripts.generate_and_eval_rag_modal import (
 )
 
 # Prompts for TK generation
-# No RAG generation in this simplified variant
+from scripts.tk_guideline_prompt import TK_GUIDELINE_PROMPT
 
 
 class TKFixLoopConfig(Config):
@@ -57,8 +55,8 @@ class TKFixLoopConfig(Config):
         # Dataset source and target problem
         self.dataset_src = "local"  # "huggingface" or "local"
         self.dataset_name = "ScalingIntelligence/KernelBench"
-        self.level = 1
-        self.problem_id = 25
+        self.level = REQUIRED
+        self.problem_id = REQUIRED
 
         # Modal / GPU
         self.gpu = "H100"
@@ -76,7 +74,7 @@ class TKFixLoopConfig(Config):
         self.reasoning_effort = "high"  # "low" | "medium" | "high"
 
         # Loop settings
-        self.max_attempts = 3
+        self.max_attempts = 5
 
         # Logging/output
         self.logdir = os.path.join(REPO_TOP_DIR, "results", "tk_fix_loop_logs")
@@ -215,10 +213,10 @@ def _build_fix_prompt(
 ) -> str:
     """Compose the instruction to the LLM, demanding two code blocks (python, cpp)."""
     return (
-        f"You are an expert CUDA/ThunderKittens engineer.\n"
+        f"You are an expert ThunderKittens engineer. You MUST use the kittens:: API to do this task.\n"
         f"Task: Fix this ThunderKittens kernel so that it (1) compiles, (2) passes correctness, and (3) is as performant as possible.\n"
-        f"Additionally, add an in-depth comment for every single significant line of code.\n"
-        f"Also add comments describing the root cause of the error(s) and precisely how to avoid them in the future.\n\n"
+        f"THUNDERKITTENS GUIDELINES:\n"
+        f"{TK_GUIDELINE_PROMPT}\n\n"
         f"Problem: {problem_name}\n"
         f"Attempt: {attempt_idx}\n\n"
         f"Current Python wrapper (thunderkittens):\n"  # require python fenced block
@@ -243,20 +241,26 @@ def _extract_tk_blocks(llm_response: str) -> Tuple[Optional[str], Optional[str]]
     return py_code, cu_code
 
 
-def _save_success(
+def _save_kernel(
     py_code: str,
     cu_code: str,
     config: TKFixLoopConfig,
+    suffix: str = "",
+    speedup: Optional[float] = None,
 ) -> str:
     """Save to correct_thunderkittens directory and return base path."""
     save_dir = config.save_dir.format(level=config.level)
     os.makedirs(save_dir, exist_ok=True)
     base = os.path.join(save_dir, f"{config.level}_{config.problem_id}")
+    if suffix:
+        base = f"{base}_{suffix}"
     py_path = f"{base}.py"
     cu_path = f"{base}.cu"
     with open(py_path, "w") as f:
         f.write(py_code)
     with open(cu_path, "w") as f:
+        if speedup is not None:
+            f.write(f"// Speedup ratio: {speedup:.3f}x\n\n")
         f.write(cu_code)
     # Optionally create a Makefile (for local build reference only)
     create_tk_makefile(save_dir, gpu=config.gpu, cu_file=os.path.basename(cu_path))
@@ -303,6 +307,9 @@ def main(config: TKFixLoopConfig):
         print(f"Failed to load TK files: {e}")
         sys.exit(1)
 
+    # Track intermediate files for cleanup
+    intermediate_files = []
+    
     # Iterative loop
     for attempt in range(1, config.max_attempts + 1):
         print(f"\n=== Attempt {attempt}/{config.max_attempts} ===")
@@ -316,8 +323,26 @@ def main(config: TKFixLoopConfig):
             print("Success: Kernel compiled and passed correctness.")
             if speedup is not None:
                 print(f"Reported speedup ratio: {speedup:.3f}")
-            base = _save_success(py_code, cu_code, config)
+            # Clean up any intermediate files
+            for file_path in intermediate_files:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    print(f"Cleaned up intermediate file: {file_path}")
+            base = _save_kernel(py_code, cu_code, config, speedup=speedup)
             print(f"Saved working kernel to: {base}.py and {base}.cu")
+            return
+
+        # If this is the last attempt, save final version and exit
+        if attempt == config.max_attempts:
+            print(f"\nFinal attempt {attempt} failed. Saving final version.")
+            # Clean up any intermediate files
+            for file_path in intermediate_files:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    print(f"Cleaned up intermediate file: {file_path}")
+            final_base = _save_kernel(py_code, cu_code, config, "final", speedup=None)
+            print(f"Saved final kernel to: {final_base}.py and {final_base}.cu")
+            print("\nNot fixable within the specified number of attempts.")
             return
 
         # Build and send fix prompt to LLM
@@ -339,8 +364,6 @@ def main(config: TKFixLoopConfig):
             sys.exit(1)
 
         py_code, cu_code = new_py, new_cu
-
-    print("\nNot fixable within the specified number of attempts.")
 
 
 if __name__ == "__main__":
