@@ -63,9 +63,9 @@ def prompt_generate_custom_dsl_rag_enhanced(
             current_problem_id=current_problem_id
         )
         
-        # For TileLang and CuTe, wrap in a single python fence to aid simple extractors.
+        # For TileLang, CuTe, and Helion, wrap in a single python fence to aid simple extractors.
         # For ThunderKittens/CUDA, return raw so multiple fenced blocks (cpp + python) remain detectable.
-        if language in ["tilelang", "cute"]:
+        if language in ["tilelang", "cute", "helion"]:
             return f"```python\n{result}\n```"
         return result
         
@@ -80,6 +80,9 @@ def prompt_generate_custom_dsl_rag_enhanced(
         elif language == "cute":
             # For CuTe, we don't have a template fallback yet, so re-raise the error
             raise Exception(f"CuTe RAG generation failed and no fallback available: {e}")
+        elif language == "helion":
+            # For Helion, mirror CuTe behavior (no fallback)
+            raise Exception(f"Helion RAG generation failed and no fallback available: {e}")
         else:
             raise Exception(f"No fallback available for {language}")
 
