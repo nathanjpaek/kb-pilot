@@ -3,7 +3,7 @@ Problem Name: 3_Batched_matrix_multiplication
 Generated using DSPy RAG with openai/gpt-5
 RAG Examples: 7
 Evaluation Result:
-compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=48.4 runtime_stats={'mean': 48.4, 'std': 2.79, 'min': 34.7, 'max': 52.1, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 5.33, 'std': 0.00227, 'min': 5.33, 'max': 5.34, 'num_trials': 100}, 'speedup_ratio': 0.11}}
+compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=48.4 runtime_stats={'mean': 48.4, 'std': 2.79, 'min': 34.7, 'max': 52.1, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 5.33, 'std': 0.00227, 'min': 5.33, 'max': 5.34, 'num_trials': 100}, 'speedup_ratio': 0.158x}}
 """
 
 import torch
