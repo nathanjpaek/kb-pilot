@@ -1,0 +1,35 @@
+{
+  "kernel_name": "batched_gemm_cute_python",
+  "operation": "batched_gemm",
+  "phase": "optimizations",
+  "learning_focus": "batch_parallelism",
+  "gpu_arch": "SM80",
+  "data_type": "FP32",
+  "dsl": "cute_python",
+  "tile_shape": "(B, 128, 128, 128)",
+  "thread_layout": "3D_16x16x1",
+  "key_patterns": [
+    "cute_python_dsl",
+    "batched_operations",
+    "3d_indexing",
+    "batch_parallelism"
+  ],
+  "code_snippets": {
+    "batch_index": "b = bidz",
+    "3d_access": "gA[b, i, k] * gB[b, k, j]"
+  },
+  "performance": {
+    "expected_speedup": 5.0,
+    "memory_bandwidth_utilization": 0.35,
+    "compute_intensity": 2.0
+  },
+  "learning": {
+    "prerequisites": [
+      "gemm_optimized"
+    ],
+    "next_kernels": [
+      "fused_matmul_add"
+    ],
+    "difficulty_level": 3
+  }
+}

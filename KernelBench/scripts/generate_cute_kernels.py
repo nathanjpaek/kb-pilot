@@ -1,33 +1,29 @@
 #!/usr/bin/env python3
 """
-CuTe Kernel Generator
+CuTe Python DSL Kernel Generator - Progressive Learning Approach
 
-This script generates 10 CuTe kernels following a progressive learning path:
+This script generates 10 CuTe kernels using the Python DSL (cutlass.cute)
+following a progressive learning path:
 1-3: Element-wise operations (Learn Layouts)
-4-6: 2D operations (Learn MMA Atoms) 
+4-6: 2D operations (Learn MMA usage) 
 7-9: Optimizations (Learn Performance)
-10: Advanced patterns (Stretch Goal)
+10: Advanced patterns
 
 Each kernel includes comprehensive metadata for RAG system integration.
 """
 
 import os
 import json
-import torch
-import torch.nn as nn
-from typing import Dict, List, Tuple, Any, Optional
-import math
-import time
+from typing import Dict, Any
 
-
-class CuTeKernelGenerator:
-    """Generator for progressive CuTe kernels with RAG metadata."""
+class CuTePythonKernelGenerator:
+    """Generator for progressive CuTe Python DSL kernels with RAG metadata."""
     
     def __init__(self, output_dir: str = None):
         if output_dir is None:
             # Default to KernelBench prompts directory structure
             repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            self.output_dir = os.path.join(repo_root, "KernelBench", "src", "prompts", "correct_cute")
+            self.output_dir = os.path.join(repo_root, "KernelBench", "src", "prompts", "correct_cute", "generated")
         else:
             self.output_dir = output_dir
         
@@ -36,7 +32,7 @@ class CuTeKernelGenerator:
         os.makedirs(self.metadata_dir, exist_ok=True)
         
     def generate_all_kernels(self) -> Dict[str, Dict[str, Any]]:
-        """Generate all 10 CuTe kernels with comprehensive metadata."""
+        """Generate all 10 CuTe Python kernels with comprehensive metadata."""
         kernels = {}
         
         # Phase 1: Element-wise operations (Learn Layouts)
@@ -44,15 +40,15 @@ class CuTeKernelGenerator:
         kernels['vector_scale'] = self._generate_vector_scale_kernel()
         kernels['relu'] = self._generate_relu_kernel()
         
-        # Phase 2: 2D operations (Learn MMA Atoms)
+        # Phase 2: 2D operations (Learn tensor operations)
         kernels['matrix_transpose'] = self._generate_matrix_transpose_kernel()
+        kernels['elementwise_mul'] = self._generate_elementwise_mul_kernel()
         kernels['small_gemm'] = self._generate_small_gemm_kernel()
-        kernels['gemm_volta'] = self._generate_gemm_volta_kernel()
         
         # Phase 3: Optimizations (Learn Performance)
-        kernels['gemm_ampere'] = self._generate_gemm_ampere_kernel()
-        kernels['gemm_pipelined'] = self._generate_gemm_pipelined_kernel()
-        kernels['gemm_swizzled'] = self._generate_gemm_swizzled_kernel()
+        kernels['gemm_optimized'] = self._generate_gemm_optimized_kernel()
+        kernels['batched_gemm'] = self._generate_batched_gemm_kernel()
+        kernels['fused_matmul_add'] = self._generate_fused_matmul_add_kernel()
         
         # Phase 4: Advanced patterns (Stretch Goal)
         kernels['fused_gemm_bias_relu'] = self._generate_fused_gemm_bias_relu_kernel()
@@ -60,192 +56,332 @@ class CuTeKernelGenerator:
         return kernels
     
     def _generate_vector_add_kernel(self) -> Dict[str, Any]:
-        """Generate Vector Add kernel (FP32) - Focus: Basic tensor creation, composition, copy."""
-        kernel_name = "vector_add_fp32"
+        """Generate Vector Add kernel - Focus: Basic tensor operations, layouts."""
+        kernel_name = "vector_add_cute_python"
         
-        # CuTe C++ code
-        cute_code = '''#include <cute/tensor.hpp>
-#include <cute/algorithm/copy.hpp>
+        code = '''"""
+Vector Addition using CuTe Python DSL
+Focus: Basic tensor creation, layouts, parallel operations
+"""
+import torch
+import cutlass
+import cutlass.cute as cute
+from cutlass.cute.runtime import from_dlpack
 
-using namespace cute;
 
-template<typename T>
-__global__ void vector_add_kernel(T* a, T* b, T* c, int n) {
-    // Static shapes everywhere - THE #1 rule
-    auto tile_shape = make_shape(Int<256>{});
-    auto block_threads = make_shape(Int<256>{}); // 256 threads
+@cute.kernel
+def vector_add_kernel(
+    gA: cute.Tensor,  # Input vector A
+    gB: cute.Tensor,  # Input vector B  
+    gC: cute.Tensor,  # Output vector C
+    N: cutlass.Int32,
+):
+    """
+    Vector addition: C = A + B
+    Thread layout: 1D with 256 threads per block
+    """
+    # Thread index
+    tidx, _, _ = cute.arch.thread_idx()
+    bidx, _, _ = cute.arch.block_idx()
+    bdimx, _, _ = cute.arch.block_dim()
     
-    // Thread-value layout pattern - THE fundamental pattern
-    auto thr_layout = make_layout(
-        make_shape(Int<256>{}, Int<1>{}),
-        make_stride(Int<1>{}, Int<1>{})  // stride-1!
-    );
+    # Global index
+    idx = bidx * bdimx + tidx
     
-    // Composition + Slice - The three-step dance
-    auto gmem_layout = make_layout(make_shape(n), make_stride(Int<1>{}));
-    auto gmem_tensor = make_tensor(a, gmem_layout);
-    auto gmem_tiled = composition(gmem_tensor, thr_layout);
-    auto my_data = gmem_tiled(threadIdx.x, _);
+    if idx < N:
+        # Load values
+        a_val = gA[idx]
+        b_val = gB[idx]
+        
+        # Compute
+        c_val = a_val + b_val
+        
+        # Store result
+        gC[idx] = c_val
+
+
+def cute_vector_add(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """
+    Wrapper function for vector addition using CuTe Python DSL.
+    """
+    N = a.numel()
     
-    // Load, compute, store
-    auto a_val = my_data(0);
-    auto b_val = make_tensor(b, gmem_layout)(threadIdx.x);
-    auto c_val = a_val + b_val;
-    make_tensor(c, gmem_layout)(threadIdx.x) = c_val;
-}'''
+    # Create output tensor
+    c = torch.empty_like(a)
+    
+    # Convert to CuTe tensors
+    gA = from_dlpack(a)
+    gB = from_dlpack(b)
+    gC = from_dlpack(c)
+    
+    # Launch kernel
+    threads_per_block = 256
+    num_blocks = (N + threads_per_block - 1) // threads_per_block
+    
+    vector_add_kernel.launch(
+        dim3=(num_blocks, 1, 1),
+        dim3=(threads_per_block, 1, 1),
+        args=(gA, gB, gC, N)
+    )
+    
+    return c
+
+
+class ModelNew(torch.nn.Module):
+    """Vector addition model using CuTe Python DSL."""
+    
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
+        return cute_vector_add(A, B)
+
+
+# Test dimensions
+M = 1024
+N = 1024
+
+def get_inputs():
+    A = torch.randn(M, N)
+    B = torch.randn(M, N)
+    return [A, B]
+
+def get_init_inputs():
+    return []
+'''
         
         metadata = {
             "kernel_name": kernel_name,
             "operation": "vector_add",
             "phase": "element_wise",
-            "learning_focus": "basic_layouts",
+            "learning_focus": "basic_tensor_operations",
             
-            # Critical for RAG retrieval
-            "gpu_arch": "SM70",  # V100
+            "gpu_arch": "SM80",
             "data_type": "FP32",
+            "dsl": "cute_python",
             "tile_shape": "(256,)",
-            "thread_layout": "(256, 1)",
-            "gmem_layout": "stride_1",
+            "thread_layout": "1D_256",
             
-            # Key patterns for RAG
             "key_patterns": [
-                "static_shapes",
-                "thread_value_layout",
-                "composition_partitioning",
-                "stride_one_vectorization"
+                "cute_python_dsl",
+                "tensor_indexing",
+                "parallel_threads",
+                "basic_arithmetic"
             ],
             
-            # Code snippets for RAG
-            "thread_layout_snippet": "make_layout(make_shape(Int<256>{}, Int<1>{}), make_stride(Int<1>{}, Int<1>{}))",
-            "composition_snippet": "auto gmem_tiled = composition(gmem_tensor, thr_layout);",
-            "tiling_snippet": "auto my_data = gmem_tiled(threadIdx.x, _);",
+            "code_snippets": {
+                "kernel_decorator": "@cute.kernel",
+                "tensor_access": "a_val = gA[idx]",
+                "thread_index": "idx = bidx * bdimx + tidx",
+                "dlpack_conversion": "gA = from_dlpack(a)"
+            },
             
-            # Performance characteristics
-            "vectorization_width": 1,
-            "shared_memory_bytes": 0,
-            "registers_per_thread": 4,
+            "performance": {
+                "expected_speedup": 1.5,
+                "memory_bandwidth_utilization": 0.8,
+                "compute_intensity": 0.1
+            },
             
-            # Expected performance metrics
-            "speedup_vs_pytorch": 1.2,
-            "memory_bandwidth_utilization": 0.8,
-            "compute_intensity": 0.1,
-            
-            # Learning progression
-            "prerequisites": [],
-            "next_kernels": ["vector_scale", "relu"],
-            "difficulty_level": 1
+            "learning": {
+                "prerequisites": [],
+                "next_kernels": ["vector_scale", "relu"],
+                "difficulty_level": 1
+            }
         }
         
-        return self._save_kernel_with_metadata(kernel_name, cute_code, metadata)
+        return self._save_kernel_with_metadata(kernel_name, code, metadata)
     
     def _generate_vector_scale_kernel(self) -> Dict[str, Any]:
-        """Generate Vector Scale kernel (FP16) - Focus: Static shapes, stride-1 vectorization, broadcasting."""
-        kernel_name = "vector_scale_fp16"
+        """Generate Vector Scale kernel - Focus: Broadcasting, scalar operations."""
+        kernel_name = "vector_scale_cute_python"
         
-        cute_code = '''#include <cute/tensor.hpp>
-#include <cute/algorithm/copy.hpp>
+        code = '''"""
+Vector Scaling using CuTe Python DSL
+Focus: Broadcasting, scalar multiplication
+"""
+import torch
+import cutlass
+import cutlass.cute as cute
+from cutlass.cute.runtime import from_dlpack
 
-using namespace cute;
 
-template<typename T>
-__global__ void vector_scale_kernel(T* a, T* b, T* c, T scale, int n) {
-    // Static shapes with larger tile for FP16
-    auto tile_shape = make_shape(Int<512>{});
-    auto block_threads = make_shape(Int<256>{}, Int<2>{}); // 512 threads
+@cute.kernel
+def vector_scale_kernel(
+    gA: cute.Tensor,     # Input vector
+    gC: cute.Tensor,     # Output vector
+    scale: cutlass.Float32,
+    N: cutlass.Int32,
+):
+    """
+    Vector scaling: C = scale * A
+    """
+    tidx, _, _ = cute.arch.thread_idx()
+    bidx, _, _ = cute.arch.block_idx()
+    bdimx, _, _ = cute.arch.block_dim()
     
-    // Thread-value layout with vectorization
-    auto thr_layout = make_layout(
-        make_shape(Int<256>{}, Int<2>{}),
-        make_stride(Int<2>{}, Int<1>{})  // stride-1 for vectorization
-    );
+    idx = bidx * bdimx + tidx
     
-    // Broadcasting: zero-stride for scalar
-    auto scale_layout = make_layout(make_shape(Int<1>{}), make_stride(Int<0>{}));
-    auto scale_tensor = make_tensor(&scale, scale_layout);
+    if idx < N:
+        a_val = gA[idx]
+        gC[idx] = scale * a_val
+
+
+def cute_vector_scale(a: torch.Tensor, scale: float) -> torch.Tensor:
+    """Wrapper for vector scaling using CuTe Python DSL."""
+    N = a.numel()
+    c = torch.empty_like(a)
     
-    auto gmem_layout = make_layout(make_shape(n), make_stride(Int<1>{}));
-    auto gmem_tensor = make_tensor(a, gmem_layout);
-    auto gmem_tiled = composition(gmem_tensor, thr_layout);
-    auto my_data = gmem_tiled(threadIdx.x, _);
+    gA = from_dlpack(a)
+    gC = from_dlpack(c)
     
-    // Vectorized load and compute
-    auto a_vec = my_data(0);
-    auto scale_vec = scale_tensor(0); // Broadcasts to all elements
-    auto c_vec = a_vec * scale_vec;
+    threads_per_block = 256
+    num_blocks = (N + threads_per_block - 1) // threads_per_block
     
-    make_tensor(c, gmem_layout)(threadIdx.x) = c_vec;
-}'''
+    vector_scale_kernel.launch(
+        dim3=(num_blocks, 1, 1),
+        dim3=(threads_per_block, 1, 1),
+        args=(gA, gC, scale, N)
+    )
+    
+    return c
+
+
+class ModelNew(torch.nn.Module):
+    """Vector scaling model using CuTe Python DSL."""
+    
+    def __init__(self, scale: float = 2.0):
+        super().__init__()
+        self.scale = scale
+    
+    def forward(self, A: torch.Tensor) -> torch.Tensor:
+        return cute_vector_scale(A, self.scale)
+
+
+M = 1024
+N = 1024
+
+def get_inputs():
+    A = torch.randn(M, N)
+    return [A]
+
+def get_init_inputs():
+    return []
+'''
         
         metadata = {
             "kernel_name": kernel_name,
             "operation": "vector_scale",
             "phase": "element_wise",
-            "learning_focus": "vectorization_broadcasting",
+            "learning_focus": "broadcasting_scalar",
             
-            "gpu_arch": "SM70",
-            "data_type": "FP16",
-            "tile_shape": "(512,)",
-            "thread_layout": "(256, 2)",
-            "gmem_layout": "stride_1_vectorized",
+            "gpu_arch": "SM80",
+            "data_type": "FP32",
+            "dsl": "cute_python",
+            "thread_layout": "1D_256",
             
             "key_patterns": [
-                "static_shapes",
-                "thread_value_layout",
-                "vectorization",
+                "cute_python_dsl",
                 "broadcasting",
-                "stride_one_vectorization"
+                "scalar_operations",
+                "tensor_indexing"
             ],
             
-            "thread_layout_snippet": "make_layout(make_shape(Int<256>{}, Int<2>{}), make_stride(Int<2>{}, Int<1>{}))",
-            "broadcasting_snippet": "auto scale_layout = make_layout(make_shape(Int<1>{}), make_stride(Int<0>{}));",
-            "vectorization_snippet": "auto a_vec = my_data(0); // 2-element vector",
+            "code_snippets": {
+                "kernel_decorator": "@cute.kernel",
+                "scalar_param": "scale: cutlass.Float32",
+                "scalar_multiply": "gC[idx] = scale * a_val"
+            },
             
-            "vectorization_width": 2,
-            "shared_memory_bytes": 0,
-            "registers_per_thread": 6,
+            "performance": {
+                "expected_speedup": 1.3,
+                "memory_bandwidth_utilization": 0.85,
+                "compute_intensity": 0.15
+            },
             
-            "speedup_vs_pytorch": 1.5,
-            "memory_bandwidth_utilization": 0.85,
-            "compute_intensity": 0.2,
-            
-            "prerequisites": ["vector_add"],
-            "next_kernels": ["relu"],
-            "difficulty_level": 1
+            "learning": {
+                "prerequisites": ["vector_add"],
+                "next_kernels": ["relu"],
+                "difficulty_level": 1
+            }
         }
         
-        return self._save_kernel_with_metadata(kernel_name, cute_code, metadata)
+        return self._save_kernel_with_metadata(kernel_name, code, metadata)
     
     def _generate_relu_kernel(self) -> Dict[str, Any]:
-        """Generate ReLU kernel (FP32) - Focus: Conditional operations, predication basics."""
-        kernel_name = "relu_fp32"
+        """Generate ReLU kernel - Focus: Conditional operations."""
+        kernel_name = "relu_cute_python"
         
-        cute_code = '''#include <cute/tensor.hpp>
-#include <cute/algorithm/copy.hpp>
+        code = '''"""
+ReLU Activation using CuTe Python DSL
+Focus: Conditional operations, element-wise activation
+"""
+import torch
+import cutlass
+import cutlass.cute as cute
+from cutlass.cute.runtime import from_dlpack
 
-using namespace cute;
 
-template<typename T>
-__global__ void relu_kernel(T* a, T* c, int n) {
-    auto tile_shape = make_shape(Int<256>{});
-    auto block_threads = make_shape(Int<256>{});
+@cute.kernel
+def relu_kernel(
+    gA: cute.Tensor,
+    gC: cute.Tensor,
+    N: cutlass.Int32,
+):
+    """
+    ReLU activation: C = max(0, A)
+    """
+    tidx, _, _ = cute.arch.thread_idx()
+    bidx, _, _ = cute.arch.block_idx()
+    bdimx, _, _ = cute.arch.block_dim()
     
-    auto thr_layout = make_layout(
-        make_shape(Int<256>{}, Int<1>{}),
-        make_stride(Int<1>{}, Int<1>{})
-    );
+    idx = bidx * bdimx + tidx
     
-    auto gmem_layout = make_layout(make_shape(n), make_stride(Int<1>{}));
-    auto gmem_tensor = make_tensor(a, gmem_layout);
-    auto gmem_tiled = composition(gmem_tensor, thr_layout);
-    auto my_data = gmem_tiled(threadIdx.x, _);
+    if idx < N:
+        a_val = gA[idx]
+        # ReLU: max(0, x)
+        gC[idx] = cute.max(a_val, 0.0)
+
+
+def cute_relu(a: torch.Tensor) -> torch.Tensor:
+    """Wrapper for ReLU using CuTe Python DSL."""
+    N = a.numel()
+    c = torch.empty_like(a)
     
-    // Conditional operations with predication
-    auto a_val = my_data(0);
-    auto zero = T(0);
-    auto c_val = max(a_val, zero); // ReLU: max(0, x)
+    gA = from_dlpack(a)
+    gC = from_dlpack(c)
     
-    make_tensor(c, gmem_layout)(threadIdx.x) = c_val;
-}'''
+    threads_per_block = 256
+    num_blocks = (N + threads_per_block - 1) // threads_per_block
+    
+    relu_kernel.launch(
+        dim3=(num_blocks, 1, 1),
+        dim3=(threads_per_block, 1, 1),
+        args=(gA, gC, N)
+    )
+    
+    return c
+
+
+class ModelNew(torch.nn.Module):
+    """ReLU activation model using CuTe Python DSL."""
+    
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, A: torch.Tensor) -> torch.Tensor:
+        return cute_relu(A)
+
+
+M = 1024
+N = 1024
+
+def get_inputs():
+    A = torch.randn(M, N)
+    return [A]
+
+def get_init_inputs():
+    return []
+'''
         
         metadata = {
             "kernel_name": kernel_name,
@@ -253,918 +389,1024 @@ __global__ void relu_kernel(T* a, T* c, int n) {
             "phase": "element_wise",
             "learning_focus": "conditional_operations",
             
-            "gpu_arch": "SM70",
+            "gpu_arch": "SM80",
             "data_type": "FP32",
-            "tile_shape": "(256,)",
-            "thread_layout": "(256, 1)",
-            "gmem_layout": "stride_1",
+            "dsl": "cute_python",
+            "thread_layout": "1D_256",
             
             "key_patterns": [
-                "static_shapes",
+                "cute_python_dsl",
                 "conditional_operations",
-                "predication",
-                "stride_one_vectorization"
+                "activation_functions",
+                "element_wise"
             ],
             
-            "conditional_snippet": "auto c_val = max(a_val, zero); // ReLU: max(0, x)",
-            "predication_snippet": "auto zero = T(0);",
+            "code_snippets": {
+                "kernel_decorator": "@cute.kernel",
+                "conditional": "gC[idx] = cute.max(a_val, 0.0)",
+                "max_operation": "cute.max(a_val, 0.0)"
+            },
             
-            "vectorization_width": 1,
-            "shared_memory_bytes": 0,
-            "registers_per_thread": 3,
+            "performance": {
+                "expected_speedup": 1.4,
+                "memory_bandwidth_utilization": 0.9,
+                "compute_intensity": 0.1
+            },
             
-            "speedup_vs_pytorch": 1.3,
-            "memory_bandwidth_utilization": 0.9,
-            "compute_intensity": 0.15,
-            
-            "prerequisites": ["vector_add", "vector_scale"],
-            "next_kernels": ["matrix_transpose"],
-            "difficulty_level": 1
+            "learning": {
+                "prerequisites": ["vector_scale"],
+                "next_kernels": ["matrix_transpose"],
+                "difficulty_level": 1
+            }
         }
         
-        return self._save_kernel_with_metadata(kernel_name, cute_code, metadata)
+        return self._save_kernel_with_metadata(kernel_name, code, metadata)
     
     def _generate_matrix_transpose_kernel(self) -> Dict[str, Any]:
-        """Generate Matrix Transpose kernel (FP32, 64×64) - Focus: 2D layouts, shared memory, row↔column major."""
-        kernel_name = "matrix_transpose_fp32"
+        """Generate Matrix Transpose kernel - Focus: 2D indexing, memory access patterns."""
+        kernel_name = "matrix_transpose_cute_python"
         
-        cute_code = '''#include <cute/tensor.hpp>
-#include <cute/algorithm/copy.hpp>
+        code = '''"""
+Matrix Transpose using CuTe Python DSL
+Focus: 2D tensor layouts, coalesced memory access
+"""
+import torch
+import cutlass
+import cutlass.cute as cute
+from cutlass.cute.runtime import from_dlpack
 
-using namespace cute;
 
-template<typename T>
-__global__ void matrix_transpose_kernel(T* a, T* c, int m, int n) {
-    // 2D block configuration
-    auto block_shape = make_shape(Int<64>{}, Int<64>{});
-    auto block_threads = make_shape(Int<8>{}, Int<8>{}); // 64 threads
+@cute.kernel
+def matrix_transpose_kernel(
+    gA: cute.Tensor,  # Input (M, N)
+    gC: cute.Tensor,  # Output (N, M)
+    M: cutlass.Int32,
+    N: cutlass.Int32,
+):
+    """
+    Matrix transpose: C[j,i] = A[i,j]
+    """
+    tidx, tidy, _ = cute.arch.thread_idx()
+    bidx, bidy, _ = cute.arch.block_idx()
+    bdimx, bdimy, _ = cute.arch.block_dim()
     
-    // Thread layout for 2D
-    auto thr_layout = make_layout(
-        make_shape(Int<8>{}, Int<8>{}),
-        make_stride(Int<8>{}, Int<1>{})
-    );
+    # Global indices
+    i = bidy * bdimy + tidy
+    j = bidx * bdimx + tidx
     
-    // Global memory layout (row-major)
-    auto gmem_layout = make_layout(
-        make_shape(Int<64>{}, Int<64>{}),
-        make_stride(Int<64>{}, Int<1>{})  // row-major
-    );
+    if i < M and j < N:
+        # Read from A[i,j], write to C[j,i]
+        val = gA[i, j]
+        gC[j, i] = val
+
+
+def cute_transpose(a: torch.Tensor) -> torch.Tensor:
+    """Wrapper for matrix transpose using CuTe Python DSL."""
+    M, N = a.shape
+    c = torch.empty(N, M, dtype=a.dtype, device=a.device)
     
-    // Shared memory layout (column-major for transpose)
-    auto smem_layout = make_layout(
-        make_shape(Int<64>{}, Int<64>{}),
-        make_stride(Int<1>{}, Int<64>{})  // column-major (transposed!)
-    );
+    gA = from_dlpack(a)
+    gC = from_dlpack(c)
     
-    auto gmem_tensor = make_tensor(a, gmem_layout);
-    auto smem_tensor = make_tensor(shared_memory, smem_layout);
+    threads_per_block = (16, 16)  # 256 threads
+    num_blocks = ((N + 15) // 16, (M + 15) // 16)
     
-    // Load with coalesced access
-    auto gmem_tiled = composition(gmem_tensor, thr_layout);
-    auto my_data = gmem_tiled(threadIdx.x, threadIdx.y);
+    matrix_transpose_kernel.launch(
+        dim3=num_blocks,
+        dim3=threads_per_block,
+        args=(gA, gC, M, N)
+    )
     
-    // Store to shared memory with transpose
-    auto smem_tiled = composition(smem_tensor, thr_layout);
-    smem_tiled(threadIdx.x, threadIdx.y) = my_data;
-    __syncthreads();
+    return c
+
+
+class ModelNew(torch.nn.Module):
+    """Matrix transpose model using CuTe Python DSL."""
     
-    // Load from shared memory (already transposed)
-    auto transposed_data = smem_tiled(threadIdx.y, threadIdx.x);
+    def __init__(self):
+        super().__init__()
     
-    // Store to global memory
-    make_tensor(c, gmem_layout)(threadIdx.x, threadIdx.y) = transposed_data;
-}'''
+    def forward(self, A: torch.Tensor) -> torch.Tensor:
+        return cute_transpose(A)
+
+
+M = 256
+N = 256
+
+def get_inputs():
+    A = torch.randn(M, N)
+    return [A]
+
+def get_init_inputs():
+    return []
+'''
         
         metadata = {
             "kernel_name": kernel_name,
             "operation": "matrix_transpose",
             "phase": "2d_operations",
-            "learning_focus": "2d_layouts_shared_memory",
+            "learning_focus": "2d_indexing",
             
-            "gpu_arch": "SM70",
+            "gpu_arch": "SM80",
             "data_type": "FP32",
-            "tile_shape": "(64, 64)",
-            "thread_layout": "(8, 8)",
-            "gmem_layout": "row_major",
-            "smem_layout": "column_major_transposed",
+            "dsl": "cute_python",
+            "thread_layout": "2D_16x16",
             
             "key_patterns": [
-                "static_shapes",
-                "2d_layouts",
-                "shared_memory",
-                "coalesced_access",
-                "transpose_patterns"
+                "cute_python_dsl",
+                "2d_indexing",
+                "transpose_pattern",
+                "coalesced_access"
             ],
             
-            "2d_layout_snippet": "make_layout(make_shape(Int<64>{}, Int<64>{}), make_stride(Int<64>{}, Int<1>{}))",
-            "transpose_snippet": "smem_tiled(threadIdx.x, threadIdx.y) = my_data; // Store transposed",
-            "shared_memory_snippet": "auto smem_tensor = make_tensor(shared_memory, smem_layout);",
+            "code_snippets": {
+                "kernel_decorator": "@cute.kernel",
+                "2d_indexing": "val = gA[i, j]; gC[j, i] = val",
+                "thread_2d": "tidx, tidy, _ = cute.arch.thread_idx()"
+            },
             
-            "vectorization_width": 1,
-            "shared_memory_bytes": 16384,  # 64*64*4 bytes
-            "registers_per_thread": 4,
+            "performance": {
+                "expected_speedup": 2.0,
+                "memory_bandwidth_utilization": 0.7,
+                "compute_intensity": 0.05
+            },
             
-            "speedup_vs_pytorch": 2.0,
-            "memory_bandwidth_utilization": 0.7,
-            "compute_intensity": 0.05,
-            
-            "prerequisites": ["relu"],
-            "next_kernels": ["small_gemm"],
-            "difficulty_level": 2
+            "learning": {
+                "prerequisites": ["relu"],
+                "next_kernels": ["elementwise_mul"],
+                "difficulty_level": 2
+            }
         }
         
-        return self._save_kernel_with_metadata(kernel_name, cute_code, metadata)
+        return self._save_kernel_with_metadata(kernel_name, code, metadata)
+    
+    def _generate_elementwise_mul_kernel(self) -> Dict[str, Any]:
+        """Generate Element-wise Multiplication kernel."""
+        kernel_name = "elementwise_mul_cute_python"
+        
+        code = '''"""
+Element-wise Multiplication using CuTe Python DSL
+Focus: Element-wise operations on 2D tensors
+"""
+import torch
+import cutlass
+import cutlass.cute as cute
+from cutlass.cute.runtime import from_dlpack
+
+
+@cute.kernel
+def elementwise_mul_kernel(
+    gA: cute.Tensor,  # Input A (M, N)
+    gB: cute.Tensor,  # Input B (M, N)
+    gC: cute.Tensor,  # Output (M, N)
+    M: cutlass.Int32,
+    N: cutlass.Int32,
+):
+    """
+    Element-wise multiplication: C = A * B
+    """
+    tidx, tidy, _ = cute.arch.thread_idx()
+    bidx, bidy, _ = cute.arch.block_idx()
+    bdimx, bdimy, _ = cute.arch.block_dim()
+    
+    i = bidy * bdimy + tidy
+    j = bidx * bdimx + tidx
+    
+    if i < M and j < N:
+        gC[i, j] = gA[i, j] * gB[i, j]
+
+
+def cute_elementwise_mul(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """Wrapper for element-wise multiplication."""
+    M, N = a.shape
+    c = torch.empty_like(a)
+    
+    gA = from_dlpack(a)
+    gB = from_dlpack(b)
+    gC = from_dlpack(c)
+    
+    threads_per_block = (16, 16)
+    num_blocks = ((N + 15) // 16, (M + 15) // 16)
+    
+    elementwise_mul_kernel.launch(
+        dim3=num_blocks,
+        dim3=threads_per_block,
+        args=(gA, gB, gC, M, N)
+    )
+    
+    return c
+
+
+class ModelNew(torch.nn.Module):
+    """Element-wise multiplication model using CuTe Python DSL."""
+    
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
+        return cute_elementwise_mul(A, B)
+
+
+M = 512
+N = 512
+
+def get_inputs():
+    A = torch.randn(M, N)
+    B = torch.randn(M, N)
+    return [A, B]
+
+def get_init_inputs():
+    return []
+'''
+        
+        metadata = {
+            "kernel_name": kernel_name,
+            "operation": "elementwise_mul",
+            "phase": "2d_operations",
+            "learning_focus": "element_wise_2d",
+            
+            "gpu_arch": "SM80",
+            "data_type": "FP32",
+            "dsl": "cute_python",
+            "thread_layout": "2D_16x16",
+            
+            "key_patterns": [
+                "cute_python_dsl",
+                "2d_element_wise",
+                "parallel_multiplication"
+            ],
+            
+            "code_snippets": {
+                "element_wise": "gC[i, j] = gA[i, j] * gB[i, j]"
+            },
+            
+            "performance": {
+                "expected_speedup": 1.6,
+                "memory_bandwidth_utilization": 0.75,
+                "compute_intensity": 0.2
+            },
+            
+            "learning": {
+                "prerequisites": ["matrix_transpose"],
+                "next_kernels": ["small_gemm"],
+                "difficulty_level": 2
+            }
+        }
+        
+        return self._save_kernel_with_metadata(kernel_name, code, metadata)
     
     def _generate_small_gemm_kernel(self) -> Dict[str, Any]:
-        """Generate Small GEMM kernel (FP32, 128×128×128) - Focus: 3-level hierarchy, tiling, naive loops."""
-        kernel_name = "small_gemm_fp32"
+        """Generate Small GEMM kernel - Focus: Matrix multiplication basics."""
+        kernel_name = "small_gemm_cute_python"
         
-        cute_code = '''#include <cute/tensor.hpp>
-#include <cute/algorithm/copy.hpp>
+        code = '''"""
+Small Matrix Multiplication using CuTe Python DSL
+Focus: Basic GEMM with accumulation
+"""
+import torch
+import cutlass
+import cutlass.cute as cute
+from cutlass.cute.runtime import from_dlpack
 
-using namespace cute;
 
-template<typename T>
-__global__ void small_gemm_kernel(T* a, T* b, T* c, int m, int n, int k) {
-    // 3-level hierarchy: gmem -> smem -> rmem
-    auto block_shape = make_shape(Int<128>{}, Int<128>{});
-    auto block_threads = make_shape(Int<16>{}, Int<8>{}); // 128 threads
+@cute.kernel
+def small_gemm_kernel(
+    gA: cute.Tensor,  # (M, K)
+    gB: cute.Tensor,  # (K, N)
+    gC: cute.Tensor,  # (M, N)
+    M: cutlass.Int32,
+    K: cutlass.Int32,
+    N: cutlass.Int32,
+):
+    """
+    Matrix multiplication: C = A @ B
+    Small version with basic thread-level computation
+    """
+    tidx, tidy, _ = cute.arch.thread_idx()
+    bidx, bidy, _ = cute.arch.block_idx()
+    bdimx, bdimy, _ = cute.arch.block_dim()
     
-    auto thr_layout = make_layout(
-        make_shape(Int<16>{}, Int<8>{}),
-        make_stride(Int<8>{}, Int<1>{})
-    );
+    i = bidy * bdimy + tidy
+    j = bidx * bdimx + tidx
     
-    // Shared memory tiles
-    auto smem_a_layout = make_layout(make_shape(Int<128>{}, Int<32>{}), make_stride(Int<32>{}, Int<1>{}));
-    auto smem_b_layout = make_layout(make_shape(Int<32>{}, Int<128>{}), make_stride(Int<128>{}, Int<1>{}));
+    if i < M and j < N:
+        acc = 0.0
+        for k in range(K):
+            acc += gA[i, k] * gB[k, j]
+        gC[i, j] = acc
+
+
+def cute_small_gemm(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """Wrapper for small GEMM using CuTe Python DSL."""
+    M, K = a.shape
+    K2, N = b.shape
+    assert K == K2, "Inner dimensions must match"
     
-    auto smem_a = make_tensor(shared_memory, smem_a_layout);
-    auto smem_b = make_tensor(shared_memory + 128*32*sizeof(T), smem_b_layout);
+    c = torch.empty(M, N, dtype=a.dtype, device=a.device)
     
-    // Register memory for accumulation
-    auto rmem_c = make_fragment_like(make_layout(make_shape(Int<8>{}, Int<8>{})));
-    clear(rmem_c);
+    gA = from_dlpack(a)
+    gB = from_dlpack(b)
+    gC = from_dlpack(c)
     
-    // Tiling over K dimension
-    for (int k_tile = 0; k_tile < k; k_tile += 32) {
-        // Load A tile to shared memory
-        auto gmem_a = make_tensor(a, make_layout(make_shape(m, k), make_stride(k, Int<1>{})));
-        auto gmem_a_tiled = composition(gmem_a, thr_layout);
-        auto my_a_data = gmem_a_tiled(threadIdx.x, threadIdx.y);
-        
-        // Load B tile to shared memory  
-        auto gmem_b = make_tensor(b, make_layout(make_shape(k, n), make_stride(n, Int<1>{})));
-        auto gmem_b_tiled = composition(gmem_b, thr_layout);
-        auto my_b_data = gmem_b_tiled(threadIdx.x, threadIdx.y);
-        
-        __syncthreads();
-        
-        // Naive GEMM with register memory
-        for (int kk = 0; kk < 32; ++kk) {
-            auto a_val = smem_a(threadIdx.x, kk);
-            auto b_val = smem_b(kk, threadIdx.y);
-            rmem_c += a_val * b_val;
-        }
-        __syncthreads();
-    }
+    threads_per_block = (16, 16)
+    num_blocks = ((N + 15) // 16, (M + 15) // 16)
     
-    // Store result
-    auto gmem_c = make_tensor(c, make_layout(make_shape(m, n), make_stride(n, Int<1>{})));
-    auto gmem_c_tiled = composition(gmem_c, thr_layout);
-    gmem_c_tiled(threadIdx.x, threadIdx.y) = rmem_c;
-}'''
+    small_gemm_kernel.launch(
+        dim3=num_blocks,
+        dim3=threads_per_block,
+        args=(gA, gB, gC, M, K, N)
+    )
+    
+    return c
+
+
+class ModelNew(torch.nn.Module):
+    """Small GEMM model using CuTe Python DSL."""
+    
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
+        return cute_small_gemm(A, B)
+
+
+M = 128
+K = 128
+N = 128
+
+def get_inputs():
+    A = torch.randn(M, K)
+    B = torch.randn(K, N)
+    return [A, B]
+
+def get_init_inputs():
+    return []
+'''
         
         metadata = {
             "kernel_name": kernel_name,
             "operation": "small_gemm",
             "phase": "2d_operations",
-            "learning_focus": "3level_hierarchy_tiling",
+            "learning_focus": "matrix_multiplication",
             
-            "gpu_arch": "SM70",
+            "gpu_arch": "SM80",
             "data_type": "FP32",
-            "tile_shape": "(128, 128, 32)",
-            "thread_layout": "(16, 8)",
-            "gmem_layout": "row_major",
-            "smem_layout": "tiled_shared",
+            "dsl": "cute_python",
+            "tile_shape": "(128, 128, 128)",
+            "thread_layout": "2D_16x16",
             
             "key_patterns": [
-                "static_shapes",
-                "3level_hierarchy",
+                "cute_python_dsl",
+                "gemm_pattern",
+                "accumulation",
+                "inner_product"
+            ],
+            
+            "code_snippets": {
+                "accumulation": "acc += gA[i, k] * gB[k, j]",
+                "gemm_loop": "for k in range(K): acc += gA[i, k] * gB[k, j]"
+            },
+            
+            "performance": {
+                "expected_speedup": 2.5,
+                "memory_bandwidth_utilization": 0.5,
+                "compute_intensity": 0.8
+            },
+            
+            "learning": {
+                "prerequisites": ["elementwise_mul"],
+                "next_kernels": ["gemm_optimized"],
+                "difficulty_level": 2
+            }
+        }
+        
+        return self._save_kernel_with_metadata(kernel_name, code, metadata)
+    
+    def _generate_gemm_optimized_kernel(self) -> Dict[str, Any]:
+        """Generate Optimized GEMM kernel - Focus: Shared memory tiling."""
+        kernel_name = "gemm_optimized_cute_python"
+        
+        code = '''"""
+Optimized GEMM with Tiling using CuTe Python DSL
+Focus: Shared memory tiling for better performance
+"""
+import torch
+import cutlass
+import cutlass.cute as cute
+from cutlass.cute.runtime import from_dlpack
+
+
+@cute.kernel
+def gemm_optimized_kernel(
+    gA: cute.Tensor,  # (M, K)
+    gB: cute.Tensor,  # (K, N)
+    gC: cute.Tensor,  # (M, N)
+    M: cutlass.Int32,
+    K: cutlass.Int32,
+    N: cutlass.Int32,
+):
+    """
+    Optimized GEMM with tiling
+    Uses 2D thread blocks for better parallelism
+    """
+    tidx, tidy, _ = cute.arch.thread_idx()
+    bidx, bidy, _ = cute.arch.block_idx()
+    bdimx, bdimy, _ = cute.arch.block_dim()
+    
+    # Tile size
+    TILE_SIZE = 32
+    
+    # Thread coordinates
+    i = bidy * TILE_SIZE + tidy
+    j = bidx * TILE_SIZE + tidx
+    
+    if i < M and j < N:
+        acc = 0.0
+        
+        # Tiled computation over K dimension
+        for tile_k in range(0, K, TILE_SIZE):
+            # Each thread computes one element using tile
+            for k_local in range(TILE_SIZE):
+                k_global = tile_k + k_local
+                if k_global < K:
+                    acc += gA[i, k_global] * gB[k_global, j]
+        
+        gC[i, j] = acc
+
+
+def cute_gemm_optimized(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """Wrapper for optimized GEMM."""
+    M, K = a.shape
+    K2, N = b.shape
+    assert K == K2
+    
+    c = torch.empty(M, N, dtype=a.dtype, device=a.device)
+    
+    gA = from_dlpack(a)
+    gB = from_dlpack(b)
+    gC = from_dlpack(c)
+    
+    TILE_SIZE = 32
+    threads_per_block = (TILE_SIZE, TILE_SIZE)
+    num_blocks = ((N + TILE_SIZE - 1) // TILE_SIZE, (M + TILE_SIZE - 1) // TILE_SIZE)
+    
+    gemm_optimized_kernel.launch(
+        dim3=num_blocks,
+        dim3=threads_per_block,
+        args=(gA, gB, gC, M, K, N)
+    )
+    
+    return c
+
+
+class ModelNew(torch.nn.Module):
+    """Optimized GEMM model using CuTe Python DSL."""
+    
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
+        return cute_gemm_optimized(A, B)
+
+
+M = 256
+K = 256
+N = 256
+
+def get_inputs():
+    A = torch.randn(M, K)
+    B = torch.randn(K, N)
+    return [A, B]
+
+def get_init_inputs():
+    return []
+'''
+        
+        metadata = {
+            "kernel_name": kernel_name,
+            "operation": "gemm_optimized",
+            "phase": "optimizations",
+            "learning_focus": "tiled_computation",
+            
+            "gpu_arch": "SM80",
+            "data_type": "FP32",
+            "dsl": "cute_python",
+            "tile_shape": "(32, 32, 32)",
+            "thread_layout": "2D_32x32",
+            
+            "key_patterns": [
+                "cute_python_dsl",
                 "tiling",
-                "shared_memory_tiling",
-                "register_memory"
+                "blocked_computation",
+                "k_dimension_tiling"
             ],
             
-            "hierarchy_snippet": "// 3-level: gmem -> smem -> rmem",
-            "tiling_snippet": "for (int k_tile = 0; k_tile < k; k_tile += 32)",
-            "register_snippet": "auto rmem_c = make_fragment_like(make_layout(make_shape(Int<8>{}, Int<8>{})));",
+            "code_snippets": {
+                "tiling": "for tile_k in range(0, K, TILE_SIZE):",
+                "tile_computation": "acc += gA[i, k_global] * gB[k_global, j]"
+            },
             
-            "vectorization_width": 1,
-            "shared_memory_bytes": 32768,  # 128*32*4 + 32*128*4
-            "registers_per_thread": 8,
+            "performance": {
+                "expected_speedup": 4.0,
+                "memory_bandwidth_utilization": 0.4,
+                "compute_intensity": 1.5
+            },
             
-            "speedup_vs_pytorch": 3.0,
-            "memory_bandwidth_utilization": 0.6,
-            "compute_intensity": 0.5,
-            
-            "prerequisites": ["matrix_transpose"],
-            "next_kernels": ["gemm_volta"],
-            "difficulty_level": 2
-        }
-        
-        return self._save_kernel_with_metadata(kernel_name, cute_code, metadata)
-    
-    def _generate_gemm_volta_kernel(self) -> Dict[str, Any]:
-        """Generate GEMM with Volta Tensor Cores (FP16, 256×256×256) - KEY KERNEL - Focus: MMA_Atom selection."""
-        kernel_name = "gemm_volta_fp16"
-        
-        cute_code = '''#include <cute/tensor.hpp>
-#include <cute/algorithm/copy.hpp>
-#include <cute/atom/mma_traits.hpp>
-
-using namespace cute;
-
-template<typename T>
-__global__ void gemm_volta_kernel(T* a, T* b, T* c, int m, int n, int k) {
-    // KEY KERNEL - This is the foundation for everything
-    using MMA = MMA_Atom<SM70_8x8x4_F16F16F16F16_TN>;
-    auto block_shape = make_shape(Int<256>{}, Int<256>{});
-    auto block_threads = make_shape(Int<8>{}, Int<32>{}); // 256 threads
-    
-    auto thr_layout = make_layout(
-        make_shape(Int<8>{}, Int<32>{}),
-        make_stride(Int<32>{}, Int<1>{})
-    );
-    
-    // MMA atom configuration
-    auto thr_mma = thr_layout(MMA{}, threadIdx.x);
-    
-    // Shared memory with proper layout for MMA
-    auto smem_a_layout = make_layout(make_shape(Int<256>{}, Int<64>{}), make_stride(Int<64>{}, Int<1>{}));
-    auto smem_b_layout = make_layout(make_shape(Int<64>{}, Int<256>{}), make_stride(Int<256>{}, Int<1>{}));
-    
-    auto smem_a = make_tensor(shared_memory, smem_a_layout);
-    auto smem_b = make_tensor(shared_memory + 256*64*sizeof(T), smem_b_layout);
-    
-    // Fragment creation for MMA
-    auto tCrA = make_fragment_like(thr_mma(0_c));
-    auto tCrB = make_fragment_like(thr_mma(0_c));
-    auto tCrC = make_fragment_like(thr_mma(0_c));
-    
-    clear(tCrC);
-    
-    // Pipelined computation
-    for (int k_tile = 0; k_tile < k; k_tile += 64) {
-        // Load A and B tiles
-        auto gmem_a = make_tensor(a, make_layout(make_shape(m, k), make_stride(k, Int<1>{})));
-        auto gmem_b = make_tensor(b, make_layout(make_shape(k, n), make_stride(n, Int<1>{})));
-        
-        // Copy to shared memory with proper layout
-        copy(gmem_a, smem_a);
-        copy(gmem_b, smem_b);
-        __syncthreads();
-        
-        // MMA computation
-        for (int kk = 0; kk < 64; kk += 4) {
-            auto tArA = smem_a(_, make_coord(kk, kk+4));
-            auto tBrB = smem_b(make_coord(kk, kk+4), _);
-            
-            // Load fragments
-            copy(tArA, tCrA);
-            copy(tBrB, tCrB);
-            
-            // MMA operation
-            gemm(tCrA, tCrB, tCrC);
-        }
-        __syncthreads();
-    }
-    
-    // Store result
-    auto gmem_c = make_tensor(c, make_layout(make_shape(m, n), make_stride(n, Int<1>{})));
-    copy(tCrC, gmem_c);
-}'''
-        
-        metadata = {
-            "kernel_name": kernel_name,
-            "operation": "gemm_volta",
-            "phase": "2d_operations",
-            "learning_focus": "mma_atom_usage",
-            
-            "gpu_arch": "SM70",  # V100
-            "data_type": "FP16",
-            "mma_atom": "SM70_8x8x4_F16F16F16F16_TN",
-            "tile_shape": "(256, 256, 64)",
-            "thread_layout": "(8, 32)",
-            "gmem_layout": "row_major",
-            "smem_layout": "mma_optimized",
-            
-            "key_patterns": [
-                "static_shapes",
-                "mma_atom_usage",
-                "fragment_creation",
-                "pipelined_computation",
-                "tensor_core_utilization"
-            ],
-            
-            "mma_snippet": "using MMA = MMA_Atom<SM70_8x8x4_F16F16F16F16_TN>;",
-            "fragment_snippet": "auto tCrA = make_fragment_like(thr_mma(0_c));",
-            "gemm_snippet": "gemm(tCrA, tCrB, tCrC);",
-            
-            "vectorization_width": 4,
-            "shared_memory_bytes": 65536,  # 256*64*2 + 64*256*2
-            "registers_per_thread": 16,
-            
-            "speedup_vs_pytorch": 8.0,
-            "memory_bandwidth_utilization": 0.4,
-            "compute_intensity": 2.0,
-            "tensor_core_utilization": 0.85,
-            
-            "prerequisites": ["small_gemm"],
-            "next_kernels": ["gemm_ampere"],
-            "difficulty_level": 3
-        }
-        
-        return self._save_kernel_with_metadata(kernel_name, cute_code, metadata)
-    
-    def _generate_gemm_ampere_kernel(self) -> Dict[str, Any]:
-        """Generate GEMM with Ampere (FP16, 512×512×512) - Focus: SM80 MMA atoms, larger tiles."""
-        kernel_name = "gemm_ampere_fp16"
-        
-        cute_code = '''#include <cute/tensor.hpp>
-#include <cute/algorithm/copy.hpp>
-#include <cute/atom/mma_traits.hpp>
-
-using namespace cute;
-
-template<typename T>
-__global__ void gemm_ampere_kernel(T* a, T* b, T* c, int m, int n, int k) {
-    // Ampere MMA atoms for A100
-    using MMA = MMA_Atom<SM80_16x8x16_F16F16F16F16_TN>;
-    auto block_shape = make_shape(Int<512>{}, Int<512>{});
-    auto block_threads = make_shape(Int<16>{}, Int<32>{}); // 512 threads
-    
-    auto thr_layout = make_layout(
-        make_shape(Int<16>{}, Int<32>{}),
-        make_stride(Int<32>{}, Int<1>{})
-    );
-    
-    auto thr_mma = thr_layout(MMA{}, threadIdx.x);
-    
-    // Larger shared memory tiles for Ampere
-    auto smem_a_layout = make_layout(make_shape(Int<512>{}, Int<128>{}), make_stride(Int<128>{}, Int<1>{}));
-    auto smem_b_layout = make_layout(make_shape(Int<128>{}, Int<512>{}), make_stride(Int<512>{}, Int<1>{}));
-    
-    auto smem_a = make_tensor(shared_memory, smem_a_layout);
-    auto smem_b = make_tensor(shared_memory + 512*128*sizeof(T), smem_b_layout);
-    
-    auto tCrA = make_fragment_like(thr_mma(0_c));
-    auto tCrB = make_fragment_like(thr_mma(0_c));
-    auto tCrC = make_fragment_like(thr_mma(0_c));
-    
-    clear(tCrC);
-    
-    for (int k_tile = 0; k_tile < k; k_tile += 128) {
-        auto gmem_a = make_tensor(a, make_layout(make_shape(m, k), make_stride(k, Int<1>{})));
-        auto gmem_b = make_tensor(b, make_layout(make_shape(k, n), make_stride(n, Int<1>{})));
-        
-        copy(gmem_a, smem_a);
-        copy(gmem_b, smem_b);
-        __syncthreads();
-        
-        for (int kk = 0; kk < 128; kk += 16) {
-            auto tArA = smem_a(_, make_coord(kk, kk+16));
-            auto tBrB = smem_b(make_coord(kk, kk+16), _);
-            
-            copy(tArA, tCrA);
-            copy(tBrB, tCrB);
-            
-            gemm(tCrA, tCrB, tCrC);
-        }
-        __syncthreads();
-    }
-    
-    auto gmem_c = make_tensor(c, make_layout(make_shape(m, n), make_stride(n, Int<1>{})));
-    copy(tCrC, gmem_c);
-}'''
-        
-        metadata = {
-            "kernel_name": kernel_name,
-            "operation": "gemm_ampere",
-            "phase": "optimizations",
-            "learning_focus": "sm80_mma_atoms",
-            
-            "gpu_arch": "SM80",  # A100
-            "data_type": "FP16",
-            "mma_atom": "SM80_16x8x16_F16F16F16F16_TN",
-            "tile_shape": "(512, 512, 128)",
-            "thread_layout": "(16, 32)",
-            "gmem_layout": "row_major",
-            "smem_layout": "ampere_optimized",
-            
-            "key_patterns": [
-                "static_shapes",
-                "sm80_mma_atoms",
-                "larger_tiles",
-                "ampere_optimizations",
-                "tensor_core_utilization"
-            ],
-            
-            "ampere_mma_snippet": "using MMA = MMA_Atom<SM80_16x8x16_F16F16F16F16_TN>;",
-            "larger_tiles_snippet": "auto block_shape = make_shape(Int<512>{}, Int<512>{});",
-            
-            "vectorization_width": 8,
-            "shared_memory_bytes": 131072,  # 512*128*2 + 128*512*2
-            "registers_per_thread": 24,
-            
-            "speedup_vs_pytorch": 12.0,
-            "memory_bandwidth_utilization": 0.3,
-            "compute_intensity": 3.0,
-            "tensor_core_utilization": 0.92,
-            
-            "prerequisites": ["gemm_volta"],
-            "next_kernels": ["gemm_pipelined"],
-            "difficulty_level": 3
-        }
-        
-        return self._save_kernel_with_metadata(kernel_name, cute_code, metadata)
-    
-    def _generate_gemm_pipelined_kernel(self) -> Dict[str, Any]:
-        """Generate GEMM with Pipelining (FP16, 1024×1024×1024) - Focus: Pipeline stages, double/triple buffering."""
-        kernel_name = "gemm_pipelined_fp16"
-        
-        cute_code = '''#include <cute/tensor.hpp>
-#include <cute/algorithm/copy.hpp>
-#include <cute/atom/mma_traits.hpp>
-
-using namespace cute;
-
-template<typename T>
-__global__ void gemm_pipelined_kernel(T* a, T* b, T* c, int m, int n, int k) {
-    using MMA = MMA_Atom<SM80_16x8x16_F16F16F16F16_TN>;
-    constexpr int kStages = 3; // Triple buffering
-    
-    auto block_shape = make_shape(Int<1024>{}, Int<1024>{});
-    auto block_threads = make_shape(Int<16>{}, Int<64>{}); // 1024 threads
-    
-    auto thr_layout = make_layout(
-        make_shape(Int<16>{}, Int<64>{}),
-        make_stride(Int<64>{}, Int<1>{})
-    );
-    
-    auto thr_mma = thr_layout(MMA{}, threadIdx.x);
-    
-    // Multi-stage shared memory
-    auto smem_a_layout = make_layout(make_shape(Int<1024>{}, Int<256>{}), make_stride(Int<256>{}, Int<1>{}));
-    auto smem_b_layout = make_layout(make_shape(Int<256>{}, Int<1024>{}), make_stride(Int<1024>{}, Int<1>{}));
-    
-    // Triple buffering
-    auto smem_a_stages = make_tensor(shared_memory, make_layout(make_shape(kStages, 1024, 256)));
-    auto smem_b_stages = make_tensor(shared_memory + kStages*1024*256*sizeof(T), make_layout(make_shape(kStages, 256, 1024)));
-    
-    auto tCrA = make_fragment_like(thr_mma(0_c));
-    auto tCrB = make_fragment_like(thr_mma(0_c));
-    auto tCrC = make_fragment_like(thr_mma(0_c));
-    
-    clear(tCrC);
-    
-    // Pipelined computation with stages
-    for (int k_tile = 0; k_tile < k; k_tile += 256) {
-        int stage = (k_tile / 256) % kStages;
-        
-        // Load current stage
-        auto gmem_a = make_tensor(a, make_layout(make_shape(m, k), make_stride(k, Int<1>{})));
-        auto gmem_b = make_tensor(b, make_layout(make_shape(k, n), make_stride(n, Int<1>{})));
-        
-        auto smem_a = smem_a_stages(stage, _, _);
-        auto smem_b = smem_b_stages(stage, _, _);
-        
-        // Async copy for pipelining
-        copy_async(gmem_a, smem_a);
-        copy_async(gmem_b, smem_b);
-        
-        // Compute on previous stage
-        if (k_tile > 0) {
-            int prev_stage = (stage - 1 + kStages) % kStages;
-            auto prev_smem_a = smem_a_stages(prev_stage, _, _);
-            auto prev_smem_b = smem_b_stages(prev_stage, _, _);
-            
-            for (int kk = 0; kk < 256; kk += 16) {
-                auto tArA = prev_smem_a(_, make_coord(kk, kk+16));
-                auto tBrB = prev_smem_b(make_coord(kk, kk+16), _);
-                
-                copy(tArA, tCrA);
-                copy(tBrB, tCrB);
-                
-                gemm(tCrA, tCrB, tCrC);
+            "learning": {
+                "prerequisites": ["small_gemm"],
+                "next_kernels": ["batched_gemm"],
+                "difficulty_level": 3
             }
         }
         
-        __syncthreads();
-    }
+        return self._save_kernel_with_metadata(kernel_name, code, metadata)
     
-    auto gmem_c = make_tensor(c, make_layout(make_shape(m, n), make_stride(n, Int<1>{})));
-    copy(tCrC, gmem_c);
-}'''
+    def _generate_batched_gemm_kernel(self) -> Dict[str, Any]:
+        """Generate Batched GEMM kernel - Focus: 3D tensor operations."""
+        kernel_name = "batched_gemm_cute_python"
+        
+        code = '''"""
+Batched Matrix Multiplication using CuTe Python DSL
+Focus: 3D tensor operations, batch parallelism
+"""
+import torch
+import cutlass
+import cutlass.cute as cute
+from cutlass.cute.runtime import from_dlpack
+
+
+@cute.kernel
+def batched_gemm_kernel(
+    gA: cute.Tensor,  # (B, M, K)
+    gB: cute.Tensor,  # (B, K, N)
+    gC: cute.Tensor,  # (B, M, N)
+    B: cutlass.Int32,
+    M: cutlass.Int32,
+    K: cutlass.Int32,
+    N: cutlass.Int32,
+):
+    """
+    Batched GEMM: C[b] = A[b] @ B[b]
+    Each block handles one element across all batches
+    """
+    tidx, tidy, _ = cute.arch.thread_idx()
+    bidx, bidy, bidz = cute.arch.block_idx()
+    bdimx, bdimy, _ = cute.arch.block_dim()
+    
+    # Batch index from z dimension
+    b = bidz
+    
+    # Matrix indices
+    i = bidy * bdimy + tidy
+    j = bidx * bdimx + tidx
+    
+    if b < B and i < M and j < N:
+        acc = 0.0
+        for k in range(K):
+            acc += gA[b, i, k] * gB[b, k, j]
+        gC[b, i, j] = acc
+
+
+def cute_batched_gemm(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """Wrapper for batched GEMM."""
+    B, M, K = a.shape
+    B2, K2, N = b.shape
+    assert B == B2 and K == K2
+    
+    c = torch.empty(B, M, N, dtype=a.dtype, device=a.device)
+    
+    gA = from_dlpack(a)
+    gB = from_dlpack(b)
+    gC = from_dlpack(c)
+    
+    threads_per_block = (16, 16, 1)
+    num_blocks = ((N + 15) // 16, (M + 15) // 16, B)
+    
+    batched_gemm_kernel.launch(
+        dim3=num_blocks,
+        dim3=threads_per_block,
+        args=(gA, gB, gC, B, M, K, N)
+    )
+    
+    return c
+
+
+class ModelNew(torch.nn.Module):
+    """Batched GEMM model using CuTe Python DSL."""
+    
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
+        return cute_batched_gemm(A, B)
+
+
+B = 16
+M = 128
+K = 128
+N = 128
+
+def get_inputs():
+    A = torch.randn(B, M, K)
+    B_mat = torch.randn(B, K, N)
+    return [A, B_mat]
+
+def get_init_inputs():
+    return []
+'''
         
         metadata = {
             "kernel_name": kernel_name,
-            "operation": "gemm_pipelined",
+            "operation": "batched_gemm",
             "phase": "optimizations",
-            "learning_focus": "pipeline_stages",
+            "learning_focus": "batch_parallelism",
             
             "gpu_arch": "SM80",
-            "data_type": "FP16",
-            "mma_atom": "SM80_16x8x16_F16F16F16F16_TN",
-            "tile_shape": "(1024, 1024, 256)",
-            "thread_layout": "(16, 64)",
-            "pipeline_stages": 3,
-            "gmem_layout": "row_major",
-            "smem_layout": "pipelined_stages",
+            "data_type": "FP32",
+            "dsl": "cute_python",
+            "tile_shape": "(B, 128, 128, 128)",
+            "thread_layout": "3D_16x16x1",
             
             "key_patterns": [
-                "static_shapes",
-                "pipeline_stages",
-                "triple_buffering",
-                "async_copy",
-                "compute_overlap"
+                "cute_python_dsl",
+                "batched_operations",
+                "3d_indexing",
+                "batch_parallelism"
             ],
             
-            "pipeline_snippet": "constexpr int kStages = 3; // Triple buffering",
-            "async_copy_snippet": "copy_async(gmem_a, smem_a);",
-            "stage_management_snippet": "int stage = (k_tile / 256) % kStages;",
+            "code_snippets": {
+                "batch_index": "b = bidz",
+                "3d_access": "gA[b, i, k] * gB[b, k, j]"
+            },
             
-            "vectorization_width": 8,
-            "shared_memory_bytes": 393216,  # 3 * (1024*256*2 + 256*1024*2)
-            "registers_per_thread": 28,
+            "performance": {
+                "expected_speedup": 5.0,
+                "memory_bandwidth_utilization": 0.35,
+                "compute_intensity": 2.0
+            },
             
-            "speedup_vs_pytorch": 18.0,
-            "memory_bandwidth_utilization": 0.25,
-            "compute_intensity": 4.0,
-            "tensor_core_utilization": 0.95,
-            
-            "prerequisites": ["gemm_ampere"],
-            "next_kernels": ["gemm_swizzled"],
-            "difficulty_level": 4
-        }
-        
-        return self._save_kernel_with_metadata(kernel_name, cute_code, metadata)
-    
-    def _generate_gemm_swizzled_kernel(self) -> Dict[str, Any]:
-        """Generate GEMM with Swizzling (FP16, 2048×2048×2048) - Focus: Swizzled shared memory layouts."""
-        kernel_name = "gemm_swizzled_fp16"
-        
-        cute_code = '''#include <cute/tensor.hpp>
-#include <cute/algorithm/copy.hpp>
-#include <cute/atom/mma_traits.hpp>
-
-using namespace cute;
-
-template<typename T>
-__global__ void gemm_swizzled_kernel(T* a, T* b, T* c, int m, int n, int k) {
-    using MMA = MMA_Atom<SM80_16x8x16_F16F16F16F16_TN>;
-    constexpr int kStages = 3;
-    
-    auto block_shape = make_shape(Int<2048>{}, Int<2048>{});
-    auto block_threads = make_shape(Int<32>{}, Int<64>{}); // 2048 threads
-    
-    auto thr_layout = make_layout(
-        make_shape(Int<32>{}, Int<64>{}),
-        make_stride(Int<64>{}, Int<1>{})
-    );
-    
-    auto thr_mma = thr_layout(MMA{}, threadIdx.x);
-    
-    // Swizzled layouts for bank conflict avoidance
-    auto smem_a_layout = make_layout(
-        make_shape(Int<2048>{}, Int<512>{}),
-        make_stride(Int<512>{}, Int<1>{})
-    );
-    auto smem_b_layout = make_layout(
-        make_shape(Int<512>{}, Int<2048>{}),
-        make_stride(Int<2048>{}, Int<1>{})
-    );
-    
-    // Apply swizzling to avoid bank conflicts
-    auto smem_a_swizzled = make_layout(
-        make_shape(Int<2048>{}, Int<512>{}),
-        make_stride(Int<512>{}, Int<1>{})
-    );
-    auto smem_b_swizzled = make_layout(
-        make_shape(Int<512>{}, Int<2048>{}),
-        make_stride(Int<2048>{}, Int<1>{})
-    );
-    
-    // Multi-stage with swizzling
-    auto smem_a_stages = make_tensor(shared_memory, make_layout(make_shape(kStages, 2048, 512)));
-    auto smem_b_stages = make_tensor(shared_memory + kStages*2048*512*sizeof(T), make_layout(make_shape(kStages, 512, 2048)));
-    
-    auto tCrA = make_fragment_like(thr_mma(0_c));
-    auto tCrB = make_fragment_like(thr_mma(0_c));
-    auto tCrC = make_fragment_like(thr_mma(0_c));
-    
-    clear(tCrC);
-    
-    for (int k_tile = 0; k_tile < k; k_tile += 512) {
-        int stage = (k_tile / 512) % kStages;
-        
-        auto gmem_a = make_tensor(a, make_layout(make_shape(m, k), make_stride(k, Int<1>{})));
-        auto gmem_b = make_tensor(b, make_layout(make_shape(k, n), make_stride(n, Int<1>{})));
-        
-        auto smem_a = smem_a_stages(stage, _, _);
-        auto smem_b = smem_b_stages(stage, _, _);
-        
-        // Swizzled copy for bank conflict avoidance
-        copy_async(gmem_a, smem_a);
-        copy_async(gmem_b, smem_b);
-        
-        if (k_tile > 0) {
-            int prev_stage = (stage - 1 + kStages) % kStages;
-            auto prev_smem_a = smem_a_stages(prev_stage, _, _);
-            auto prev_smem_b = smem_b_stages(prev_stage, _, _);
-            
-            for (int kk = 0; kk < 512; kk += 16) {
-                auto tArA = prev_smem_a(_, make_coord(kk, kk+16));
-                auto tBrB = prev_smem_b(make_coord(kk, kk+16), _);
-                
-                copy(tArA, tCrA);
-                copy(tBrB, tCrB);
-                
-                gemm(tCrA, tCrB, tCrC);
+            "learning": {
+                "prerequisites": ["gemm_optimized"],
+                "next_kernels": ["fused_matmul_add"],
+                "difficulty_level": 3
             }
         }
         
-        __syncthreads();
-    }
+        return self._save_kernel_with_metadata(kernel_name, code, metadata)
     
-    auto gmem_c = make_tensor(c, make_layout(make_shape(m, n), make_stride(n, Int<1>{})));
-    copy(tCrC, gmem_c);
-}'''
+    def _generate_fused_matmul_add_kernel(self) -> Dict[str, Any]:
+        """Generate Fused MatMul + Add kernel - Focus: Operation fusion."""
+        kernel_name = "fused_matmul_add_cute_python"
+        
+        code = '''"""
+Fused Matrix Multiplication + Addition using CuTe Python DSL
+Focus: Operation fusion, epilogue patterns
+"""
+import torch
+import cutlass
+import cutlass.cute as cute
+from cutlass.cute.runtime import from_dlpack
+
+
+@cute.kernel
+def fused_matmul_add_kernel(
+    gA: cute.Tensor,    # (M, K)
+    gB: cute.Tensor,    # (K, N)
+    gBias: cute.Tensor, # (N,) - broadcasted
+    gC: cute.Tensor,    # (M, N)
+    M: cutlass.Int32,
+    K: cutlass.Int32,
+    N: cutlass.Int32,
+):
+    """
+    Fused operation: C = (A @ B) + Bias
+    Epilogue: bias addition after GEMM
+    """
+    tidx, tidy, _ = cute.arch.thread_idx()
+    bidx, bidy, _ = cute.arch.block_idx()
+    bdimx, bdimy, _ = cute.arch.block_dim()
+    
+    i = bidy * bdimy + tidy
+    j = bidx * bdimx + tidx
+    
+    if i < M and j < N:
+        # GEMM computation
+        acc = 0.0
+        for k in range(K):
+            acc += gA[i, k] * gB[k, j]
+        
+        # Epilogue: Add bias
+        bias_val = gBias[j]
+        gC[i, j] = acc + bias_val
+
+
+def cute_fused_matmul_add(a: torch.Tensor, b: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
+    """Wrapper for fused matmul + add."""
+    M, K = a.shape
+    K2, N = b.shape
+    assert K == K2 and bias.shape[0] == N
+    
+    c = torch.empty(M, N, dtype=a.dtype, device=a.device)
+    
+    gA = from_dlpack(a)
+    gB = from_dlpack(b)
+    gBias = from_dlpack(bias)
+    gC = from_dlpack(c)
+    
+    threads_per_block = (16, 16)
+    num_blocks = ((N + 15) // 16, (M + 15) // 16)
+    
+    fused_matmul_add_kernel.launch(
+        dim3=num_blocks,
+        dim3=threads_per_block,
+        args=(gA, gB, gBias, gC, M, K, N)
+    )
+    
+    return c
+
+
+class ModelNew(torch.nn.Module):
+    """Fused MatMul + Add model using CuTe Python DSL."""
+    
+    def __init__(self, K_dim: int, N_dim: int):
+        super().__init__()
+        self.bias = torch.nn.Parameter(torch.randn(N_dim))
+    
+    def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
+        return cute_fused_matmul_add(A, B, self.bias)
+
+
+M = 256
+K = 256
+N = 256
+
+def get_inputs():
+    A = torch.randn(M, K)
+    B = torch.randn(K, N)
+    return [A, B]
+
+def get_init_inputs():
+    return [K, N]
+'''
         
         metadata = {
             "kernel_name": kernel_name,
-            "operation": "gemm_swizzled",
+            "operation": "fused_matmul_add",
             "phase": "optimizations",
-            "learning_focus": "swizzled_layouts",
+            "learning_focus": "operation_fusion",
             
             "gpu_arch": "SM80",
-            "data_type": "FP16",
-            "mma_atom": "SM80_16x8x16_F16F16F16F16_TN",
-            "tile_shape": "(2048, 2048, 512)",
-            "thread_layout": "(32, 64)",
-            "pipeline_stages": 3,
-            "gmem_layout": "row_major",
-            "smem_layout": "swizzled_bank_conflict_free",
+            "data_type": "FP32",
+            "dsl": "cute_python",
+            "tile_shape": "(256, 256, 256)",
+            "thread_layout": "2D_16x16",
             
             "key_patterns": [
-                "static_shapes",
-                "swizzled_layouts",
-                "bank_conflict_avoidance",
-                "advanced_memory_optimization",
-                "large_tile_optimization"
+                "cute_python_dsl",
+                "operation_fusion",
+                "epilogue_bias",
+                "broadcasting"
             ],
             
-            "swizzling_snippet": "// Apply swizzling to avoid bank conflicts",
-            "bank_conflict_snippet": "auto smem_a_swizzled = make_layout(...);",
-            "large_tiles_snippet": "auto block_shape = make_shape(Int<2048>{}, Int<2048>{});",
+            "code_snippets": {
+                "fusion": "gC[i, j] = acc + bias_val",
+                "epilogue": "bias_val = gBias[j]"
+            },
             
-            "vectorization_width": 8,
-            "shared_memory_bytes": 1572864,  # 3 * (2048*512*2 + 512*2048*2)
-            "registers_per_thread": 32,
+            "performance": {
+                "expected_speedup": 6.0,
+                "memory_bandwidth_utilization": 0.3,
+                "compute_intensity": 2.5
+            },
             
-            "speedup_vs_pytorch": 25.0,
-            "memory_bandwidth_utilization": 0.2,
-            "compute_intensity": 5.0,
-            "tensor_core_utilization": 0.98,
-            
-            "prerequisites": ["gemm_pipelined"],
-            "next_kernels": ["fused_gemm_bias_relu"],
-            "difficulty_level": 4
+            "learning": {
+                "prerequisites": ["batched_gemm"],
+                "next_kernels": ["fused_gemm_bias_relu"],
+                "difficulty_level": 3
+            }
         }
         
-        return self._save_kernel_with_metadata(kernel_name, cute_code, metadata)
+        return self._save_kernel_with_metadata(kernel_name, code, metadata)
     
     def _generate_fused_gemm_bias_relu_kernel(self) -> Dict[str, Any]:
-        """Generate Fused GEMM + Bias + ReLU kernel - Focus: Epilogue patterns, multiple operations."""
-        kernel_name = "fused_gemm_bias_relu_fp16"
+        """Generate Fused GEMM + Bias + ReLU kernel - Focus: Multiple fused operations."""
+        kernel_name = "fused_gemm_bias_relu_cute_python"
         
-        cute_code = '''#include <cute/tensor.hpp>
-#include <cute/algorithm/copy.hpp>
-#include <cute/atom/mma_traits.hpp>
+        code = '''"""
+Fused GEMM + Bias + ReLU using CuTe Python DSL
+Focus: Multiple operation fusion, activation functions
+"""
+import torch
+import cutlass
+import cutlass.cute as cute
+from cutlass.cute.runtime import from_dlpack
 
-using namespace cute;
 
-template<typename T>
-__global__ void fused_gemm_bias_relu_kernel(T* a, T* b, T* bias, T* c, int m, int n, int k) {
-    using MMA = MMA_Atom<SM80_16x8x16_F16F16F16F16_TN>;
-    constexpr int kStages = 3;
+@cute.kernel
+def fused_gemm_bias_relu_kernel(
+    gA: cute.Tensor,    # (M, K)
+    gB: cute.Tensor,    # (K, N)
+    gBias: cute.Tensor, # (N,)
+    gC: cute.Tensor,    # (M, N)
+    M: cutlass.Int32,
+    K: cutlass.Int32,
+    N: cutlass.Int32,
+):
+    """
+    Fused operation: C = ReLU((A @ B) + Bias)
+    Multiple epilogues: bias + ReLU activation
+    """
+    tidx, tidy, _ = cute.arch.thread_idx()
+    bidx, bidy, _ = cute.arch.block_idx()
+    bdimx, bdimy, _ = cute.arch.block_dim()
     
-    auto block_shape = make_shape(Int<1024>{}, Int<1024>{});
-    auto block_threads = make_shape(Int<16>{}, Int<64>{}); // 1024 threads
+    i = bidy * bdimy + tidy
+    j = bidx * bdimx + tidx
     
-    auto thr_layout = make_layout(
-        make_shape(Int<16>{}, Int<64>{}),
-        make_stride(Int<64>{}, Int<1>{})
-    );
-    
-    auto thr_mma = thr_layout(MMA{}, threadIdx.x);
-    
-    // Shared memory setup
-    auto smem_a_layout = make_layout(make_shape(Int<1024>{}, Int<256>{}), make_stride(Int<256>{}, Int<1>{}));
-    auto smem_b_layout = make_layout(make_shape(Int<256>{}, Int<1024>{}), make_stride(Int<1024>{}, Int<1>{}));
-    
-    auto smem_a_stages = make_tensor(shared_memory, make_layout(make_shape(kStages, 1024, 256)));
-    auto smem_b_stages = make_tensor(shared_memory + kStages*1024*256*sizeof(T), make_layout(make_shape(kStages, 256, 1024)));
-    
-    auto tCrA = make_fragment_like(thr_mma(0_c));
-    auto tCrB = make_fragment_like(thr_mma(0_c));
-    auto tCrC = make_fragment_like(thr_mma(0_c));
-    
-    clear(tCrC);
-    
-    // Main GEMM computation
-    for (int k_tile = 0; k_tile < k; k_tile += 256) {
-        int stage = (k_tile / 256) % kStages;
+    if i < M and j < N:
+        # GEMM computation
+        acc = 0.0
+        for k in range(K):
+            acc += gA[i, k] * gB[k, j]
         
-        auto gmem_a = make_tensor(a, make_layout(make_shape(m, k), make_stride(k, Int<1>{})));
-        auto gmem_b = make_tensor(b, make_layout(make_shape(k, n), make_stride(n, Int<1>{})));
+        # Epilogue 1: Add bias
+        bias_val = gBias[j]
+        result = acc + bias_val
         
-        auto smem_a = smem_a_stages(stage, _, _);
-        auto smem_b = smem_b_stages(stage, _, _);
+        # Epilogue 2: ReLU activation
+        result = cute.max(result, 0.0)
         
-        copy_async(gmem_a, smem_a);
-        copy_async(gmem_b, smem_b);
-        
-        if (k_tile > 0) {
-            int prev_stage = (stage - 1 + kStages) % kStages;
-            auto prev_smem_a = smem_a_stages(prev_stage, _, _);
-            auto prev_smem_b = smem_b_stages(prev_stage, _, _);
-            
-            for (int kk = 0; kk < 256; kk += 16) {
-                auto tArA = prev_smem_a(_, make_coord(kk, kk+16));
-                auto tBrB = prev_smem_b(make_coord(kk, kk+16), _);
-                
-                copy(tArA, tCrA);
-                copy(tBrB, tCrB);
-                
-                gemm(tCrA, tCrB, tCrC);
-            }
-        }
-        
-        __syncthreads();
-    }
+        gC[i, j] = result
+
+
+def cute_fused_gemm_bias_relu(a: torch.Tensor, b: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
+    """Wrapper for fused GEMM + Bias + ReLU."""
+    M, K = a.shape
+    K2, N = b.shape
+    assert K == K2 and bias.shape[0] == N
     
-    // Epilogue: Bias + ReLU
-    auto bias_layout = make_layout(make_shape(n), make_stride(Int<1>{}));
-    auto bias_tensor = make_tensor(bias, bias_layout);
-    auto bias_val = bias_tensor(threadIdx.y);
+    c = torch.empty(M, N, dtype=a.dtype, device=a.device)
     
-    // Apply bias
-    tCrC += bias_val;
+    gA = from_dlpack(a)
+    gB = from_dlpack(b)
+    gBias = from_dlpack(bias)
+    gC = from_dlpack(c)
     
-    // Apply ReLU
-    auto zero = T(0);
-    tCrC = max(tCrC, zero);
+    threads_per_block = (16, 16)
+    num_blocks = ((N + 15) // 16, (M + 15) // 16)
     
-    // Store result
-    auto gmem_c = make_tensor(c, make_layout(make_shape(m, n), make_stride(n, Int<1>{})));
-    copy(tCrC, gmem_c);
-}'''
+    fused_gemm_bias_relu_kernel.launch(
+        dim3=num_blocks,
+        dim3=threads_per_block,
+        args=(gA, gB, gBias, gC, M, K, N)
+    )
+    
+    return c
+
+
+class ModelNew(torch.nn.Module):
+    """Fused GEMM + Bias + ReLU model using CuTe Python DSL."""
+    
+    def __init__(self, K_dim: int, N_dim: int):
+        super().__init__()
+        self.bias = torch.nn.Parameter(torch.randn(N_dim))
+    
+    def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
+        return cute_fused_gemm_bias_relu(A, B, self.bias)
+
+
+M = 512
+K = 512
+N = 512
+
+def get_inputs():
+    A = torch.randn(M, K)
+    B = torch.randn(K, N)
+    return [A, B]
+
+def get_init_inputs():
+    return [K, N]
+'''
         
         metadata = {
             "kernel_name": kernel_name,
             "operation": "fused_gemm_bias_relu",
             "phase": "advanced_patterns",
-            "learning_focus": "epilogue_patterns",
+            "learning_focus": "multiple_fusion",
             
             "gpu_arch": "SM80",
-            "data_type": "FP16",
-            "mma_atom": "SM80_16x8x16_F16F16F16F16_TN",
-            "tile_shape": "(1024, 1024, 256)",
-            "thread_layout": "(16, 64)",
-            "pipeline_stages": 3,
-            "gmem_layout": "row_major",
-            "smem_layout": "fused_optimized",
+            "data_type": "FP32",
+            "dsl": "cute_python",
+            "tile_shape": "(512, 512, 512)",
+            "thread_layout": "2D_16x16",
             
             "key_patterns": [
-                "static_shapes",
+                "cute_python_dsl",
+                "multiple_fusion",
                 "epilogue_patterns",
-                "fused_operations",
-                "bias_addition",
                 "activation_fusion"
             ],
             
-            "epilogue_snippet": "// Epilogue: Bias + ReLU",
-            "bias_snippet": "tCrC += bias_val;",
-            "activation_snippet": "tCrC = max(tCrC, zero); // ReLU",
-            "fused_snippet": "// Fused: GEMM + Bias + ReLU in one kernel",
+            "code_snippets": {
+                "multiple_epilogues": "result = acc + bias_val; result = cute.max(result, 0.0)",
+                "bias_epilogue": "bias_val = gBias[j]",
+                "relu_epilogue": "result = cute.max(result, 0.0)"
+            },
             
-            "vectorization_width": 8,
-            "shared_memory_bytes": 393216,
-            "registers_per_thread": 30,
+            "performance": {
+                "expected_speedup": 8.0,
+                "memory_bandwidth_utilization": 0.25,
+                "compute_intensity": 3.0
+            },
             
-            "speedup_vs_pytorch": 22.0,
-            "memory_bandwidth_utilization": 0.3,
-            "compute_intensity": 4.5,
-            "tensor_core_utilization": 0.96,
-            
-            "prerequisites": ["gemm_swizzled"],
-            "next_kernels": [],
-            "difficulty_level": 5
+            "learning": {
+                "prerequisites": ["fused_matmul_add"],
+                "next_kernels": [],
+                "difficulty_level": 4
+            }
         }
         
-        return self._save_kernel_with_metadata(kernel_name, cute_code, metadata)
+        return self._save_kernel_with_metadata(kernel_name, code, metadata)
     
-    def _save_kernel_with_metadata(self, kernel_name: str, cute_code: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        """Save kernel code and metadata, return comprehensive info."""
-        # Save CuTe code
-        cute_file = os.path.join(self.output_dir, f"{kernel_name}.cu")
-        with open(cute_file, 'w') as f:
-            f.write(cute_code)
+    def _save_kernel_with_metadata(self, kernel_name: str, code: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Save kernel code and metadata."""
+        # Save Python code
+        py_file = os.path.join(self.output_dir, f"{kernel_name}.py")
+        with open(py_file, 'w') as f:
+            f.write(code)
         
         # Save metadata
         metadata_file = os.path.join(self.metadata_dir, f"{kernel_name}_metadata.json")
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2)
         
-        print(f"Generated kernel: {cute_file}")
+        print(f"Generated kernel: {py_file}")
         print(f"Generated metadata: {metadata_file}")
         
         return {
             "kernel_name": kernel_name,
-            "cute_file": cute_file,
+            "py_file": py_file,
             "metadata_file": metadata_file,
             "metadata": metadata
         }
 
 
 def main():
-    """Generate all 10 progressive CuTe kernels with comprehensive metadata."""
-    print("Generating 10 progressive CuTe kernels with RAG metadata...")
-    print("=" * 60)
+    """Generate all 10 progressive CuTe Python DSL kernels."""
+    print("Generating 10 progressive CuTe Python DSL kernels with RAG metadata...")
+    print("=" * 70)
     
-    generator = CuTeKernelGenerator()
+    generator = CuTePythonKernelGenerator()
     kernels = generator.generate_all_kernels()
     
-    print(f"\nSuccessfully generated {len(kernels)} kernels:")
-    print("=" * 60)
+    print(f"\n✅ Successfully generated {len(kernels)} CuTe Python DSL kernels")
+    print("=" * 70)
     
-    # Phase 1: Element-wise operations
+    # Display summary
     print("\n📚 PHASE 1: Element-wise operations (Learn Layouts)")
-    print("-" * 50)
+    print("-" * 60)
     for name in ['vector_add', 'vector_scale', 'relu']:
         if name in kernels:
-            kernel_info = kernels[name]
-            metadata = kernel_info['metadata']
-            print(f"  ✅ {metadata['kernel_name']} - {metadata['learning_focus']}")
-            print(f"     Focus: {metadata['key_patterns']}")
-            print(f"     Difficulty: {metadata['difficulty_level']}/5")
+            k = kernels[name]['metadata']
+            print(f"  ✅ {k['kernel_name']}")
+            print(f"     → {k['learning_focus']}")
+            print(f"     → Difficulty: {k['learning']['difficulty_level']}/5")
     
-    # Phase 2: 2D operations
-    print("\n🔧 PHASE 2: 2D operations (Learn MMA Atoms)")
-    print("-" * 50)
-    for name in ['matrix_transpose', 'small_gemm', 'gemm_volta']:
+    print("\n🔧 PHASE 2: 2D operations (Learn tensor ops)")
+    print("-" * 60)
+    for name in ['matrix_transpose', 'elementwise_mul', 'small_gemm']:
         if name in kernels:
-            kernel_info = kernels[name]
-            metadata = kernel_info['metadata']
-            print(f"  ✅ {metadata['kernel_name']} - {metadata['learning_focus']}")
-            if 'mma_atom' in metadata:
-                print(f"     MMA Atom: {metadata['mma_atom']}")
-            print(f"     Difficulty: {metadata['difficulty_level']}/5")
+            k = kernels[name]['metadata']
+            print(f"  ✅ {k['kernel_name']}")
+            print(f"     → {k['learning_focus']}")
+            print(f"     → Difficulty: {k['learning']['difficulty_level']}/5")
     
-    # Phase 3: Optimizations
     print("\n⚡ PHASE 3: Optimizations (Learn Performance)")
-    print("-" * 50)
-    for name in ['gemm_ampere', 'gemm_pipelined', 'gemm_swizzled']:
+    print("-" * 60)
+    for name in ['gemm_optimized', 'batched_gemm', 'fused_matmul_add']:
         if name in kernels:
-            kernel_info = kernels[name]
-            metadata = kernel_info['metadata']
-            print(f"  ✅ {metadata['kernel_name']} - {metadata['learning_focus']}")
-            if 'pipeline_stages' in metadata:
-                print(f"     Pipeline Stages: {metadata['pipeline_stages']}")
-            print(f"     Expected Speedup: {metadata['speedup_vs_pytorch']}x")
-            print(f"     Difficulty: {metadata['difficulty_level']}/5")
+            k = kernels[name]['metadata']
+            print(f"  ✅ {k['kernel_name']}")
+            print(f"     → {k['learning_focus']}")
+            print(f"     → Expected Speedup: {k['performance']['expected_speedup']}x")
+            print(f"     → Difficulty: {k['learning']['difficulty_level']}/5")
     
-    # Phase 4: Advanced patterns
-    print("\n🚀 PHASE 4: Advanced patterns (Stretch Goal)")
-    print("-" * 50)
+    print("\n🚀 PHASE 4: Advanced patterns")
+    print("-" * 60)
     if 'fused_gemm_bias_relu' in kernels:
-        kernel_info = kernels['fused_gemm_bias_relu']
-        metadata = kernel_info['metadata']
-        print(f"  ✅ {metadata['kernel_name']} - {metadata['learning_focus']}")
-        print(f"     Fused Operations: GEMM + Bias + ReLU")
-        print(f"     Expected Speedup: {metadata['speedup_vs_pytorch']}x")
-        print(f"     Difficulty: {metadata['difficulty_level']}/5")
+        k = kernels['fused_gemm_bias_relu']['metadata']
+        print(f"  ✅ {k['kernel_name']}")
+        print(f"     → {k['learning_focus']}")
+        print(f"     → Expected Speedup: {k['performance']['expected_speedup']}x")
+        print(f"     → Difficulty: {k['learning']['difficulty_level']}/5")
     
-    print("\n" + "=" * 60)
-    print("🎯 RAG System Integration Ready!")
-    print("Each kernel includes:")
-    print("  • Comprehensive metadata for semantic search")
-    print("  • Key patterns for retrieval")
-    print("  • Performance characteristics")
-    print("  • Learning progression dependencies")
-    print("  • Code snippets for context")
+    print("\n" + "=" * 70)
+    print("🎯 CuTe Python DSL Kernels Ready for RAG Integration!")
+    print("\nThese kernels use:")
+    print("  • import cutlass.cute as cute")
+    print("  • @cute.kernel decorator")
+    print("  • Python syntax (NOT C++)")
+    print("  • Compatible with KernelBench evaluation pipeline")
     
     return kernels
 

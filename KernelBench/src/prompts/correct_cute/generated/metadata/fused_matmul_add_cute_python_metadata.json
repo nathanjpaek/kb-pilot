@@ -1,0 +1,35 @@
+{
+  "kernel_name": "fused_matmul_add_cute_python",
+  "operation": "fused_matmul_add",
+  "phase": "optimizations",
+  "learning_focus": "operation_fusion",
+  "gpu_arch": "SM80",
+  "data_type": "FP32",
+  "dsl": "cute_python",
+  "tile_shape": "(256, 256, 256)",
+  "thread_layout": "2D_16x16",
+  "key_patterns": [
+    "cute_python_dsl",
+    "operation_fusion",
+    "epilogue_bias",
+    "broadcasting"
+  ],
+  "code_snippets": {
+    "fusion": "gC[i, j] = acc + bias_val",
+    "epilogue": "bias_val = gBias[j]"
+  },
+  "performance": {
+    "expected_speedup": 6.0,
+    "memory_bandwidth_utilization": 0.3,
+    "compute_intensity": 2.5
+  },
+  "learning": {
+    "prerequisites": [
+      "batched_gemm"
+    ],
+    "next_kernels": [
+      "fused_gemm_bias_relu"
+    ],
+    "difficulty_level": 3
+  }
+}
