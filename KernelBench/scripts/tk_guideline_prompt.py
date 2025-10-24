@@ -1,67 +1,221 @@
 TK_GUIDELINE_PROMPT = """
-We are providing an API with simple programming primitives, called ThunderKittens (TK), to simplify the coding task.
+You are writing CUDA kernels using ThunderKittens (TK). You MUST use the ThunderKittens API (kittens::…) to implement the kernel.
 
-Output Requirements: Provide exactly two code blocks with no additional commentary, tests, or print statements. First, a C++/CUDA file building a pybind11 extension named tk_kernels that exports one kernel and one dispatcher. Second, a Python file defining a torch.nn.Module named ModelNew that imports tk_kernels and calls the dispatcher inside forward.
+=====================
+OUTPUT CONTRACT
+=====================
+Produce **exactly two code blocks** and nothing else:
+1) A **C++/CUDA** file that builds a **pybind11** extension module named **tk_kernels** exporting **one kernel** and **one dispatcher**.
+2) A **Python** file defining **torch.nn.Module** named **ModelNew** that imports **tk_kernels** and calls the **dispatcher** inside **forward**.
 
-TK API Overview:
+No prints, tests, timing, seeding, or commentary in either file.
 
-The general CUDA workflow with TK follows these steps: define shared memory allocator and tiles, define register memory, load from global to shared using {b, h, d, w} indexing, load from shared to register, perform tile operations, store from register to shared, and store from shared to global.
+=====================
+GOLDEN RULES (must follow)
+=====================
+- Always call TK APIs with the **kittens::** prefix. For ops, use **kittens::warp::** or **kittens::warpgroup::**; never bare names.
+- Do **NOT** use `using namespace kittens`.
+- For global layouts, **never** put `0` in template dims. Use `-1` for runtime dims.
+- Favor pipelining: Global → **TMA async** → Shared → Warp loads → Compute → Async store to Global.
+- Use **semaphores** and `wait`/`arrive` to overlap producer/consumer work.
+- For matvec: prefer broadcast + elementwise + reduction. For matmul: use **MMA**.
+- Zero accumulators before use (`kittens::warp::zero`), avoid unnecessary syncs, and pick the lightest scope.
+- Register tiles do compute (**rt_***), shared tiles stage data (**st_***), {r,s}v_* for vectors.
+- Tensor-core MMAs: **bf16** inputs with **float** accumulators. Tile dims ≤ 64x64; chunk larger problems.
+- Shared tile **width must match** register tile width for load/store group ops.
+- Grid/block config must match warp layout (e.g., 4 warps = 2x2 macro-tile = 32x32).
 
-TK provides tile primitives at two memory levels. Register tiles are declared as rt<kittens::half, M, N, kittens::ducks::rt_layout::row> for computation at warp scope. Shared tiles are allocated via auto& x_s = al.allocate<kittens::st<kittens::half, M, N>>() for block-level data sharing. For H100 with torch.float16 inputs, always use kittens::half (not fp16, not bf16). NEVER use "using dtype = fp16;" - this will cause compilation errors.
+- You MUST use ONLY the APIs outlined in this prompt, or used in the given examples. DO NOT ASSUME OR MAKE UP ANY OTHER APIs.
 
-CRITICAL: For tensor core operations (mma_AB, mma_ABt, etc.), use bf16 inputs with float accumulators:
-- Input register tiles: kittens::rt_bf<M, N, kittens::ducks::rt_layout::row> 
-- Accumulator register tiles: kittens::rt_fl<M, N, kittens::ducks::rt_layout::row>
-- This prevents "static assertion failed" errors on H100 tensor cores.
+=====================
+MENTAL MODEL / WORKFLOW
+=====================
+1) Define shared-memory allocator and tiles.
+2) Define register tiles/vectors for compute.
+3) Load from **global** to **shared** (TMA async) using tile indices {b, h, r_tile, c_tile}.
+4) Warp-load from **shared** to **registers**.
+5) Do compute (elementwise / reductions / MMA).
+6) Store back: registers → shared, then async store to global.
+7) Use semaphores to overlap stages; prefer warp scope syncs.
 
-TK operations use destination-first syntax: fn(output, input_a, input_b). For matrix multiplication, use kittens::warp::mma_AB(dst, src_a, src_b, accum) for proper GEMM across K dimension - NOT elementwise mul+add. Other matrix operations include kittens::warp::mma_ABt(dst, src_a, src_b, accum) for both row-major, plus kittens::warp::mma_AtB and kittens::warp::mma_AtBt variants. Element-wise operations include kittens::warp::mul(dst, src_a, src_b), kittens::warp::add, kittens::warp::sub, kittens::warp::exp(dst, src), and kittens::warp::sub(dst, dst, dst) for zero. Data movement uses kittens::warp::load(output, input, {b, h, r, c}) for global-to-shared transfers, kittens::warp::store(output, input, {b, h, r, c}) for shared-to-global, and kittens::warp::load(output, input) / kittens::warp::store(output, input) for shared-register transfers.
+=====================
+API CHEATSHEET (fully qualified)
+=====================
+Types & Layout
+- Tiles/vectors (bf16 shown; analogous float/half types exist):
+  - `kittens::rt_bf<H, W>` : register tile (compute)
+  - `kittens::st_bf<H, W>` : shared tile (staging)
+  - `kittens::rv_bf<N>`    : register vector
+  - `kittens::sv_bf<N>`    : shared vector
+- Global layouts (runtime dims = -1):
+  - `kittens::gl<T, B, D, R, C, ...SharedTypes>`
+  - Example: `kittens::gl<kittens::bf16, 1, -1, -1, 2048, kittens::st_bf<16,512>> W;`
+  - Members: `T* raw_ptr;`
+             `template<int axis> size_t shape() const;`
+             `template<int axis> size_t stride() const;`
+  - Indexing uses **tile indices**: `gW[kittens::coord<>{b, h, r_tile, c_tile}]`
+  - For batched ops use **3D indexing** `{batch, row, col}` (not `{batch, 0, row, col}`).
 
-Global layouts describe HBM tensors: using x_gl = kittens::gl<kittens::half, -1, -1, -1, -1, kittens::st<kittens::half, TILE_M, TILE_N>>; specifies dtype, four runtime dimensions (batch, head, rows, cols), and tile shape for loads/stores. Access dimensions via g.x.batch, g.x.depth, g.x.rows, g.x.cols. Access raw data pointer via g.x.raw_ptr for direct memory access when needed. CRITICAL: Global layout coordinates {b, h, r, c} are TILE INDICES, not element offsets. Use tile indices for all loads/stores. 
+Warp-scope Memory Ops
+- Shared ↔ Registers:
+  - `kittens::warp::load(kittens::rt_bf<H,W>& dst, const kittens::st_bf<H,W>& src)`
+  - `kittens::warp::store(kittens::st_bf<H,W>& dst, const kittens::rt_bf<H,W>& src)`
+  - `kittens::warp::load(kittens::rv_bf<N>& dst, const kittens::sv_bf<N>& src)`
+  - `kittens::warp::store(kittens::sv_bf<N>& dst, const kittens::rv_bf<N>& src)`
+- Direct small reads from global:
+  - `kittens::warp::load(kittens::rt_bf<H,W>& dst, const kittens::gl<...>& g, kittens::coord<>{...})`
+  - `kittens::warp::load(kittens::rv_bf<N>&  dst, const kittens::gl<...>& g, kittens::coord<>{offset})`
 
-CRITICAL: NEVER use 0 for global layout dimensions - always use -1 for runtime dimensions. Using 0 causes "Invalid compile-time dimension value" errors.
+TMA (Async Global↔Shared)
+- Declare/issue:
+  - `kittens::tma::expect(kittens::semaphore& sem, kittens::st_bf<H,W>& tile_or_sv)`
+  - `kittens::tma::load_async(kittens::st_bf<H,W>& dst_smem, kittens::gl<...>& src_gmem, kittens::coord<>{...}, kittens::semaphore& sem)`
+  - `kittens::tma::store_async(kittens::gl<...>& dst_gmem, const kittens::sv_bf<N>& src_smem, kittens::coord<>{...})`
+  - `kittens::tma::store_add_async(...)`
+  - `kittens::tma::store_async_wait()`       // ensure visibility
+  - `kittens::tma::store_async_read_wait()`  // ensure read-side hazard clear
+- Pattern:
+  - Producer: `tma::expect(...); tma::load_async(...);`
+  - Consumer: `wait(sem, threshold); kittens::warp::load(...)` from shared
+  - After consuming: `kittens::warp::arrive(done_sem, count);`
 
-For batched operations, use: kittens::gl<kittens::half, -1, -1, -1, -1, sub_tile> and index with {batch_idx, row, col} (3D) not {batch_idx, 0, row, col} (4D).
+Sync & Semaphores
+- `kittens::warp::sync()`
+- `kittens::group<N>::sync(barrier_id)`  // N warps
+- `kittens::warpgroup::sync()`
+- `kittens::init_semaphore(kittens::semaphore&, int initial)`
+- `kittens::wait(kittens::semaphore&, int threshold)`
+- `kittens::warp::arrive(kittens::semaphore&, int delta=1)`
+- Rare fence: `asm volatile("fence.acq_rel.gpu;");`
 
-Important: GPU registers and shared memory are limited—tile dimensions should not exceed 64 x 64, requiring chunked computation for larger tensors.
+Math
+- Set/fill:
+  - `kittens::warp::zero(x), one(x), pos_infty(x), neg_infty(x)`
+  - For setting to a specific scalar value: `kittens::warp::mul(tile, tile, scalar_value);  // after zeroing`
+- Elementwise (tile/vector or scalar rhs):
+  - `kittens::warp::add(dst, a, b)`, `sub`, `mul`, `div`
+  - Scalars OK: `kittens::warp::mul(tile, tile, scalar)`
+- Broadcast/layout:
+  - `kittens::warp::broadcast_col(rt, row_vec)`
+  - `kittens::warp::broadcast_row(rt, col_vec)`
+  - `kittens::warp::transpose_inplace(rt)` → returns ref
+  - `kittens::warp::swap_layout_inplace(rt)` → switch row/col view
+- Apply lambdas:
+  - `kittens::warp::apply(rv_dst, rv_src, Lambda)`
+  - `kittens::warp::apply(rt_dst, rt_src, Lambda)`
 
-C++/CUDA File Structure:
+Reductions
+- Tile → vector:
+  - `kittens::warp::row_sum(col_vec, rt)`  // sum across columns per row
+  - `kittens::warp::col_sum(row_vec, rt)`
+  - `row_max`, `col_max` (also on shared tiles)
+- Vector → scalar:
+  - `auto s = kittens::warp::sum(const kittens::rv_bf<N>&)`
 
-Include ThunderKittens headers: #include "kittens.cuh", #include "pyutils/pyutils.cuh". Do NOT use "using namespace kittens" - always prefix with kittens::. Define launch configuration constants (e.g., #define NUM_WORKERS (1), #define NUM_THREADS (NUM_WORKERS * kittens::WARP_THREADS)) and tile dimensions as multiples of 16.
+MMA (Tensor Cores)
+- Use bf16 inputs with float accumulators:
+  - Inputs: `kittens::rt_bf<M,N, kittens::ducks::rt_layout::row|col>`
+  - Accum:  `kittens::rt_fl<M,N, kittens::ducks::rt_layout::row>`
+- Warp MMAs:
+  - `kittens::warp::mma_AB(C, A, B, C)`
+  - `kittens::warp::mma_ABt(C, A, B, C)`
+  - `kittens::warp::mma_AtB(C, A, B, C)`
+- Warpgroup MMAs:
+  - `kittens::warpgroup::mma_AB(C, A, B)` and friends
+  - `kittens::warpgroup::mma_async_wait()`
+- Example TMA/compute/store:
+```
+// loader
+kittens::tma::expect(inp_sem, weight_smem);
+kittens::tma::load_async(weight_smem, g.W, kittens::coord<>{layer, col_block, tile_id}, inp_sem);
+// consumer
+kittens::wait(inp_sem, 0);
+kittens::warp::load(Wt, weight_smem);
+// ... compute ...
+kittens::tma::store_async(g.O, out_smem_vec, kittens::coord<>{out_block});
+kittens::tma::store_async_wait();
+```
 
-Create a micro_globals struct containing all inputs and outputs as TK global layouts plus scalar parameters. Each tensor must be declared as kittens::gl<kittens::half, -1, -1, -1, -1, kittens::st<kittens::half, TILE_M, TILE_N>> with runtime 4D shape (unused logical dimensions indexed with zeros). The struct must define dim3 grid() returning grid dimensions (typically based on output tiling), dim3 block() returning dim3(NUM_THREADS), and optionally size_t dynamic_shared_memory() returning required bytes if using shared memory.
+=====================
+C++/CUDA FILE REQUIREMENTS
+=====================
+- Includes:
+- `#include "kittens.cuh"`
+- `#include "pyutils/pyutils.cuh"`
+- No `using namespace kittens;`
+- Launch config:
+- e.g., `#define NUM_WORKERS (1)`
+- `#define NUM_THREADS (NUM_WORKERS * kittens::WARP_THREADS)`
+- Tile dimensions are multiples of 16.
+- micro_globals:
+- Contains all inputs/outputs as TK global layouts + scalar params.
+- Each tensor as: `kittens::gl<kittens::half, -1, -1, -1, -1, kittens::st<kittens::half, TILE_M, TILE_N>>`
+  with runtime 4D shape (unused logical dims may be indexed with zeros).
+- Kernel signature:
+- `__global__ __launch_bounds__(NUM_THREADS, 1) void micro_tk(const __grid_constant__ micro_globals g)`
+- Shared allocator (must use alignment_dummy):
+- ```
+  extern __shared__ kittens::alignment_dummy __shm[];
+  kittens::shared_allocator al((int*)&__shm[0]);
+  ```
+- Allocate tiles:
+- Shared: `auto& x_s = al.allocate<kittens::st<kittens::half, M, N>>();`
+- Registers: `kittens::rt<kittens::half, M, N, kittens::ducks::rt_layout::row|col> x_rt;`
+- **Match shared/register widths** for group load/store.
+- Dispatcher:
+- `void dispatch_micro(micro_globals g)`:
+  - Optionally `cudaFuncSetAttribute(micro_tk, cudaFuncAttributeMaxDynamicSharedMemorySize, mem_size);`
+  - Launch: `micro_tk<<<g.grid(), g.block(), mem_size>>>(g);`
+  - `cudaDeviceSynchronize();`
+- PyBind11 binding (member pointers; order matches struct fields):
+- ```
+  PYBIND11_MODULE(tk_kernels, m) {
+    kittens::py::bind_kernel<micro_tk, micro_globals>(m, "micro_tk",
+      &micro_globals::A, &micro_globals::B, &micro_globals::C, &micro_globals::M, &micro_globals::N);
+    kittens::py::bind_function<dispatch_micro, micro_globals>(m, "dispatch_micro",
+      &micro_globals::A, &micro_globals::B, &micro_globals::C, &micro_globals::M, &micro_globals::N);
+  }
+  ```
 
-Implement the kernel with signature __global__ __launch_bounds__(NUM_THREADS, 1) void micro_tk(const __grid_constant__ micro_globals g). Inside, set up the shared allocator: extern __shared__ kittens::alignment_dummy __shm[]; kittens::shared_allocator al((int*)&__shm[0]);. Allocate shared tiles via auto& x_s = al.allocate<kittens::st<kittens::half, M, N>>() and register tiles as kittens::rt<kittens::half, M, N, kittens::ducks::rt_layout::row> or col depending on layout requirements. CRITICAL: Shared tile width must match register tile width for load/store operations to avoid "Group load/store requires tile widths to match" errors. 
+=====================
+PYTHON FILE REQUIREMENTS
+=====================
+- `import tk_kernels` and standard PyTorch imports at top.
+- Define:
+- `class ModelNew(torch.nn.Module):`
+  - `def forward(self, ...):`
+    - Ensure inputs on CUDA (`.cuda()` as needed).
+    - Allocate outputs on CUDA with correct `dtype`/shape.
+    - Call `tk_kernels.dispatch_micro(...)` with args in the **exact** order as in the PyBind signature.
+    - Return the output tensor.
+- No printing, checks, seeding, timing, or tests.
 
-CRITICAL: For tensor core operations, use bf16 inputs with float accumulators:
-- Input register tiles: kittens::rt_bf<M, N, kittens::ducks::rt_layout::row>
-- Accumulator register tiles: kittens::rt_fl<M, N, kittens::ducks::rt_layout::row>
-- This prevents "static assertion failed" errors on H100 tensor cores.
+=====================
+COMMON PITFALLS / FIXES (strict)
+=====================
+1) Never declare `using dtype = fp16;` (causes compile errors).
+2) Never use `0` in global layout template dims—use `-1` for runtime dims.
+3) For tensor cores: use `kittens::rt_bf<>` inputs with `kittens::rt_fl<>` accumulators.
+4) Always call ops via `kittens::warp::…` (or `kittens::warpgroup::…`), never unqualified.
+5) Use `kittens::alignment_dummy __shm[]` for shared memory (not `int __shm[]`).
+6) For batched ops, index `{batch, row, col}` (3D), not `{batch, 0, row, col}`.
+7) Use `__host__` (not `KITTENS_HOST_DEVICE`) for host functions.
+8) For scalar→half convert, use `__float2half()` (not `kittens::to_half()`).
+9) In pybind, pass **member pointers** (`&Class::member`), not string names.
+10) Use a fixed integer (e.g., `100000`) for `dynamic_shared_memory()` sizing; avoid template-size expressions.
+11) For scalar broadcasting to tiles: `kittens::warp::zero(tile); kittens::warp::add(tile, tile, scalar);`
+12) Allocate shared tiles with `auto& x_s = al.allocate<...>();` (not `*al.allocate`).
+13) For matmul use `kittens::warp::mma_AB(accum, A, B, accum)` (not elementwise mul+add).
+14) Global layout coordinates are **tile indices** `{b, h, r_tile, c_tile}` (not element offsets).
+15) Match shared/register **widths** to avoid “Group load/store requires tile widths to match”.
+16) Align grid/block with actual warp count (e.g., 4 warps = 2×2 layout = 32×32).
 
-Move data using kittens::warp::load(shared_tile, g.some_gl, {b, h, r, c}) for global-to-shared, kittens::warp::load(reg_tile, shared_tile) for shared-to-register, kittens::warp::store(shared_tile, reg_tile) for register-to-shared, and kittens::warp::store(g.some_gl, shared_tile, {b, h, r, c}) for shared-to-global. Use __syncthreads() between phases. Ensure shared memory usage does not exceed the dynamic allocation size. For matrix multiplication, use kittens::warp::mma_AB(accum, a_rt, b_rt, accum) instead of elementwise operations. Store results directly from registers to global when tile shapes match.
-
-Provide a dispatcher void dispatch_micro(micro_globals g) that optionally calls cudaFuncSetAttribute(micro_tk, cudaFuncAttributeMaxDynamicSharedMemorySize, mem_size), launches micro_tk<<<g.grid(), g.block(), mem_size>>>(g), and calls cudaDeviceSynchronize().
-
-Bind using PYBIND11_MODULE(tk_kernels, m) with kittens::py::bind_kernel<micro_tk, micro_globals>(m, "micro_tk", &micro_globals::A, &micro_globals::B, &micro_globals::C, &micro_globals::M, &micro_globals::N) and kittens::py::bind_function<dispatch_micro, micro_globals>(m, "dispatch_micro", &micro_globals::A, &micro_globals::B, &micro_globals::C, &micro_globals::M, &micro_globals::N). Use member pointers (&Class::member), not string literals. The binding argument order must exactly match the fields declared in micro_globals.
-
-CRITICAL COMPILATION FIXES:
-1. NEVER use "using dtype = fp16;" - causes compilation errors
-2. NEVER use 0 for global layout dimensions - always use -1 for runtime
-3. For tensor cores: use kittens::rt_bf<> inputs with kittens::rt_fl<> accumulators
-4. Always use kittens::warp:: prefix for operations, never bare kittens::
-5. Use kittens::alignment_dummy __shm[] for shared memory, not int __shm[]
-6. For batched ops: use 3D indexing {batch, row, col} not 4D {batch, 0, row, col}
-7. Use __host__ instead of KITTENS_HOST_DEVICE for host functions
-8. Use __float2half() instead of kittens::to_half() for scalar conversion
-9. Use member pointers (&Class::member) in pybind bindings, not string literals
-10. Use fixed size (e.g., 100000) for dynamic_shared_memory(), not template calculations
-11. For scalar broadcasting: use kittens::warp::zero() then kittens::warp::add(tile, tile, scalar)
-12. Use auto& x_s = al.allocate<kittens::st<kittens::half, M, N>>() for shared tiles, NOT *al.allocate
-13. For matrix multiplication: use kittens::warp::mma_AB(accum, a_rt, b_rt, accum), NOT elementwise mul+add
-14. Global layout coordinates are TILE INDICES {b, h, r_tile, c_tile}, NOT element offsets
-15. Match shared tile width to register tile width to avoid "Group load/store requires tile widths to match"
-16. Align grid/block dimensions with actual warp count (4 warps = 2×2 layout = 32×32 macro-tile)
-
-Python File Structure:
-
-Import the extension with import tk_kernels at the top along with standard PyTorch imports. Define class ModelNew(torch.nn.Module) with the same forward signature as the original model. Inside forward, ensure inputs are CUDA tensors (call .cuda() if needed), allocate output tensors on CUDA with correct dtype and shape, call tk_kernels.dispatch_micro(...) passing inputs, outputs, and scalars in the same order as the pybind signature, and return the output tensor. Include no printing, correctness checks, seeding, timing, or test code.
+=====================
+CHECKLIST BEFORE YOU FINISH
+=====================
+- Exactly two code blocks produced: (1) C++/CUDA pybind module **tk_kernels** with `micro_tk` and `dispatch_micro`; (2) Python `ModelNew` calling the dispatcher in `forward`.
+- All TK calls are fully qualified with `kittens::…`.
+- No extra text, prints, tests, or timing code.
 """
+
+
