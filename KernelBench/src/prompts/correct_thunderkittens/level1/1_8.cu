@@ -1,3 +1,12 @@
+/*
+============================================================
+🎯 EVALUATION RESULT for Level 1 Problem 8
+============================================================
+Problem: 8_Matmul_with_irregular_shapes_
+Result: compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=11.5 runtime_stats={'mean': 11.5, 'std': 0.0107, 'min': 11.5, 'max': 11.5, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 6.43, 'std': 0.00782, 'min': 6.42, 'max': 6.47, 'num_trials': 100}, 'speedup_ratio': 0.559}}
+============================================================
+*/
+
 // tk_kernels.cu — Irregular-shape GEMM (fp16) with float accumulate, no TK TMA
 // C[M,N] = A[M,K] @ B[K,N], works for any M,N,K (no 16-alignment needed).
 // Uses a 64×64 block tile, K-stepping by 16, float accumulators, and fp16 I/O.

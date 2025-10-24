@@ -1,3 +1,12 @@
+/*
+============================================================
+🎯 EVALUATION RESULT for Level 1 Problem 25
+============================================================
+Problem: 25_Swish
+Result: compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=7.64 runtime_stats={'mean': 7.64, 'std': 0.00564, 'min': 7.63, 'max': 7.67, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 10.5, 'std': 0.0065, 'min': 10.5, 'max': 10.5, 'num_trials': 100}, 'speedup_ratio': 1.37}}
+============================================================
+*/
+
 // tk_kernels.cu -------------------------------------------------------------
 // Swish activation ( Y = X * sigmoid(X) ) implemented with ThunderKittens.
 //

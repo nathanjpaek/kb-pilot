@@ -1,3 +1,4 @@
+# SPEEDUP: 0.486x (Attempt 1/1 - SUCCESS)
 # model_new.py
 import torch
 import tk_kernels

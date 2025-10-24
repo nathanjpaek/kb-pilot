@@ -10,7 +10,7 @@ class ModelNew(torch.nn.Module):
     def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         x = x.contiguous().to(torch.float16).cuda()
         mask = mask.contiguous().to(torch.float16).cuda()
-        b, n = x.shape
+        M, N = x.shape
         y = torch.empty_like(x)
-        tk_kernels.dispatch_micro(x, mask, y, int(b), int(n))
+        tk_kernels.dispatch_micro(x, mask, y, int(M), int(N))
         return y

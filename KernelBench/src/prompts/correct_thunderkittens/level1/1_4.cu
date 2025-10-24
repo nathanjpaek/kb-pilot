@@ -1,3 +1,12 @@
+/*
+============================================================
+🎯 EVALUATION RESULT for Level 1 Problem 4
+============================================================
+Problem: 4_Matrix_vector_multiplication_
+Result: compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=23.6 runtime_stats={'mean': 23.6, 'std': 0.0201, 'min': 23.6, 'max': 23.7, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 2.8, 'std': 0.00663, 'min': 2.79, 'max': 2.86, 'num_trials': 100}, 'speedup_ratio': 0.119}}
+============================================================
+*/
+
 // tk_matvec_noTMA_XY.cu
 // Mat-vec: Y[N] = W[NxK] @ X[K]
 // Guaranteed-correct on H100 even when X is bound as rows=K, cols=1.
