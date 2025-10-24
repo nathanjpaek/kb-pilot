@@ -39,6 +39,8 @@ from scripts.tk_guideline_prompt import TK_GUIDELINE_PROMPT
 from scripts.cute_paperinfo_prompt import CUTE_PAPER_PROMPT
 from scripts.cute_guideline_prompt import CUTE_GUIDELINE_PROMPT
 
+# Helion-specific prompts
+from scripts.helion_paperinfo_prompt import HELION_PAPERINFO_PROMPT
 
 app = modal.App("eval_rag_dsl")
 
@@ -351,9 +353,8 @@ def main(config: RAGEvalConfig):
             PAPER_PROMPT = CUTE_PAPER_PROMPT
             GUIDELINE_PROMPT = CUTE_GUIDELINE_PROMPT
         elif config.language == "helion":
-            # Reuse CuTe prompts for Helion until dedicated prompts exist
-            PAPER_PROMPT = CUTE_PAPER_PROMPT    # TODO: NATHAN CHANGE THIS PROMPT
-            GUIDELINE_PROMPT = CUTE_GUIDELINE_PROMPT
+            PAPER_PROMPT = HELION_PAPERINFO_PROMPT
+            #GUIDELINE_PROMPT = CUTE_GUIDELINE_PROMPT
         else:
             raise ValueError(f"Unsupported language: {config.language}. Use 'tilelang', 'thunderkittens', 'cute', or 'helion'")
         
