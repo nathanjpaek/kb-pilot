@@ -42,6 +42,9 @@ from scripts.cute_guideline_prompt import CUTE_GUIDELINE_PROMPT
 
 app = modal.App("eval_rag_dsl")
 
+# Enable Modal build logs to troubleshoot image build issues
+modal.enable_output()
+
 REPO_TOP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 torch.set_printoptions(precision=4, threshold=10)
@@ -127,7 +130,8 @@ image = (
         "openai",
         "packaging",
         "pydra_config",
-        "torch==2.5.0",
+        "torch==2.4.1",
+        "triton==3.0.0",
         "tqdm",
         "datasets",
         "transformers",
@@ -139,6 +143,7 @@ image = (
         "utils",
         "pybind11",
         "python-dotenv",
+        "helion",
         "tilelang",
         "apache-tvm",
         "dspy-ai",
