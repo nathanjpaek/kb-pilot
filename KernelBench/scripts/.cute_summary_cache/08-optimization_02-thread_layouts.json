@@ -1,0 +1,32 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/02-thread_layouts.md",
+  "category": "08-optimization",
+  "title": "Thread Layouts in CuTe DSL",
+  "key_concepts": [
+    "Thread-to-data mapping",
+    "Coalesced memory access",
+    "Bank conflict avoidance",
+    "Warp-level organization",
+    "Thread tile partitioning",
+    "Layout composition"
+  ],
+  "critical_patterns": [
+    "Linear Layout: 1D sequential thread mapping for simple data processing",
+    "2D Layout: Mapping threads to a 2D grid for matrix operations",
+    "Tiled Layout: Each thread processes a tile of elements for efficient data handling",
+    "Vectorized Layout: Threads access vector elements for SIMD operations"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef good_layout(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    bid = cute.arch.block_idx()[0]\n    block_size = cute.arch.block_dim_x()\n    idx = bid * block_size + tid\n    if idx < cute.size(data):\n        data[idx] = data[idx] * 2.0",
+    "@cute.kernel\ndef layout_2d(matrix: cute.Tensor):\n    tx = cute.arch.thread_idx()[0]\n    ty = cute.arch.thread_idx()[1]\n    bx = cute.arch.block_idx()[0]\n    by = cute.arch.block_idx()[1]\n    TILE_X, TILE_Y = 16, 16\n    i = bx * TILE_X + tx\n    j = by * TILE_Y + ty\n    if i < cute.shape(matrix)[0] and j < cute.shape(matrix)[1]:\n        matrix[i, j] = process(matrix[i, j])",
+    "@cute.kernel\ndef no_bank_conflict():\n    smem = cute.make_smem_tensor(cute.make_shape(32, 32), cutlass.Float32)\n    tid = cute.arch.thread_idx()[0]\n    lane_id = tid % 32\n    value = smem[lane_id, lane_id]",
+    "@cute.kernel\ndef warp_specialized():\n    tid = cute.arch.thread_idx()[0]\n    warp_id = tid // 32\n    if warp_id == 0:\n        producer_work()\n    else:\n        consumer_id = warp_id - 1\n        consumer_work(consumer_id)"
+  ],
+  "constraints": [
+    "Ensure threads access consecutive memory for coalescing",
+    "Avoid shared memory bank conflicts by padding",
+    "Use warp-size multiples for thread counts",
+    "Vectorize data access when possible"
+  ],
+  "compressed_summary": "Thread layouts in CuTe DSL are essential for optimizing GPU kernel performance, focusing on how threads map to data, ensuring coalesced memory access, and avoiding bank conflicts. Proper thread layout can significantly enhance compute throughput by organizing threads into efficient patterns. Key patterns include Linear Layout for simple 1D data processing, 2D Layout for matrix operations, Tiled Layout where each thread processes a tile of elements, and Vectorized Layout for SIMD operations. Code snippets illustrate good practices, such as ensuring contiguous memory access and avoiding bank conflicts by using padding. Constraints emphasize the importance of coalesced access, avoiding shared memory bank conflicts, using warp-size multiples, and vectorizing data access. Understanding and applying these principles can lead to substantial performance improvements, with potential speedups of 10-100\u00d7. The document also highlights the importance of warp-level organization and specialized layouts for advanced operations like GEMM and MMA on tensor cores. Best practices include ensuring coalesced access, using 2D layouts for matrices, adding padding to avoid bank conflicts, and vectorizing when possible. Avoid strided access, shared memory bank conflicts, and arbitrary thread counts not aligned with warp sizes. The right thread layout is critical for achieving optimal performance in GPU computing."
+}

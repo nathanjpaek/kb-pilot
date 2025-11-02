@@ -1,0 +1,42 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/09-debugging/01-debugging_techniques.md",
+  "category": "09-debugging",
+  "title": "Debugging Techniques for CuTe DSL",
+  "key_concepts": [
+    "Print debugging",
+    "Assertions and validation",
+    "Isolating problems",
+    "Reducing test cases",
+    "Comparing with reference",
+    "Using debuggers",
+    "Incremental development"
+  ],
+  "critical_patterns": [
+    "Start with the simplest possible test to isolate bugs effectively.",
+    "Use printf debugging to inspect values at specific points in the kernel.",
+    "Apply conditional printing to focus on problematic values.",
+    "Implement runtime assertions in kernels to check invariants.",
+    "Validate data before and after kernel execution to catch anomalies.",
+    "Employ binary search to narrow down bug locations.",
+    "Disable code sections to isolate faulty logic.",
+    "Simplify complex kernels to minimal examples for easier debugging.",
+    "Compare kernel output with a reference implementation to verify correctness.",
+    "Develop incrementally by testing each component separately."
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef debug_print(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    bid = cute.arch.block_idx()[0]\n    if tid == 0 and bid == 0:\n        cute.printf(\"Block %d, Thread %d: data[0] = %f\\n\", bid, tid, data[0])",
+    "@cute.kernel\ndef conditional_debug(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    bid = cute.arch.block_idx()[0]\n    idx = bid * 256 + tid\n    if idx < cute.size(data):\n        value = data[idx]\n        if value < 0.0:\n            cute.printf(\"WARNING: Negative value at idx=%d: %f\\n\", idx, value)",
+    "@cute.kernel\ndef with_assertions(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    if tid == 0:\n        cute.assert_(K_A == K_B, \"K dimension mismatch\")",
+    "def validate_and_launch(kernel, data, expected_min=None, expected_max=None):\n    data_before = data.clone()\n    kernel.launch(grid=[10,1,1], block=[256,1,1])(cute.from_dlpack(data))\n    torch.cuda.synchronize()",
+    "@cute.kernel\ndef complex_kernel(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    value = data[tid]\n    cute.printf(\"After load: %f\\n\", value)",
+    "def test_kernel_against_reference(kernel, A, B):\n    C_kernel = torch.zeros(A.shape[0], B.shape[1], device='cuda', dtype=A.dtype)\n    kernel.launch(grid=grid, block=block)(cute.from_dlpack(A), cute.from_dlpack(B), cute.from_dlpack(C_kernel))\n    torch.cuda.synchronize()"
+  ],
+  "constraints": [
+    "Avoid debugging with large datasets; start small.",
+    "Ensure print statements are limited to prevent excessive output.",
+    "Always validate input and output data for NaN or Inf values.",
+    "Use assertions to enforce kernel assumptions.",
+    "Incremental development helps in identifying which change introduces a bug."
+  ],
+  "compressed_summary": "Debugging GPU kernels in CuTe DSL involves a systematic approach due to the limited visibility of code running on a different processor. Key debugging techniques include print debugging, using assertions, isolating problems, reducing test cases, comparing with reference implementations, and incremental development. Print debugging involves using printf statements within kernels to inspect values at specific points, while conditional printing focuses on problematic values to avoid output spam. Assertions and validation check invariants and validate data before and after kernel execution to catch anomalies. Isolating problems can be achieved through binary search to narrow down bug locations, disabling code sections to isolate faulty logic, and simplifying complex kernels to minimal examples for easier debugging. Comparing kernel output with a reference implementation verifies correctness, and incremental development involves testing each component separately to ensure each part works before combining them. Constraints include starting with the simplest possible test to isolate bugs effectively, limiting print output to prevent excessive logs, and ensuring data validation to catch NaN or Inf values. Debugging tools such as cuda-memcheck, compute-sanitizer, and cuda-gdb can assist in detecting memory errors, race conditions, and performance bottlenecks. By following these strategies, developers can systematically identify and fix bugs in CuTe DSL kernels, ensuring efficient and correct GPU computations."
+}

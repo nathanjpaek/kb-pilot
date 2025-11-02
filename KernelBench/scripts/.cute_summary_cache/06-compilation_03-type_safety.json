@@ -1,0 +1,35 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/06-compilation/03-type_safety.md",
+  "category": "06-compilation",
+  "title": "Type Safety in CuTe DSL",
+  "key_concepts": [
+    "Type annotations for parameters",
+    "Type inference",
+    "Compile-time type checking",
+    "Runtime type validation",
+    "Common type errors and fixes",
+    "Benefits of strong typing"
+  ],
+  "critical_patterns": [
+    "Always annotate kernel parameters to ensure compile-time error checking",
+    "Use specific scalar types like cutlass.Int32 instead of Python int",
+    "Use cutlass.Constexpr for compile-time constants",
+    "Explicit casts are preferred for type conversions to avoid precision loss",
+    "Type specialization allows different kernels for different tensor dtypes"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef good_kernel(data: cute.Tensor, n: cutlass.Int32, threshold: cutlass.Float32):",
+    "@cute.kernel\ndef scalar_types(i8: cutlass.Int8, f32: cutlass.Float32):",
+    "@cute.kernel\ndef explicit_cast(data: cute.Tensor):\n    i: cutlass.Int32 = 42\n    f: cutlass.Float32 = cutlass.Float32(i)",
+    "@cute.kernel\ndef constexpr_vs_runtime(runtime_n: cutlass.Int32, compile_n: cutlass.Constexpr):",
+    "@cute.kernel\ndef requires_constexpr(n: cutlass.Constexpr):"
+  ],
+  "constraints": [
+    "Type annotations are mandatory for all kernel parameters",
+    "Compile-time constants must be marked with cutlass.Constexpr",
+    "Tensor types must be cute.Tensor, not torch.Tensor",
+    "Type mismatches are caught at compile time, preventing runtime errors",
+    "Implicit conversions may lead to precision loss and should be handled carefully"
+  ],
+  "compressed_summary": "CuTe DSL emphasizes type safety through mandatory type annotations for kernel parameters, enabling compile-time error detection and optimization. Strong typing ensures that errors are caught early, improving performance and code clarity. Key types include cute.Tensor for tensors and cutlass.Int32, cutlass.Float32 for scalars, with cutlass.Constexpr used for compile-time constants. Type inference is applied to return types and local variables, but explicit annotations are required for function parameters. Compile-time type checking prevents common errors like using incorrect types for array indices or mismatched function arguments. Type conversions should be explicit to avoid precision loss, and type specialization allows for optimized kernel compilation based on tensor dtypes. Best practices include always annotating parameters, using specific CuTe types over Python types, and employing Constexpr for values known at compile time. Runtime type validation is also recommended to ensure tensor compatibility before kernel execution. The document provides practical patterns and code snippets to guide developers in writing efficient and error-free GPU kernels with CuTe DSL."
+}

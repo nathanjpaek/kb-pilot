@@ -1,0 +1,26 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/03-memory_and_layouts/04-alignment.md",
+  "category": "03-memory_and_layouts",
+  "title": "Memory Alignment in CuTe DSL",
+  "key_concepts": [
+    "Memory alignment for optimized GPU operations",
+    "Aligned vs misaligned memory access",
+    "Use of cute.assume() for alignment assumptions"
+  ],
+  "critical_patterns": [
+    "Natural alignment from frameworks like PyTorch, JAX, TensorFlow",
+    "Using cute.assume() to inform compiler about alignment",
+    "Maintaining alignment when slicing tensors"
+  ],
+  "code_snippets": [
+    "cute.assume(pointer_or_tensor, align=N)",
+    "aligned_data = cute.assume(data, align=128)",
+    "aligned_input = cute.assume(input, align=16)"
+  ],
+  "constraints": [
+    "Address must be a multiple of N for alignment",
+    "Misaligned access can reduce bandwidth by 30-50%",
+    "Tensor core operations require 128-byte alignment"
+  ],
+  "compressed_summary": "Memory alignment in CuTe DSL is crucial for achieving optimal performance on GPUs, particularly for vectorized and tensor core operations. Proper alignment allows for full bandwidth utilization, whereas misaligned access can significantly degrade performance. CuTe provides the cute.assume() function to inform the compiler about alignment guarantees, enabling more efficient code generation. Common alignment values include 4 bytes for scalar loads, 16 bytes for vectorized operations, and 128 bytes for tensor core operations. Frameworks like PyTorch, JAX, and TensorFlow typically provide well-aligned tensors, but manual verification and conservative assumptions are recommended to ensure alignment. Slicing operations can break alignment, so care must be taken to maintain it. Debugging tools such as alignment checks and performance profiling can help identify and resolve alignment issues. Adhering to alignment constraints is essential for leveraging GPU capabilities fully, and developers should verify framework guarantees and profile their code to ensure alignment assumptions are beneficial."
+}

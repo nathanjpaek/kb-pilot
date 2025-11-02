@@ -1,0 +1,136 @@
+{
+  "category_name": "04-operations",
+  "category_path": "",
+  "file_summaries": [
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/04-operations/00-copy_atoms.md",
+      "category": "04-operations",
+      "title": "Efficient Data Movement with Copy Atoms in CuTe DSL",
+      "key_concepts": [
+        "Copy atoms simplify data movement between memory spaces",
+        "Encapsulation of source/destination memory, data layout, and hardware instruction",
+        "Use of vectorized loads, async copy, and TMA for optimization"
+      ],
+      "critical_patterns": [
+        "GMEM \u2192 RMEM: Use vectorized loads for efficient data transfer",
+        "GMEM \u2192 SMEM: Prefer async copy for non-blocking transfers",
+        "SMEM \u2192 RMEM: Optimize for MMA preparation using copy atoms",
+        "RMEM \u2192 GMEM: Use vectorized stores when data is aligned"
+      ],
+      "code_snippets": [
+        "@cute.kernel\ndef basic_copy_example(src: cute.Tensor, dst: cute.Tensor):\n    idx = cute.arch.thread_idx()[0]\n    dst[idx] = src[idx]",
+        "@cute.kernel\ndef vectorized_gmem_to_rmem(gmem_src: cute.Tensor):\n    copy_atom = cute.make_copy_atom_vectorized(cutlass.Float32, vec_size=4)\n    rmem_dst = cute.make_rmem_tensor(cute.make_shape(4), cutlass.Float32)\n    cute.copy(copy_atom, gmem_src[tid * 4 : tid * 4 + 4], rmem_dst)",
+        "@cute.kernel\ndef gmem_to_smem_async(gmem_src: cute.Tensor):\n    smem_dst = cute.make_smem_tensor(cute.make_shape(128, 64), cutlass.Float32)\n    async_copy_atom = cute.make_copy_atom_async(cutlass.Float32)\n    cute.copy(async_copy_atom, gmem_src[tile_offset], smem_dst)\n    cute.arch.cp_async_wait_all()\n    cute.arch.syncthreads()",
+        "@cute.kernel\ndef tiled_copy_example(gmem_src: cute.Tensor, smem_dst: cute.Tensor):\n    tiled_copy = cute.make_tiled_copy(copy_atom=cute.UniversalCopy(), thread_layout=cute.make_shape(256, 1), value_layout=cute.make_shape(128, 64))\n    thread_copy = tiled_copy.get_slice(cute.arch.thread_idx()[0])\n    thread_src = thread_copy.partition_S(gmem_src)\n    thread_dst = thread_copy.partition_D(smem_dst)\n    cute.copy(tiled_copy, thread_src, thread_dst)\n    cute.arch.syncthreads()"
+      ],
+      "constraints": [
+        "Ensure memory alignment for vectorization",
+        "Synchronize after SMEM writes to avoid race conditions",
+        "Match sizes and types for source and destination tensors",
+        "Avoid shared memory bank conflicts by using padding or swizzling"
+      ],
+      "compressed_summary": "CuTe DSL's copy atoms are crucial for efficient data movement across different memory spaces in GPU programming. They abstract complex hardware instructions into manageable operations, enabling vectorized loads, asynchronous copying, and TMA (Tensor Memory Accelerator) for optimized performance. Key patterns include GMEM to RMEM transfers using vectorized loads, GMEM to SMEM using async copy for non-blocking operations, and SMEM to RMEM optimized for MMA (Matrix Multiply-Accumulate) preparation. RMEM to GMEM operations should leverage vectorized stores when data is aligned. Constraints include ensuring memory alignment for vectorization, synchronizing after shared memory writes to prevent race conditions, and matching tensor sizes and types to avoid errors. Performance can be optimized by coalescing global memory accesses, avoiding shared memory bank conflicts, and using pipelined copies to overlap with computation. Architecture-specific features like Ampere's async copy and Hopper's TMA offer significant performance benefits by reducing thread involvement and accelerating large tile transfers. Understanding and applying these patterns and constraints is essential for writing efficient GPU kernels using CuTe DSL."
+    },
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/04-operations/01-mma_atoms.md",
+      "category": "04-operations",
+      "title": "MMA Atoms and Tensor Core Operations in CuTe DSL",
+      "key_concepts": [
+        "MMA atoms are essential for tensor core operations",
+        "Architecture-specific instructions for performance",
+        "Tile size, data types, and thread layout are crucial"
+      ],
+      "critical_patterns": [
+        "Accumulation Loop: Efficiently accumulate results over K dimension",
+        "Mixed Precision Pipeline: Use FP16 for compute, FP32 for accumulation",
+        "Split-K: Parallel K reduction for distributed workloads"
+      ],
+      "code_snippets": [
+        "@cute.kernel\ndef simple_mma_example():\n    mma_atom = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F16F16_TN)\n    frag_A = cute.make_rmem_tensor(cute.make_shape(16, 16), cutlass.Float16)\n    frag_B = cute.make_rmem_tensor(cute.make_shape(16, 8), cutlass.Float16)\n    frag_C = cute.make_rmem_tensor(cute.make_shape(16, 8), cutlass.Float16)\n    frag_C.store(0.0)\n    cute.gemm(mma_atom, frag_C, frag_A, frag_B, frag_C)",
+        "@cute.kernel\ndef ampere_fp16_mma():\n    mma = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F16F16_TN)\n    # Inputs: FP16, Output: FP16",
+        "@cute.kernel\ndef aligned_mma(A: cute.Tensor, B: cute.Tensor):\n    aligned_A = cute.assume(A, align=128)\n    aligned_B = cute.assume(B, align=128)\n    mma = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F32F32_TN)"
+      ],
+      "constraints": [
+        "Ensure memory alignment for optimal performance",
+        "Use FP32 accumulation to prevent precision loss",
+        "Match MMA atom to data types to avoid mismatches",
+        "Initialize accumulators to zero before use"
+      ],
+      "compressed_summary": "MMA (Matrix Multiply-Accumulate) atoms are the core components for utilizing tensor cores in CuTe DSL, offering significant speedups over traditional CUDA cores. These atoms encapsulate matrix dimensions, data types, tensor core instructions, and thread layouts to perform operations like `D = A \u00d7 B + C` efficiently. The naming convention for MMA atoms includes architecture, tile dimensions, data types, and layout, such as `SM80_16x8x16_F16F16F16F16_TN`. Architecture-specific atoms exist for Ampere (SM80), Hopper (SM90), and Blackwell (SM100), each with unique capabilities and performance characteristics. For instance, Ampere supports FP16 and BF16 with FP32 accumulation, while Hopper introduces FP8 for maximum throughput. Key patterns include accumulation loops for efficient K-dimension processing, mixed precision pipelines for balancing speed and accuracy, and Split-K for parallel reductions. Best practices emphasize using FP32 for accumulation, initializing accumulators, matching MMA atoms to data types, and verifying results against references. Performance varies by data type, with FP16 and FP8 offering substantial speedups. Larger tiles improve efficiency but may impact register usage. Debugging involves checking fragment shapes and verifying results. Aligning memory and adhering to layout requirements are crucial for optimal performance. The document provides a comprehensive guide to implementing and optimizing MMA operations in CuTe DSL, with links to further reading on CUDA and specific GPU architectures."
+    },
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/04-operations/02-tiled_operations.md",
+      "category": "04-operations",
+      "title": "Tiled Operations in CuTe DSL",
+      "key_concepts": [
+        "Tiled operations extend single-thread atoms to multi-thread cooperation",
+        "Efficient GPU utilization through cooperative processing of large tiles",
+        "Partitioning source and destination tensors for thread-specific operations"
+      ],
+      "critical_patterns": [
+        "Tiled MMA: 128\u00d7128\u00d732 tile using multiple threads for efficient matrix multiplication",
+        "Tiled Copy: Cooperative data movement across threads for large tile processing",
+        "Thread Layout: Arrangement of threads to cover operations in 1D, 2D, or 3D"
+      ],
+      "code_snippets": [
+        "tiled_copy = cute.make_tiled_copy(copy_atom, thread_layout, value_layout)",
+        "tiled_mma = cute.make_tiled_mma(mma_atom, thread_layout, value_layout)",
+        "cute.copy(tiled_copy, thread_src, thread_dst)",
+        "cute.gemm(tiled_mma, frag_C, frag_A, frag_B, frag_C)"
+      ],
+      "constraints": [
+        "Ensure synchronization after shared memory writes",
+        "Balance tile size with register pressure to maintain GPU occupancy",
+        "Avoid using tiles that are too small or too large to prevent inefficiency"
+      ],
+      "compressed_summary": "Tiled operations in CuTe DSL are designed to extend the functionality of single-thread atoms, such as copy atoms and MMA atoms, to enable cooperative processing across multiple threads. This approach allows for efficient GPU utilization by processing larger tiles of data, such as 128\u00d7128\u00d732, through the collective effort of a group of threads, typically organized in warps or thread blocks. The primary functions used in tiled operations include `make_tiled_copy()` for cooperative data movement and `make_tiled_mma()` for cooperative matrix multiplication. These functions require defining thread and value layouts, which dictate how threads are arranged and how many values each thread processes. Key patterns include warp-level cooperation, where a single warp processes a tile, and block-level cooperation, where multiple warps work together on larger tiles. Common tiling strategies involve using square tiles for balanced workloads, rectangular tiles for non-square matrices, and large K tiles for compute-bound cases. It is crucial to manage register pressure by choosing appropriate tile sizes, as larger tiles use more registers per thread but can lead to reduced occupancy if not balanced correctly. Best practices suggest starting with standard tile sizes like 128\u00d7128\u00d732, profiling different sizes to find the optimal configuration, and ensuring synchronization after shared memory operations to avoid race conditions. The document also highlights the importance of partitioning operations, such as `partition_S()` and `partition_D()`, to allocate specific portions of tensors to individual threads, facilitating efficient data handling and computation. Overall, tiled operations are essential for maximizing performance in GPU kernels by leveraging the parallel processing capabilities of modern GPUs."
+    },
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/04-operations/03-partition_operations.md",
+      "category": "04-operations",
+      "title": "Partition Operations in CuTe DSL",
+      "key_concepts": [
+        "Partitioning divides tensors among computational units",
+        "Spatial, Strided, and Hierarchical partitioning types",
+        "Partition functions for source, destination, and MMA matrices"
+      ],
+      "critical_patterns": [
+        "Block-Level Partitioning: Each block processes a tile of the tensor",
+        "Thread-Level Partitioning: Threads within a block further partition data",
+        "2D Partitioning: Partition a 2D tensor among a 2D thread layout",
+        "Cyclic Partitioning: Distribute work cyclically for load balancing"
+      ],
+      "code_snippets": [
+        "@cute.kernel\ndef spatial_partition(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    start = tid * 4\n    for i in range(4):\n        process(data[start + i])",
+        "@cute.kernel\ndef strided_partition(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    num_threads = cute.arch.block_dim_x()\n    for i in range(tid, cute.size(data), num_threads):\n        process(data[i])",
+        "@cute.kernel\ndef hierarchical_partition(data: cute.Tensor):\n    bid = cute.arch.block_idx()[0]\n    block_data = data[bid]\n    wid = cute.arch.thread_idx()[0] // 32\n    warp_data = block_data[wid]\n    lane = cute.arch.thread_idx()[0] % 32\n    thread_data = warp_data[lane]\n    process(thread_data)",
+        "@cute.kernel\ndef partition_source_example(gmem: cute.Tensor, smem: cute.Tensor):\n    tiled_copy = cute.make_tiled_copy(...)\n    tid = cute.arch.thread_idx()[0]\n    thread_copy = tiled_copy.get_slice(tid)\n    thread_src = thread_copy.partition_S(gmem)\n    thread_dst = thread_copy.partition_D(smem)\n    cute.copy(tiled_copy, thread_src, thread_dst)"
+      ],
+      "constraints": [
+        "Ensure partitions align with memory boundaries for coalesced access",
+        "Verify all elements are covered exactly once",
+        "Avoid non-coalesced and unbalanced partitions",
+        "Check bounds to prevent out-of-bounds access"
+      ],
+      "compressed_summary": "Partitioning in CuTe DSL is crucial for efficient parallel GPU programming, dividing large tensors into smaller views for threads, warps, or blocks. Key partitioning types include Spatial, Strided, and Hierarchical, each with specific use cases. Spatial partitioning assigns contiguous elements to threads, Strided assigns every Nth element, and Hierarchical divides data at multiple levels (block, warp, thread). CuTe provides functions like partition_S() for source tensors and partition_D() for destination tensors, essential for copy operations. For matrix operations, partition_A(), partition_B(), and partition_C() are used for MMA operations. Best practices include ensuring coalesced memory access, balancing workloads, and verifying partition coverage. Common patterns involve Block-Level Partitioning, where each block processes a tensor tile, and 2D Partitioning, which divides a 2D tensor among a 2D thread layout. Cyclic Partitioning helps balance irregular workloads. Avoid mistakes like incorrect partition sizes, non-coalesced access, and unbalanced partitions. Use static partitioning for compile-time constants and dynamic partitioning for runtime flexibility. Always verify that all elements are processed and no overlaps occur. For further exploration, refer to related topics like tiled operations and MMA atoms."
+    }
+  ],
+  "unified_concepts": [
+    "Efficient data movement and processing through copy and MMA atoms",
+    "Cooperative multi-thread operations for large tile processing",
+    "Partitioning strategies for optimal GPU resource utilization"
+  ],
+  "essential_patterns": [
+    "Use copy atoms for GMEM to RMEM transfers with vectorized loads and async copy for GMEM to SMEM for non-blocking operations",
+    "Implement MMA atoms for tensor core operations with architecture-specific optimizations like FP16 and FP8 support",
+    "Apply tiled operations to extend single-thread atoms to multi-thread cooperation, optimizing large tile processing",
+    "Utilize partitioning functions like partition_S() and partition_D() for efficient data handling in copy and MMA operations"
+  ],
+  "common_pitfalls": [
+    "Failing to ensure memory alignment for vectorization",
+    "Neglecting synchronization after shared memory writes, leading to race conditions",
+    "Choosing inappropriate tile sizes that increase register pressure and reduce occupancy",
+    "Incorrect partition sizes leading to non-coalesced access and unbalanced workloads"
+  ],
+  "compressed_overview": "The 04-operations category in CuTe DSL focuses on optimizing GPU programming through efficient data movement, tensor core operations, and cooperative multi-thread processing. Copy atoms abstract complex hardware instructions, enabling optimized data transfers across memory spaces using vectorized loads and async copy. MMA atoms are crucial for leveraging tensor cores, offering significant performance improvements with architecture-specific instructions. Tiled operations extend single-thread atoms to multi-thread cooperation, allowing efficient processing of large data tiles. Partitioning divides tensors among computational units, enhancing parallel processing efficiency. Developers must ensure memory alignment, synchronize shared memory operations, and select appropriate tile sizes to avoid common pitfalls. Understanding these concepts and patterns is essential for writing high-performance GPU kernels."
+}

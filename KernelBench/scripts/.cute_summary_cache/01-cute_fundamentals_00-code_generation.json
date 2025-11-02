@@ -1,0 +1,29 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/00-code_generation.md",
+  "category": "01-cute_fundamentals",
+  "title": "Code Generation Techniques in CuTe DSL",
+  "key_concepts": [
+    "AST Rewriting",
+    "Tracing",
+    "Intermediate Representation (IR)",
+    "Preprocessor Mode",
+    "Tracing Mode"
+  ],
+  "critical_patterns": [
+    "Use preprocessor=True for functions with loops or conditionals",
+    "Tracing mode is suitable only for simple arithmetic operations",
+    "AST Rewriting preserves control flow for optimization",
+    "Tracing records executed operations only, losing untaken branches"
+  ],
+  "code_snippets": [
+    "@cute.jit(preprocessor=True) def kernel_function(...): ...",
+    "@cute.jit(preprocessor=False) def simple_arithmetic(...): ..."
+  ],
+  "constraints": [
+    "Tracing mode cannot handle loops or conditionals correctly",
+    "Preprocessor mode requires adherence to CuTe DSL's supported syntax",
+    "Dynamic Python patterns are not supported in AST Rewriting",
+    "Loops in tracing mode flatten to observed iteration count"
+  ],
+  "compressed_summary": "CuTe DSL employs two primary techniques for converting Python code into GPU kernels: AST Rewriting and Tracing. AST Rewriting analyzes the Abstract Syntax Tree (AST) of a function before execution, preserving control flow structures like loops and conditionals, which allows for optimizations such as loop tiling and vectorization. This method ensures correctness across all valid inputs but requires adherence to a well-defined subset of Python syntax. Tracing, on the other hand, records operations during a single execution with proxy arguments, resulting in a flat sequence of operations. While this method offers near-zero compile latency and supports many Python features, it fails to capture untaken branches and loops, making it unsuitable for functions with control flow. CuTe DSL offers two modes: Tracing Only (preprocessor=False) for simple arithmetic operations and Preprocessor Mode (preprocessor=True) for functions with control flow, which is the default and recommended setting. Preprocessor Mode combines AST Rewriting and Tracing to generate optimized and correct kernels, while Tracing Only mode should be used sparingly due to its limitations. Debugging tools and environment variables are available to assist with code generation issues, such as enabling IR dumping and verbose logging. Overall, the default preprocessor=True mode is recommended for most use cases, ensuring robust and optimized kernel generation."
+}

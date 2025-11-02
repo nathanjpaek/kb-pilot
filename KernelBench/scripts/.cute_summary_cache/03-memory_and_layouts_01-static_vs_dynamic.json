@@ -1,0 +1,28 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/03-memory_and_layouts/01-static_vs_dynamic.md",
+  "category": "03-memory_and_layouts",
+  "title": "Static vs Dynamic Layouts in CuTe DSL",
+  "key_concepts": [
+    "Static layouts: compile-time known shape/stride",
+    "Dynamic layouts: runtime known shape/stride",
+    "Trade-off between performance and flexibility",
+    "Hybrid approach: static inner, dynamic outer"
+  ],
+  "critical_patterns": [
+    "Use static layouts for fixed problem sizes and performance-critical kernels",
+    "Use dynamic layouts for arbitrary input sizes and many size variants",
+    "Hybrid approach: static tile size, dynamic number of tiles"
+  ],
+  "code_snippets": [
+    "@cute.jit\ndef static_layout_example():\n    shape = cute.make_shape(128, 64)\n    stride = cute.make_stride(1, 128)\n    layout = cute.make_layout(shape, stride)",
+    "@cute.jit\ndef dynamic_layout_example(m: cutlass.Int32, n: cutlass.Int32):\n    shape = cute.make_shape(m, n)\n    stride = cute.make_stride(1, m)\n    layout = cute.make_layout(shape, stride)",
+    "@cute.kernel\ndef hybrid_kernel(data: cute.Tensor, tile_m: cutlass.Constexpr, tile_n: cutlass.Constexpr, num_tiles: cutlass.Int32):\n    for tile_idx in range(num_tiles):\n        for i in cutlass.range_constexpr(tile_m):\n            for j in cutlass.range_constexpr(tile_n):\n                idx = tile_idx * tile_m * tile_n + i * tile_n + j\n                process(data[idx])"
+  ],
+  "constraints": [
+    "Static layouts require recompilation for different sizes",
+    "Dynamic layouts have runtime address calculation overhead",
+    "Static layouts offer better optimization but less flexibility",
+    "Dynamic layouts are more flexible but slightly slower"
+  ],
+  "compressed_summary": "CuTe DSL provides support for both static and dynamic layouts, each with distinct trade-offs. Static layouts, where shape and stride are known at compile time, allow for better compiler optimizations such as loop unrolling and address calculation, resulting in potentially faster code execution. However, they require recompilation for different sizes, leading to less flexibility and more compilation overhead. Dynamic layouts, on the other hand, have shapes and strides determined at runtime, offering flexibility and faster compilation times since a single kernel can handle various sizes. The trade-off is a slight performance hit due to runtime address calculation overhead and less aggressive compiler optimizations. A hybrid approach can be beneficial, where static layouts are used for inner dimensions to optimize performance, while dynamic layouts handle outer dimensions for flexibility. Best practices suggest using static layouts for fixed problem sizes, performance-critical kernels, and when the number of size variants is small. Dynamic layouts are preferable when dealing with arbitrary input sizes, many size variants, or when compilation time is a concern. Profiling is recommended to determine the actual impact of using static versus dynamic layouts, as the performance difference may be negligible for compute-bound kernels. Utilizing `cute.assume()` can help optimize dynamic code by providing the compiler with hints, bridging the performance gap between static and dynamic layouts. The document also outlines strategies for kernel compilation, such as generating one static kernel per size, using a single dynamic kernel for all sizes, or a hybrid strategy that combines both approaches for common and uncommon sizes."
+}

@@ -1,0 +1,32 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/01-layouts.md",
+  "category": "01-cute_fundamentals",
+  "title": "CuTe Layout Algebra for GPU Kernel Optimization",
+  "key_concepts": [
+    "Hierarchical layout algebra",
+    "Composable abstractions for memory addressing",
+    "Shape and stride define layouts",
+    "Compile-time optimization",
+    "Architecture portability"
+  ],
+  "critical_patterns": [
+    "Row-Major: Sequential row access, good for C/C++",
+    "Column-Major: Sequential column access, good for Fortran/BLAS",
+    "Swizzled Layout: Avoids bank conflicts in shared memory",
+    "Blocked/Tiled Layout: Enhances cache efficiency and maps to GPU thread blocks"
+  ],
+  "code_snippets": [
+    "shape = cute.make_shape(64, 32)",
+    "stride = cute.make_stride(1, 64)",
+    "layout = cute.make_layout(cute.make_shape(64, 32), cute.make_stride(1, 64))",
+    "tensor = cute.make_tensor(ptr, layout)",
+    "tiled = cute.zipped_divide(global_layout, tile_shape)"
+  ],
+  "constraints": [
+    "Proper stride selection is critical to avoid bank conflicts",
+    "Layouts must match the memory order of the data source",
+    "Tensor cores require specific alignment",
+    "TMA and TMEM have specific layout requirements"
+  ],
+  "compressed_summary": "CuTe's layout algebra provides a powerful abstraction for managing memory addressing in GPU kernels, offering compile-time optimization and reducing manual errors. Layouts are defined by shape and stride, which describe the logical dimensions and memory traversal steps, respectively. Key layout patterns include row-major, column-major, swizzled, and blocked/tiled layouts, each suited for specific access patterns and performance optimizations. Proper stride selection is crucial to avoid shared memory bank conflicts and ensure memory coalescing, which is vital for maximizing bandwidth. CuTe's layout composition allows for complex memory patterns, such as tiled matrix layouts, enhancing cache efficiency and facilitating GPU thread block mapping. Practical usage involves creating tensors with layouts, partitioning layouts for thread blocks, and slicing/indexing for specific data access. Architecture-specific considerations, such as those for Ampere, Hopper, and Blackwell architectures, dictate specific layout requirements for optimal performance. Common pitfalls include mismatched layout and memory order, improper stride causing bank conflicts, and not considering alignment requirements for tensor cores. Advanced operations like composition, complement, logical division, and zipped division enable further layout manipulation. Overall, CuTe layouts provide a robust framework for automatic address calculation, bank conflict avoidance, and memory coalescing control, ensuring architecture portability and efficient GPU kernel execution."
+}

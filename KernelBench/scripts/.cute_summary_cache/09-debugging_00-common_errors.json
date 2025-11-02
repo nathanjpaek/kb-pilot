@@ -1,0 +1,35 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/09-debugging/00-common_errors.md",
+  "category": "09-debugging",
+  "title": "Common Errors in CuTe DSL",
+  "key_concepts": [
+    "Compilation errors",
+    "Runtime errors",
+    "Memory errors",
+    "Type errors",
+    "Launch configuration errors",
+    "Synchronization errors"
+  ],
+  "critical_patterns": [
+    "Type Errors: Missing annotations, wrong types",
+    "Memory Errors: Out of bounds, alignment issues",
+    "Launch Errors: Invalid grid/block dimensions",
+    "Synchronization Errors: Missing barriers, race conditions",
+    "Compilation Errors: Syntax, imports, JIT issues"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef with_annotation(data: cute.Tensor):\n    data[0] = 1.0",
+    "@cute.kernel\ndef correct_type(data: cute.Tensor, n: cutlass.Int32):\n    if cute.arch.thread_idx()[0] < n:\n        data[cute.arch.thread_idx()[0]] = 0.0",
+    "@cute.kernel\ndef with_bounds_check(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    bid = cute.arch.block_idx()[0]\n    idx = bid * 256 + tid\n    if idx < cute.size(data):\n        data[idx] = 0.0",
+    "@cute.kernel\ndef with_sync():\n    smem = cute.make_smem_tensor(cute.make_shape(256), cutlass.Float32)\n    tid = cute.arch.thread_idx()[0]\n    smem[tid] = tid\n    cute.arch.syncthreads()\n    value = smem[(tid + 1) % 256]",
+    "grid = [20, 1, 1]\nblock = [1024, 1, 1]\nkernel.launch(grid=grid, block=block)(data)"
+  ],
+  "constraints": [
+    "All kernel parameters must have type annotations",
+    "Use CuTe types, not Python types in kernels",
+    "Maximum threads per block is 1024 on most GPUs",
+    "Block size should be multiple of warp size (32) for efficiency",
+    "Ensure all threads in block reach syncthreads()"
+  ],
+  "compressed_summary": "This guide addresses common errors in CuTe DSL kernel development, focusing on type, memory, launch, synchronization, and compilation errors. Type errors often arise from missing annotations or using incorrect types, which can be resolved by ensuring all kernel parameters are properly annotated with CuTe types. Memory errors, such as out-of-bounds access, require diligent bounds checking and correct shared memory allocation. Launch configuration errors typically involve exceeding the maximum threads per block or using non-optimal block sizes, which should be corrected by adhering to GPU constraints. Synchronization errors, including missing barriers and race conditions, necessitate proper use of syncthreads() to ensure all threads reach synchronization points. Compilation errors often stem from syntax issues or unsupported Python constructs in JIT compilation, which can be mitigated by using only supported constructs and verifying function availability. To prevent these errors, developers should validate kernel inputs, ensure tensors are on the correct device, and follow a comprehensive debugging checklist. By addressing these common pitfalls, developers can enhance the reliability and performance of their CuTe DSL kernels."
+}

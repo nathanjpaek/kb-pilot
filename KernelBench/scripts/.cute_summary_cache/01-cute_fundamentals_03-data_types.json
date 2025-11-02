@@ -1,0 +1,29 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/03-data_types.md",
+  "category": "01-cute_fundamentals",
+  "title": "CuTe DSL Data Types Overview",
+  "key_concepts": [
+    "Native GPU data types",
+    "Tensor core operations",
+    "Numerical precision trade-offs",
+    "Architecture compatibility"
+  ],
+  "critical_patterns": [
+    "Mixed-Precision GEMM: FP16 compute, FP32 accumulate",
+    "Quantization-Aware Operations: INT8 quantized inference",
+    "Dynamic Precision Selection: Compile-time flag for precision path"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef fp32_example(a: cute.Tensor, b: cute.Tensor, c: cute.Tensor):\n  idx = cute.arch.thread_idx()[0]\n  c[idx] = a[idx] + b[idx]",
+    "@cute.kernel\ndef mixed_precision_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):\n  pass",
+    "@cute.kernel\ndef int8_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):\n  pass",
+    "@cute.jit\ndef typed_function(x: cutlass.Float32, y: cutlass.Int32, scale: cutlass.Float16):\n  result = x * scale + y\n  return result"
+  ],
+  "constraints": [
+    "Type mismatch in assignment can cause errors",
+    "Incompatible types in operations require explicit conversion",
+    "FP16 accumulators are too small for MMA operations, use FP32",
+    "Automatic promotion follows standard rules, e.g., FP16 + FP32 \u2192 FP32"
+  ],
+  "compressed_summary": "CuTe DSL provides a range of native GPU data types optimized for tensor core operations, memory bandwidth, and numerical precision. Key types include various integer and floating-point formats such as Int8, Float16, BFloat16, and Float8, each with specific use cases and hardware support. Mixed-precision patterns, like computing in FP16 and accumulating in FP32, are common in deep learning. The DSL supports explicit type casting and automatic type promotion, with architecture-specific optimizations for Ampere, Hopper, and Blackwell GPUs. Developers should choose data types based on precision needs, hardware compatibility, and performance considerations, balancing memory bandwidth and compute throughput. Common patterns include mixed-precision GEMM and quantization-aware operations, while debugging focuses on resolving type mismatches and ensuring correct accumulator types. CuTe integrates with frameworks like PyTorch, facilitating type mapping and conversions. Performance is influenced by memory bandwidth and compute throughput, with lower precision types offering higher occupancy. The documentation emphasizes using the lowest precision that maintains task accuracy and aligning types with hardware capabilities for optimal performance."
+}

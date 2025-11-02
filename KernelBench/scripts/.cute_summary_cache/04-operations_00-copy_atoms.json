@@ -1,0 +1,29 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/04-operations/00-copy_atoms.md",
+  "category": "04-operations",
+  "title": "Efficient Data Movement with Copy Atoms in CuTe DSL",
+  "key_concepts": [
+    "Copy atoms simplify data movement between memory spaces",
+    "Encapsulation of source/destination memory, data layout, and hardware instruction",
+    "Use of vectorized loads, async copy, and TMA for optimization"
+  ],
+  "critical_patterns": [
+    "GMEM \u2192 RMEM: Use vectorized loads for efficient data transfer",
+    "GMEM \u2192 SMEM: Prefer async copy for non-blocking transfers",
+    "SMEM \u2192 RMEM: Optimize for MMA preparation using copy atoms",
+    "RMEM \u2192 GMEM: Use vectorized stores when data is aligned"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef basic_copy_example(src: cute.Tensor, dst: cute.Tensor):\n    idx = cute.arch.thread_idx()[0]\n    dst[idx] = src[idx]",
+    "@cute.kernel\ndef vectorized_gmem_to_rmem(gmem_src: cute.Tensor):\n    copy_atom = cute.make_copy_atom_vectorized(cutlass.Float32, vec_size=4)\n    rmem_dst = cute.make_rmem_tensor(cute.make_shape(4), cutlass.Float32)\n    cute.copy(copy_atom, gmem_src[tid * 4 : tid * 4 + 4], rmem_dst)",
+    "@cute.kernel\ndef gmem_to_smem_async(gmem_src: cute.Tensor):\n    smem_dst = cute.make_smem_tensor(cute.make_shape(128, 64), cutlass.Float32)\n    async_copy_atom = cute.make_copy_atom_async(cutlass.Float32)\n    cute.copy(async_copy_atom, gmem_src[tile_offset], smem_dst)\n    cute.arch.cp_async_wait_all()\n    cute.arch.syncthreads()",
+    "@cute.kernel\ndef tiled_copy_example(gmem_src: cute.Tensor, smem_dst: cute.Tensor):\n    tiled_copy = cute.make_tiled_copy(copy_atom=cute.UniversalCopy(), thread_layout=cute.make_shape(256, 1), value_layout=cute.make_shape(128, 64))\n    thread_copy = tiled_copy.get_slice(cute.arch.thread_idx()[0])\n    thread_src = thread_copy.partition_S(gmem_src)\n    thread_dst = thread_copy.partition_D(smem_dst)\n    cute.copy(tiled_copy, thread_src, thread_dst)\n    cute.arch.syncthreads()"
+  ],
+  "constraints": [
+    "Ensure memory alignment for vectorization",
+    "Synchronize after SMEM writes to avoid race conditions",
+    "Match sizes and types for source and destination tensors",
+    "Avoid shared memory bank conflicts by using padding or swizzling"
+  ],
+  "compressed_summary": "CuTe DSL's copy atoms are crucial for efficient data movement across different memory spaces in GPU programming. They abstract complex hardware instructions into manageable operations, enabling vectorized loads, asynchronous copying, and TMA (Tensor Memory Accelerator) for optimized performance. Key patterns include GMEM to RMEM transfers using vectorized loads, GMEM to SMEM using async copy for non-blocking operations, and SMEM to RMEM optimized for MMA (Matrix Multiply-Accumulate) preparation. RMEM to GMEM operations should leverage vectorized stores when data is aligned. Constraints include ensuring memory alignment for vectorization, synchronizing after shared memory writes to prevent race conditions, and matching tensor sizes and types to avoid errors. Performance can be optimized by coalescing global memory accesses, avoiding shared memory bank conflicts, and using pipelined copies to overlap with computation. Architecture-specific features like Ampere's async copy and Hopper's TMA offer significant performance benefits by reducing thread involvement and accelerating large tile transfers. Understanding and applying these patterns and constraints is essential for writing efficient GPU kernels using CuTe DSL."
+}

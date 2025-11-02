@@ -1,0 +1,30 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/03-memory_and_layouts/00-memory_hierarchy.md",
+  "category": "03-memory_and_layouts",
+  "title": "Optimizing GPU Kernels with CuTe DSL Memory Hierarchy",
+  "key_concepts": [
+    "GPU memory hierarchy",
+    "Efficient data movement",
+    "Memory coalescing",
+    "Shared memory bank conflicts",
+    "Register pressure management"
+  ],
+  "critical_patterns": [
+    "GMEM \u2192 SMEM \u2192 Registers \u2192 SMEM \u2192 GMEM: Standard pattern for compute-heavy kernels",
+    "Direct GMEM Access: Suitable for element-wise operations",
+    "Reduction: GMEM \u2192 Registers \u2192 SMEM \u2192 GMEM for block-level reduction"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef coalesced_access(data: cute.Tensor):\n    idx = cute.arch.block_idx()[0] * cute.arch.block_dim_x() + cute.arch.thread_idx()[0]\n    val = data[idx]",
+    "@cute.kernel\ndef use_shared_memory(gmem_tensor: cute.Tensor):\n    smem_size = cute.make_shape(128, 64)\n    smem_tensor = cute.make_smem_tensor(smem_size, cutlass.Float32)\n    cute.copy(copy_atom, gmem_tensor, smem_tensor)\n    cute.arch.syncthreads()",
+    "@cute.kernel\ndef good_no_conflicts():\n    smem = cute.make_smem_tensor(cute.make_shape(32, 33), cutlass.Float32)\n    tid = cute.arch.thread_idx()[0]\n    val = smem[tid, 0]",
+    "@cute.kernel\ndef measure_bandwidth(data: cute.Tensor, num_iterations: cutlass.Int32):\n    import time\n    start = time.time()\n    for i in range(num_iterations):\n        my_kernel.launch(...)(data)\n    cute.arch.device_synchronize()\n    end = time.time()"
+  ],
+  "constraints": [
+    "Avoid strided and unaligned GMEM accesses",
+    "Ensure proper synchronization with syncthreads",
+    "Stay within shared memory limits",
+    "Manage register pressure to avoid reducing occupancy"
+  ],
+  "compressed_summary": "Understanding and leveraging the GPU memory hierarchy is crucial for optimizing CuTe DSL kernels. The memory hierarchy consists of registers (fastest and smallest), shared memory (fast, block-scoped), L2 cache (hardware-managed), global memory (slow, largest), and host memory (very slow). Efficient data movement through this hierarchy is key: load data from global memory (GMEM) infrequently, stage it through shared memory (SMEM) for reuse, and compute in registers for speed. Coalescing memory accesses in GMEM and avoiding bank conflicts in SMEM are critical for performance. Registers are the fastest memory but have limited capacity, so managing register pressure is essential to maintain occupancy. Common patterns include GMEM to SMEM to registers for compute-heavy tasks, direct GMEM access for simple operations, and reductions using a combination of GMEM, registers, and SMEM. Synchronization with syncthreads is necessary to avoid race conditions, especially when accessing shared memory. Monitoring and optimizing memory bandwidth utilization can significantly impact performance, with modern GPUs offering theoretical bandwidths up to 8+ TB/s. Avoid common mistakes like forgetting synchronization, uncoalesced accesses, and exceeding shared memory limits. Following these best practices ensures efficient use of the GPU's memory hierarchy, leading to high-performance kernel execution."
+}

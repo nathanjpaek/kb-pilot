@@ -1,0 +1,151 @@
+[
+  {
+    "name": "Elementwise Add",
+    "operations": [
+      "Elementwise"
+    ],
+    "architecture": "ampere",
+    "key_techniques": [
+      "elementwise"
+    ],
+    "code_pattern": "# See elementwise_add.py for reference"
+  },
+  {
+    "name": "Call From Jit",
+    "operations": [
+      "Call"
+    ],
+    "architecture": "ampere",
+    "key_techniques": [
+      "elementwise"
+    ],
+    "code_pattern": "# See call_from_jit.py for reference"
+  },
+  {
+    "name": "Dynamic Smem Size",
+    "operations": [
+      "Dynamic"
+    ],
+    "architecture": "ampere",
+    "key_techniques": [
+      "elementwise"
+    ],
+    "code_pattern": "# See dynamic_smem_size.py for reference"
+  },
+  {
+    "name": "Smem Allocator",
+    "operations": [
+      "Smem"
+    ],
+    "architecture": "ampere",
+    "key_techniques": [
+      "elementwise"
+    ],
+    "code_pattern": "# See smem_allocator.py for reference"
+  },
+  {
+    "name": "Hstu Attention",
+    "operations": [
+      "Hstu"
+    ],
+    "architecture": "ampere",
+    "key_techniques": [
+      "elementwise"
+    ],
+    "code_pattern": "# See hstu_attention.py for reference"
+  },
+  {
+    "name": "Fmha",
+    "operations": [
+      "Fmha"
+    ],
+    "architecture": "hopper",
+    "key_techniques": [
+      "elementwise"
+    ],
+    "code_pattern": "# See fmha.py for reference"
+  },
+  {
+    "name": "Dense Gemm Persistent",
+    "operations": [
+      "Dense"
+    ],
+    "architecture": "hopper",
+    "key_techniques": [
+      "tiled_copy",
+      "mma_operations"
+    ],
+    "code_pattern": "# See dense_gemm_persistent.py for reference"
+  },
+  {
+    "name": "Dense Gemm",
+    "operations": [
+      "Dense"
+    ],
+    "architecture": "hopper",
+    "key_techniques": [
+      "tiled_copy",
+      "mma_operations"
+    ],
+    "code_pattern": "# See dense_gemm.py for reference"
+  },
+  {
+    "name": "Grouped Gemm",
+    "operations": [
+      "Grouped"
+    ],
+    "architecture": "blackwell",
+    "key_techniques": [
+      "tiled_copy",
+      "mma_operations"
+    ],
+    "code_pattern": "# See grouped_gemm.py for reference"
+  },
+  {
+    "name": "Fmha",
+    "operations": [
+      "Fmha"
+    ],
+    "architecture": "blackwell",
+    "key_techniques": [
+      "elementwise"
+    ],
+    "code_pattern": "# See fmha.py for reference"
+  },
+  {
+    "name": "Dense Gemm Alpha Beta Persistent",
+    "operations": [
+      "Dense"
+    ],
+    "architecture": "blackwell",
+    "key_techniques": [
+      "tiled_copy",
+      "mma_operations"
+    ],
+    "code_pattern": "# See dense_gemm_alpha_beta_persistent.py for reference"
+  },
+  {
+    "name": "Dense Gemm Software Pipeline",
+    "operations": [
+      "Dense"
+    ],
+    "architecture": "blackwell",
+    "key_techniques": [
+      "tiled_copy",
+      "mma_operations"
+    ],
+    "code_pattern": "# See dense_gemm_software_pipeline.py for reference"
+  },
+  {
+    "name": "Mixed Input Gemm",
+    "operations": [
+      "Mixed"
+    ],
+    "architecture": "blackwell",
+    "key_techniques": [
+      "tiled_copy",
+      "mma_operations"
+    ],
+    "code_pattern": "# See mixed_input_gemm.py for reference"
+  }
+]

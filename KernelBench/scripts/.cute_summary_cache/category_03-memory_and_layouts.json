@@ -1,0 +1,166 @@
+{
+  "category_name": "03-memory_and_layouts",
+  "category_path": "",
+  "file_summaries": [
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/03-memory_and_layouts/00-memory_hierarchy.md",
+      "category": "03-memory_and_layouts",
+      "title": "Optimizing GPU Kernels with CuTe DSL Memory Hierarchy",
+      "key_concepts": [
+        "GPU memory hierarchy",
+        "Efficient data movement",
+        "Memory coalescing",
+        "Shared memory bank conflicts",
+        "Register pressure management"
+      ],
+      "critical_patterns": [
+        "GMEM \u2192 SMEM \u2192 Registers \u2192 SMEM \u2192 GMEM: Standard pattern for compute-heavy kernels",
+        "Direct GMEM Access: Suitable for element-wise operations",
+        "Reduction: GMEM \u2192 Registers \u2192 SMEM \u2192 GMEM for block-level reduction"
+      ],
+      "code_snippets": [
+        "@cute.kernel\ndef coalesced_access(data: cute.Tensor):\n    idx = cute.arch.block_idx()[0] * cute.arch.block_dim_x() + cute.arch.thread_idx()[0]\n    val = data[idx]",
+        "@cute.kernel\ndef use_shared_memory(gmem_tensor: cute.Tensor):\n    smem_size = cute.make_shape(128, 64)\n    smem_tensor = cute.make_smem_tensor(smem_size, cutlass.Float32)\n    cute.copy(copy_atom, gmem_tensor, smem_tensor)\n    cute.arch.syncthreads()",
+        "@cute.kernel\ndef good_no_conflicts():\n    smem = cute.make_smem_tensor(cute.make_shape(32, 33), cutlass.Float32)\n    tid = cute.arch.thread_idx()[0]\n    val = smem[tid, 0]",
+        "@cute.kernel\ndef measure_bandwidth(data: cute.Tensor, num_iterations: cutlass.Int32):\n    import time\n    start = time.time()\n    for i in range(num_iterations):\n        my_kernel.launch(...)(data)\n    cute.arch.device_synchronize()\n    end = time.time()"
+      ],
+      "constraints": [
+        "Avoid strided and unaligned GMEM accesses",
+        "Ensure proper synchronization with syncthreads",
+        "Stay within shared memory limits",
+        "Manage register pressure to avoid reducing occupancy"
+      ],
+      "compressed_summary": "Understanding and leveraging the GPU memory hierarchy is crucial for optimizing CuTe DSL kernels. The memory hierarchy consists of registers (fastest and smallest), shared memory (fast, block-scoped), L2 cache (hardware-managed), global memory (slow, largest), and host memory (very slow). Efficient data movement through this hierarchy is key: load data from global memory (GMEM) infrequently, stage it through shared memory (SMEM) for reuse, and compute in registers for speed. Coalescing memory accesses in GMEM and avoiding bank conflicts in SMEM are critical for performance. Registers are the fastest memory but have limited capacity, so managing register pressure is essential to maintain occupancy. Common patterns include GMEM to SMEM to registers for compute-heavy tasks, direct GMEM access for simple operations, and reductions using a combination of GMEM, registers, and SMEM. Synchronization with syncthreads is necessary to avoid race conditions, especially when accessing shared memory. Monitoring and optimizing memory bandwidth utilization can significantly impact performance, with modern GPUs offering theoretical bandwidths up to 8+ TB/s. Avoid common mistakes like forgetting synchronization, uncoalesced accesses, and exceeding shared memory limits. Following these best practices ensures efficient use of the GPU's memory hierarchy, leading to high-performance kernel execution."
+    },
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/03-memory_and_layouts/01-static_vs_dynamic.md",
+      "category": "03-memory_and_layouts",
+      "title": "Static vs Dynamic Layouts in CuTe DSL",
+      "key_concepts": [
+        "Static layouts: compile-time known shape/stride",
+        "Dynamic layouts: runtime known shape/stride",
+        "Trade-off between performance and flexibility",
+        "Hybrid approach: static inner, dynamic outer"
+      ],
+      "critical_patterns": [
+        "Use static layouts for fixed problem sizes and performance-critical kernels",
+        "Use dynamic layouts for arbitrary input sizes and many size variants",
+        "Hybrid approach: static tile size, dynamic number of tiles"
+      ],
+      "code_snippets": [
+        "@cute.jit\ndef static_layout_example():\n    shape = cute.make_shape(128, 64)\n    stride = cute.make_stride(1, 128)\n    layout = cute.make_layout(shape, stride)",
+        "@cute.jit\ndef dynamic_layout_example(m: cutlass.Int32, n: cutlass.Int32):\n    shape = cute.make_shape(m, n)\n    stride = cute.make_stride(1, m)\n    layout = cute.make_layout(shape, stride)",
+        "@cute.kernel\ndef hybrid_kernel(data: cute.Tensor, tile_m: cutlass.Constexpr, tile_n: cutlass.Constexpr, num_tiles: cutlass.Int32):\n    for tile_idx in range(num_tiles):\n        for i in cutlass.range_constexpr(tile_m):\n            for j in cutlass.range_constexpr(tile_n):\n                idx = tile_idx * tile_m * tile_n + i * tile_n + j\n                process(data[idx])"
+      ],
+      "constraints": [
+        "Static layouts require recompilation for different sizes",
+        "Dynamic layouts have runtime address calculation overhead",
+        "Static layouts offer better optimization but less flexibility",
+        "Dynamic layouts are more flexible but slightly slower"
+      ],
+      "compressed_summary": "CuTe DSL provides support for both static and dynamic layouts, each with distinct trade-offs. Static layouts, where shape and stride are known at compile time, allow for better compiler optimizations such as loop unrolling and address calculation, resulting in potentially faster code execution. However, they require recompilation for different sizes, leading to less flexibility and more compilation overhead. Dynamic layouts, on the other hand, have shapes and strides determined at runtime, offering flexibility and faster compilation times since a single kernel can handle various sizes. The trade-off is a slight performance hit due to runtime address calculation overhead and less aggressive compiler optimizations. A hybrid approach can be beneficial, where static layouts are used for inner dimensions to optimize performance, while dynamic layouts handle outer dimensions for flexibility. Best practices suggest using static layouts for fixed problem sizes, performance-critical kernels, and when the number of size variants is small. Dynamic layouts are preferable when dealing with arbitrary input sizes, many size variants, or when compilation time is a concern. Profiling is recommended to determine the actual impact of using static versus dynamic layouts, as the performance difference may be negligible for compute-bound kernels. Utilizing `cute.assume()` can help optimize dynamic code by providing the compiler with hints, bridging the performance gap between static and dynamic layouts. The document also outlines strategies for kernel compilation, such as generating one static kernel per size, using a single dynamic kernel for all sizes, or a hybrid strategy that combines both approaches for common and uncommon sizes."
+    },
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/03-memory_and_layouts/02-layout_marking.md",
+      "category": "03-memory_and_layouts",
+      "title": "Layout Marking in CuTe DSL",
+      "key_concepts": [
+        "Layout marking controls compile-time vs runtime trade-offs",
+        "Static layout: compile-time known, optimized for specific sizes",
+        "Dynamic layout: runtime known, flexible for varying sizes",
+        "Compact shape dynamic: fixed layout, dynamic dimensions"
+      ],
+      "critical_patterns": [
+        "Use mark_layout_dynamic() for kernels handling many input sizes",
+        "Use mark_layout_static() for performance-critical kernels with fixed sizes",
+        "Use mark_compact_shape_dynamic() for tensors with fixed layout but varying dimensions"
+      ],
+      "code_snippets": [
+        "dynamic_tensor = from_dlpack(torch_tensor).mark_layout_dynamic()",
+        "static_tensor = from_dlpack(torch_tensor).mark_layout_static()",
+        "compact_dynamic = from_dlpack(tensor).mark_compact_shape_dynamic()"
+      ],
+      "constraints": [
+        "Static marking requires recompilation for different sizes",
+        "Dynamic marking introduces slight performance overhead",
+        "Compact dynamic marking assumes a known layout structure"
+      ],
+      "compressed_summary": "Layout marking in CuTe DSL allows developers to specify whether a tensor's layout should be treated as static or dynamic, impacting the trade-off between compile-time specialization and runtime flexibility. Static layouts are known at compile time and allow for aggressive optimizations like loop unrolling and address calculation optimizations, but require recompilation for different sizes. Dynamic layouts are determined at runtime, offering flexibility and reducing recompilation, but may incur a slight performance overhead. Compact shape dynamic marking is a middle ground where the layout structure is fixed (e.g., column-major), but dimensions can vary. This approach is faster than full dynamic marking because the compiler can optimize based on the known layout pattern. Developers should use dynamic marking during development for rapid iteration and static marking for production environments where performance is critical. Profiling should guide the decision between static and dynamic marking to ensure optimal performance. The document emphasizes the importance of explicit marking for clarity and control over kernel compilation and execution, with practical examples demonstrating when to use each marking strategy. Best practices include avoiding unnecessary marking, using dynamic marking for prototyping, and profiling before optimizing to ensure that dynamic performance is sufficient for the application."
+    },
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/03-memory_and_layouts/03-swizzling.md",
+      "category": "03-memory_and_layouts",
+      "title": "Memory Swizzling in CuTe DSL",
+      "key_concepts": [
+        "Swizzling rearranges data storage to avoid bank conflicts",
+        "Shared memory is divided into 32 banks",
+        "Bank conflicts occur when multiple threads access the same bank",
+        "Padding and swizzling are techniques to avoid conflicts"
+      ],
+      "critical_patterns": [
+        "Padding: Add extra columns to avoid power-of-2 strides",
+        "Swizzling: Permute address bits to distribute accesses across banks",
+        "GEMM with swizzled shared memory to avoid conflicts",
+        "Transpose with swizzled layout for conflict-free access"
+      ],
+      "code_snippets": [
+        "@cute.kernel\ndef no_conflict_example():\n    smem = cute.make_smem_tensor(cute.make_shape(32, 32), cutlass.Float32)\n    tid = cute.arch.thread_idx()[0]\n    val = smem[0, tid]",
+        "@cute.kernel\ndef no_conflict_with_padding():\n    smem = cute.make_smem_tensor(cute.make_shape(128, 33), cutlass.Float32)",
+        "@cute.kernel\ndef swizzled_layout_example():\n    base_shape = cute.make_shape(128, 64)\n    swizzled_layout = apply_swizzle(base_shape, base_stride, swizzle_bits=3)",
+        "@cute.kernel\ndef gemm_with_swizzled_smem(gA, gB, gC):\n    smem_A = allocate_swizzled_smem(tile_shape, cutlass.Float16)"
+      ],
+      "constraints": [
+        "Padding increases memory usage slightly",
+        "Swizzling requires understanding of address bit manipulation",
+        "Swizzling API may vary between CuTe Python and C++",
+        "Profiling is essential to detect and verify conflict elimination"
+      ],
+      "compressed_summary": "Memory swizzling in CuTe DSL is an advanced technique used to rearrange data storage in shared memory to avoid bank conflicts, which occur when multiple threads access different addresses in the same memory bank, leading to serialization and performance loss. Shared memory is divided into 32 banks, and conflicts are common with stride-of-32 patterns. Two primary solutions exist: padding and swizzling. Padding involves adding extra columns to avoid power-of-2 strides, which is simple and effective for most cases, albeit with a small memory overhead. Swizzling permutes address bits to distribute accesses across banks without wasting memory, suitable for complex access patterns and when memory is tight. Swizzling can be more efficient than padding but requires careful implementation and may vary in API between CuTe Python and C++. Practical applications include GEMM and transpose operations, where swizzled shared memory can significantly improve performance by eliminating bank conflicts. Profiling tools like NVIDIA Nsight Systems and Compute are essential for detecting conflicts and verifying improvements. Best practices include starting with padding for simple cases and considering swizzling for complex patterns. Understanding shared memory hierarchy and efficient data movement is crucial for maximizing performance in shared memory-intensive kernels."
+    },
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/03-memory_and_layouts/04-alignment.md",
+      "category": "03-memory_and_layouts",
+      "title": "Memory Alignment in CuTe DSL",
+      "key_concepts": [
+        "Memory alignment for optimized GPU operations",
+        "Aligned vs misaligned memory access",
+        "Use of cute.assume() for alignment assumptions"
+      ],
+      "critical_patterns": [
+        "Natural alignment from frameworks like PyTorch, JAX, TensorFlow",
+        "Using cute.assume() to inform compiler about alignment",
+        "Maintaining alignment when slicing tensors"
+      ],
+      "code_snippets": [
+        "cute.assume(pointer_or_tensor, align=N)",
+        "aligned_data = cute.assume(data, align=128)",
+        "aligned_input = cute.assume(input, align=16)"
+      ],
+      "constraints": [
+        "Address must be a multiple of N for alignment",
+        "Misaligned access can reduce bandwidth by 30-50%",
+        "Tensor core operations require 128-byte alignment"
+      ],
+      "compressed_summary": "Memory alignment in CuTe DSL is crucial for achieving optimal performance on GPUs, particularly for vectorized and tensor core operations. Proper alignment allows for full bandwidth utilization, whereas misaligned access can significantly degrade performance. CuTe provides the cute.assume() function to inform the compiler about alignment guarantees, enabling more efficient code generation. Common alignment values include 4 bytes for scalar loads, 16 bytes for vectorized operations, and 128 bytes for tensor core operations. Frameworks like PyTorch, JAX, and TensorFlow typically provide well-aligned tensors, but manual verification and conservative assumptions are recommended to ensure alignment. Slicing operations can break alignment, so care must be taken to maintain it. Debugging tools such as alignment checks and performance profiling can help identify and resolve alignment issues. Adhering to alignment constraints is essential for leveraging GPU capabilities fully, and developers should verify framework guarantees and profile their code to ensure alignment assumptions are beneficial."
+    }
+  ],
+  "unified_concepts": [
+    "GPU memory hierarchy and efficient data movement",
+    "Static vs dynamic layouts and their trade-offs",
+    "Memory swizzling and bank conflict avoidance",
+    "Memory alignment for optimized GPU operations"
+  ],
+  "essential_patterns": [
+    "Utilize GMEM to SMEM to registers for compute-heavy tasks to optimize data movement",
+    "Combine static layouts for inner dimensions with dynamic layouts for outer dimensions to balance performance and flexibility",
+    "Apply padding or swizzling in shared memory to avoid bank conflicts and improve performance",
+    "Use cute.assume() to inform the compiler about memory alignment for efficient code generation"
+  ],
+  "common_pitfalls": [
+    "Forgetting synchronization with syncthreads, leading to race conditions",
+    "Uncoalesced memory accesses, reducing performance",
+    "Exceeding shared memory limits, causing errors",
+    "Misaligned memory access, degrading performance"
+  ],
+  "compressed_overview": "In the CuTe DSL, understanding the GPU memory hierarchy is crucial for optimizing kernel performance. Efficient data movement involves staging data from global memory through shared memory to registers, with attention to memory coalescing and avoiding shared memory bank conflicts. Static and dynamic layouts offer trade-offs between performance and flexibility, with static layouts enabling compile-time optimizations and dynamic layouts providing runtime adaptability. A hybrid approach can optimize performance while maintaining flexibility. Memory swizzling and padding are techniques to prevent bank conflicts in shared memory, crucial for operations like GEMM and transpose. Proper memory alignment, facilitated by cute.assume(), is essential for maximizing GPU bandwidth, particularly in vectorized and tensor core operations. Developers should profile their code to ensure optimal layout and alignment strategies, avoiding common pitfalls such as synchronization issues and uncoalesced accesses. By adhering to these best practices, developers can fully leverage GPU capabilities for high-performance kernel execution."
+}

@@ -1,0 +1,27 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/04-operations/02-tiled_operations.md",
+  "category": "04-operations",
+  "title": "Tiled Operations in CuTe DSL",
+  "key_concepts": [
+    "Tiled operations extend single-thread atoms to multi-thread cooperation",
+    "Efficient GPU utilization through cooperative processing of large tiles",
+    "Partitioning source and destination tensors for thread-specific operations"
+  ],
+  "critical_patterns": [
+    "Tiled MMA: 128\u00d7128\u00d732 tile using multiple threads for efficient matrix multiplication",
+    "Tiled Copy: Cooperative data movement across threads for large tile processing",
+    "Thread Layout: Arrangement of threads to cover operations in 1D, 2D, or 3D"
+  ],
+  "code_snippets": [
+    "tiled_copy = cute.make_tiled_copy(copy_atom, thread_layout, value_layout)",
+    "tiled_mma = cute.make_tiled_mma(mma_atom, thread_layout, value_layout)",
+    "cute.copy(tiled_copy, thread_src, thread_dst)",
+    "cute.gemm(tiled_mma, frag_C, frag_A, frag_B, frag_C)"
+  ],
+  "constraints": [
+    "Ensure synchronization after shared memory writes",
+    "Balance tile size with register pressure to maintain GPU occupancy",
+    "Avoid using tiles that are too small or too large to prevent inefficiency"
+  ],
+  "compressed_summary": "Tiled operations in CuTe DSL are designed to extend the functionality of single-thread atoms, such as copy atoms and MMA atoms, to enable cooperative processing across multiple threads. This approach allows for efficient GPU utilization by processing larger tiles of data, such as 128\u00d7128\u00d732, through the collective effort of a group of threads, typically organized in warps or thread blocks. The primary functions used in tiled operations include `make_tiled_copy()` for cooperative data movement and `make_tiled_mma()` for cooperative matrix multiplication. These functions require defining thread and value layouts, which dictate how threads are arranged and how many values each thread processes. Key patterns include warp-level cooperation, where a single warp processes a tile, and block-level cooperation, where multiple warps work together on larger tiles. Common tiling strategies involve using square tiles for balanced workloads, rectangular tiles for non-square matrices, and large K tiles for compute-bound cases. It is crucial to manage register pressure by choosing appropriate tile sizes, as larger tiles use more registers per thread but can lead to reduced occupancy if not balanced correctly. Best practices suggest starting with standard tile sizes like 128\u00d7128\u00d732, profiling different sizes to find the optimal configuration, and ensuring synchronization after shared memory operations to avoid race conditions. The document also highlights the importance of partitioning operations, such as `partition_S()` and `partition_D()`, to allocate specific portions of tensors to individual threads, facilitating efficient data handling and computation. Overall, tiled operations are essential for maximizing performance in GPU kernels by leveraging the parallel processing capabilities of modern GPUs."
+}

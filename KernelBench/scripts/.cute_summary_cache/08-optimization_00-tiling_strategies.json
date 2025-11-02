@@ -1,0 +1,30 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/00-tiling_strategies.md",
+  "category": "08-optimization",
+  "title": "Tiling Strategies in CuTe DSL for Optimized GPU Kernels",
+  "key_concepts": [
+    "Tiling divides large problems into smaller tiles for shared memory",
+    "Tile size selection is crucial for performance",
+    "Hierarchical tiling leverages memory hierarchy",
+    "Tiling patterns optimize different operations"
+  ],
+  "critical_patterns": [
+    "Square Tiles: Good for square matrices, balanced memory access",
+    "Rectangular Tiles: Match matrix aspect ratio for non-square matrices",
+    "K-Slicing: Small K dimension for better pipelining",
+    "Register Blocking: Tile within registers for efficient computation"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef naive_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor): ...",
+    "@cute.kernel\ndef tiled_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor): ...",
+    "def calculate_smem_usage(tile_m: int, tile_n: int, tile_k: int, dtype_size: int = 2) -> int: ...",
+    "def choose_tile_size(M: int, N: int, K: int, architecture: str, memory_bound: bool): ..."
+  ],
+  "constraints": [
+    "Shared memory capacity limits tile size",
+    "Register pressure affects occupancy",
+    "Tile sizes must align with warp size",
+    "Avoid exceeding shared memory limits"
+  ],
+  "compressed_summary": "Tiling is a fundamental optimization in GPU computing, dividing problems into smaller tiles that fit in shared memory to enable data reuse and reduce global memory traffic. Selecting the right tile size is crucial, balancing shared memory capacity, register pressure, and occupancy. Common tile sizes for GEMM operations include 128x128x32, with variations for different architectures and memory constraints. Hierarchical tiling involves multiple levels: grid, block, warp, and thread, each mapping to different memory hierarchies. Key tiling patterns include square and rectangular tiles, K-slicing for pipelining, and register blocking for efficient computation. Constraints include shared memory limits, register pressure, and ensuring tile sizes align with warp sizes. Practical implementation involves calculating shared memory usage, choosing appropriate tile sizes based on architecture and workload, and using hierarchical tiling to maximize performance. Tiling can lead to 10-100x speedup for memory-bound operations, making it the most important optimization for GPU kernels. Advanced techniques like swizzled and multi-buffered tiling further enhance performance by reducing bank conflicts and overlapping computation with memory operations."
+}

@@ -1,0 +1,27 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/03-memory_and_layouts/02-layout_marking.md",
+  "category": "03-memory_and_layouts",
+  "title": "Layout Marking in CuTe DSL",
+  "key_concepts": [
+    "Layout marking controls compile-time vs runtime trade-offs",
+    "Static layout: compile-time known, optimized for specific sizes",
+    "Dynamic layout: runtime known, flexible for varying sizes",
+    "Compact shape dynamic: fixed layout, dynamic dimensions"
+  ],
+  "critical_patterns": [
+    "Use mark_layout_dynamic() for kernels handling many input sizes",
+    "Use mark_layout_static() for performance-critical kernels with fixed sizes",
+    "Use mark_compact_shape_dynamic() for tensors with fixed layout but varying dimensions"
+  ],
+  "code_snippets": [
+    "dynamic_tensor = from_dlpack(torch_tensor).mark_layout_dynamic()",
+    "static_tensor = from_dlpack(torch_tensor).mark_layout_static()",
+    "compact_dynamic = from_dlpack(tensor).mark_compact_shape_dynamic()"
+  ],
+  "constraints": [
+    "Static marking requires recompilation for different sizes",
+    "Dynamic marking introduces slight performance overhead",
+    "Compact dynamic marking assumes a known layout structure"
+  ],
+  "compressed_summary": "Layout marking in CuTe DSL allows developers to specify whether a tensor's layout should be treated as static or dynamic, impacting the trade-off between compile-time specialization and runtime flexibility. Static layouts are known at compile time and allow for aggressive optimizations like loop unrolling and address calculation optimizations, but require recompilation for different sizes. Dynamic layouts are determined at runtime, offering flexibility and reducing recompilation, but may incur a slight performance overhead. Compact shape dynamic marking is a middle ground where the layout structure is fixed (e.g., column-major), but dimensions can vary. This approach is faster than full dynamic marking because the compiler can optimize based on the known layout pattern. Developers should use dynamic marking during development for rapid iteration and static marking for production environments where performance is critical. Profiling should guide the decision between static and dynamic marking to ensure optimal performance. The document emphasizes the importance of explicit marking for clarity and control over kernel compilation and execution, with practical examples demonstrating when to use each marking strategy. Best practices include avoiding unnecessary marking, using dynamic marking for prototyping, and profiling before optimizing to ensure that dynamic performance is sufficient for the application."
+}

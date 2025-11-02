@@ -1,0 +1,36 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/04-calling_conventions.md",
+  "category": "01-cute_fundamentals",
+  "title": "CuTe DSL Calling Conventions for GPU Kernel Development",
+  "key_concepts": [
+    "Compile-time vs runtime function calls",
+    "Execution contexts: Python, Host JIT, Device Kernel",
+    "Calling convention rules",
+    "Argument passing: static vs dynamic",
+    "Tensor passing by reference"
+  ],
+  "critical_patterns": [
+    "Python \u2192 @cute.jit: Entry point for calling JIT functions from Python",
+    "Python \u2192 @cute.kernel: Forbidden, must use .launch() from @cute.jit",
+    "@cute.jit \u2192 @cute.jit: Inlined calls for zero overhead",
+    "@cute.jit \u2192 @cute.kernel: GPU launch with runtime dispatch",
+    "@cute.kernel \u2192 @cute.jit: Inlined helper function calls",
+    "Multi-Kernel Pipeline: Sequential execution of multiple kernels",
+    "Conditional Kernel Selection: Choosing kernels based on input size",
+    "Iterative Kernel Calls: Looping within a single kernel launch"
+  ],
+  "code_snippets": [
+    "@cute.jit\ndef host_function(x, y):\n    return x + y\n\nresult = host_function(from_dlpack(x), from_dlpack(y))",
+    "@cute.kernel\ndef my_kernel(data):\n    idx = cute.arch.thread_idx()[0]\n    data[idx] *= 2\n\n@cute.jit\ndef wrapper(data):\n    my_kernel.launch(grid=[1, 1, 1], block=[256, 1, 1])(data)",
+    "@cute.jit\ndef helper_function(x, y):\n    return x * y + 1\n\n@cute.jit\ndef main_function(a, b, c):\n    temp = helper_function(a, b)\n    return temp + c",
+    "@cute.kernel\ndef gpu_kernel(input, output):\n    idx = cute.arch.thread_idx()[0]\n    output[idx] = input[idx] * 2\n\n@cute.jit\ndef orchestrator(data):\n    gpu_kernel.launch(grid=[num_blocks, 1, 1], block=[threads_per_block, 1, 1])(data, output)"
+  ],
+  "constraints": [
+    "Python cannot directly call @cute.kernel",
+    "@cute.kernel cannot dynamically call other @cute.kernel functions",
+    "Static arguments must be known at compile time",
+    "Dynamic arguments are passed at runtime",
+    "Tensors are passed by reference, no copying"
+  ],
+  "compressed_summary": "CuTe DSL provides a structured approach to writing GPU kernels with specific calling conventions that dictate whether function calls occur at compile time or runtime. The DSL operates within three execution contexts: Python, Host JIT, and Device Kernel. Python can call @cute.jit functions directly but must use a .launch() method from a @cute.jit function to invoke @cute.kernel functions due to the need for specifying grid and block configurations. JIT functions can call other JIT functions and Python functions, with these calls being inlined at compile time, resulting in zero overhead. Kernels can call JIT functions, also inlined, but cannot call other kernels dynamically, as CuTe DSL does not support CUDA Dynamic Parallelism. Arguments passed to kernels can be static, known at compile time, or dynamic, determined at runtime, affecting optimization opportunities. Tensors are always passed by reference, ensuring no copying occurs. Common patterns include multi-kernel pipelines, conditional kernel selection based on input size, and iterative kernel calls. Performance considerations emphasize the trade-offs between inlined calls and separate kernel launches, with a focus on minimizing launch overhead. Debugging tools include call tracing and print statements for both compile-time and runtime diagnostics. The document concludes with a decision tree for selecting the appropriate calling pattern based on specific needs and links to further resources on JIT caching, control flow, and real-world examples."
+}

@@ -1,0 +1,34 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/01-pipelining_patterns.md",
+  "category": "08-optimization",
+  "title": "Pipelining Patterns in CuTe DSL",
+  "key_concepts": [
+    "Producer-consumer patterns",
+    "Multi-stage pipelines",
+    "Warp specialization",
+    "Async copy pipelining",
+    "TMA pipelining (Hopper)",
+    "Performance tuning"
+  ],
+  "critical_patterns": [
+    "Double buffering: Alternate between two buffers to load and compute simultaneously.",
+    "Triple buffering: Utilize three buffers for deeper pipeline overlap.",
+    "Warp specialization: Separate warps for loading and computing to enhance parallelism.",
+    "cp.async Pipeline: Use hardware-accelerated async copy for efficient data movement.",
+    "TMA Pipeline (Hopper): Use transaction-based pipelining with hardware-managed synchronization."
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef basic_pipeline(gmem: cute.Tensor, num_tiles: cutlass.Int32):",
+    "@cute.kernel\ndef double_buffer_pipeline(gmem: cute.Tensor, num_tiles: cutlass.Int32):",
+    "@cute.kernel\ndef triple_buffer_pipeline(gmem_A: cute.Tensor, gmem_B: cute.Tensor, result: cute.Tensor, num_k_tiles: cutlass.Int32):",
+    "@cute.kernel\ndef warp_specialized_pipeline(gmem_A: cute.Tensor, gmem_B: cute.Tensor, result: cute.Tensor, num_k_tiles: cutlass.Int32):",
+    "@cute.kernel\ndef cp_async_pipeline(gmem: cute.Tensor, result: cute.Tensor, num_tiles: cutlass.Int32):"
+  ],
+  "constraints": [
+    "Use 3-4 stages for most cases to balance resource usage and performance.",
+    "Ensure shared memory usage does not exceed available limits.",
+    "Correctly synchronize to avoid race conditions and ensure data readiness.",
+    "Avoid over-pipelining as it can lead to reduced occupancy and performance."
+  ],
+  "compressed_summary": "Pipelining in CuTe DSL involves overlapping data movement and computation to hide memory latency and optimize performance. Key concepts include producer-consumer patterns, multi-stage pipelines, warp specialization, async copy pipelining, and TMA pipelining. Critical patterns such as double buffering and triple buffering allow simultaneous loading and computing, enhancing throughput. Warp specialization dedicates specific warps to loading and computing tasks, improving instruction-level parallelism. The cp.async pipeline leverages hardware-accelerated async copy for efficient data transfer, while the TMA pipeline in Hopper uses transaction-based synchronization for better efficiency. Constraints include using an optimal number of stages (typically 3-4) to balance performance and resource usage, ensuring shared memory limits are not exceeded, and correctly synchronizing operations to prevent race conditions. Common pitfalls include over-pipelining, incorrect wait points, and missing synchronization, which can degrade performance. Best practices involve profiling to determine the optimal pipeline depth, using warp specialization on Hopper, and ensuring proper synchronization. Pipelining can lead to significant performance improvements, especially for memory-bound kernels, by keeping the GPU busy and hiding latency effectively."
+}

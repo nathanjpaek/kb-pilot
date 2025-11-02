@@ -1,0 +1,160 @@
+{
+  "category_name": "06-compilation",
+  "category_path": "",
+  "file_summaries": [
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/06-compilation/00-jit_compilation.md",
+      "category": "06-compilation",
+      "title": "CuTe DSL for GPU Kernel Development",
+      "key_concepts": [
+        "Domain-Specific Language (DSL)",
+        "GPU Kernel Optimization",
+        "Memory Management",
+        "Parallel Execution",
+        "Template Metaprogramming"
+      ],
+      "critical_patterns": [
+        "Use of templates for compile-time optimizations",
+        "Memory coalescing to improve bandwidth utilization",
+        "Thread block synchronization for data consistency",
+        "Loop unrolling for performance enhancement",
+        "Tile-based computation to maximize data reuse"
+      ],
+      "code_snippets": [
+        "template<typename T> __global__ void kernelFunction(T* data) { /* kernel implementation */ }",
+        "auto tile = make_tile<block_size>(data);",
+        "__syncthreads(); // Ensure all threads reach this point"
+      ],
+      "constraints": [
+        "Kernel launch parameters must be carefully tuned for specific hardware",
+        "Memory alignment is crucial for performance",
+        "Limited shared memory per block",
+        "Maximum number of threads per block is hardware-dependent",
+        "Avoiding bank conflicts in shared memory access"
+      ],
+      "compressed_summary": "The CuTe DSL provides a high-level abstraction for writing GPU kernels, focusing on optimizing performance through compile-time techniques and efficient memory usage. Key concepts include the use of templates to enable compile-time optimizations, which can significantly reduce runtime overhead. Memory management is critical, with patterns such as memory coalescing and tile-based computation being essential for maximizing bandwidth and data reuse. Synchronization between threads is achieved using built-in functions like __syncthreads(), ensuring data consistency across parallel executions. Constraints such as hardware-specific kernel launch parameters and memory alignment must be considered to avoid performance bottlenecks. The DSL encourages the use of loop unrolling and other optimization techniques to enhance execution speed. Developers must be aware of the limitations imposed by the hardware, such as shared memory size and the maximum number of threads per block, to fully leverage the capabilities of the GPU. Overall, CuTe DSL aims to simplify the development of efficient GPU kernels by providing a structured approach to common optimization challenges."
+    },
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/06-compilation/01-jit-caching.md",
+      "category": "06-compilation",
+      "title": "JIT Caching in CuTe DSL",
+      "key_concepts": [
+        "Kernel cache location and structure",
+        "Cache key generation",
+        "Recompilation triggers",
+        "Cache invalidation",
+        "Precompilation with cute.compile()",
+        "Cache management in production"
+      ],
+      "critical_patterns": [
+        "First kernel execution compiles and caches the kernel",
+        "Subsequent executions use the cached kernel for speed",
+        "Cache key is determined by function source, parameter types, constexpr values, compilation options, and target architecture",
+        "Precompile kernels using cute.compile() to avoid runtime compilation delays",
+        "Clear cache when changing CuTe DSL versions to avoid compatibility issues"
+      ],
+      "code_snippets": [
+        "@cute.kernel\ndef my_kernel(data: cute.Tensor, n: cutlass.Int32):\n    tid = cute.arch.thread_idx()[0]\n    if tid < n:\n        data[tid] = 0.0\n\nmy_kernel.launch(grid=[4,1,1], block=[256,1,1])(data, n=1000)",
+        "my_kernel.compile(data=cute.Tensor, tile_size=128)",
+        "import shutil\nimport os\ncache_dir = os.path.expanduser('~/.cache/cutlass')\nshutil.rmtree(cache_dir)\nprint('Cache cleared')"
+      ],
+      "constraints": [
+        "Cache key does not depend on runtime parameter values or launch configuration",
+        "Cache persists across Python sessions and system reboots",
+        "Different GPUs may require separate caches if architectures differ",
+        "Cache may be invalidated by updates to CuTe DSL"
+      ],
+      "compressed_summary": "CuTe DSL employs JIT caching to store compiled GPU kernels, significantly reducing execution time for subsequent calls by avoiding recompilation. The cache is stored in a default directory, typically under ~/.cache/cutlass/, and includes compiled binaries, CUDA C++ code, PTX assembly, and metadata. Cache keys are determined by the function's source code, parameter types, constexpr values, compilation options, and target architecture, but not by runtime parameter values or launch configurations. Recompilation is triggered by changes in these key factors or by a Python session restart. Precompilation can be achieved using cute.compile(), allowing kernels to be compiled without execution, which is beneficial for production environments where startup time is critical. Cache management involves clearing the cache when necessary, such as after DSL updates, and monitoring its size to ensure efficient use of storage. Best practices include warming the cache at application startup, using cached kernels in benchmarks, and avoiding cache inclusion in version control. Performance improvements from caching are substantial, with cached calls executing in milliseconds compared to seconds for initial compilations. Developers should disable caching during development to ensure changes are reflected immediately and re-enable it in production for optimal performance."
+    },
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/06-compilation/02-compilation_options.md",
+      "category": "06-compilation",
+      "title": "CuTe DSL Compilation Options",
+      "key_concepts": [
+        "Environment variables for compilation control",
+        "Optimization levels",
+        "Debug vs release builds",
+        "Architecture targeting",
+        "Compiler flags",
+        "Assertion control"
+      ],
+      "critical_patterns": [
+        "Development: Fast iteration with -O0, debug enabled",
+        "Production: Maximum performance with -O3, debug disabled",
+        "Benchmarking: Accurate timing with profiling enabled",
+        "Debugging Performance: Inspect generated code with dump_code and keep_ptx"
+      ],
+      "code_snippets": [
+        "os.environ['CUTLASS_OPT_LEVEL'] = '3'",
+        "os.environ['CUTLASS_DEBUG'] = '1'",
+        "os.environ['CUTLASS_NVCC_ARCHS'] = '80;90'",
+        "os.environ['CUTLASS_VERBOSE'] = '2'",
+        "os.environ['CUTLASS_DUMP_CODE'] = '1'"
+      ],
+      "constraints": [
+        "Set options before importing cutlass",
+        "Most options are read at import time",
+        "Don't use -O0 in production",
+        "Don't disable assertions in development",
+        "Target correct architecture for GPU"
+      ],
+      "compressed_summary": "CuTe DSL offers various compilation options to control code generation, optimization levels, debugging, and target architecture. Key concepts include setting environment variables before importing cutlass, choosing appropriate optimization levels (-O0 to -O3), and enabling or disabling debug modes. Critical patterns for configuration include using -O0 for development with debugging enabled, -O3 for production with debugging disabled, and enabling profiling for benchmarking. Constraints emphasize setting options before import, avoiding -O0 in production, and targeting the correct GPU architecture. Code snippets demonstrate setting environment variables for different configurations. Best practices include documenting configurations and using verbose mode for debugging. The document also covers saving generated code and keeping PTX for analysis, with options for verbosity and assertion control. It advises against setting options post-import and highlights platform-specific settings for Linux/Mac and Windows. The document concludes with related topics and further reading on JIT compilation and GPU architecture."
+    },
+    {
+      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/06-compilation/03-type_safety.md",
+      "category": "06-compilation",
+      "title": "Type Safety in CuTe DSL",
+      "key_concepts": [
+        "Type annotations for parameters",
+        "Type inference",
+        "Compile-time type checking",
+        "Runtime type validation",
+        "Common type errors and fixes",
+        "Benefits of strong typing"
+      ],
+      "critical_patterns": [
+        "Always annotate kernel parameters to ensure compile-time error checking",
+        "Use specific scalar types like cutlass.Int32 instead of Python int",
+        "Use cutlass.Constexpr for compile-time constants",
+        "Explicit casts are preferred for type conversions to avoid precision loss",
+        "Type specialization allows different kernels for different tensor dtypes"
+      ],
+      "code_snippets": [
+        "@cute.kernel\ndef good_kernel(data: cute.Tensor, n: cutlass.Int32, threshold: cutlass.Float32):",
+        "@cute.kernel\ndef scalar_types(i8: cutlass.Int8, f32: cutlass.Float32):",
+        "@cute.kernel\ndef explicit_cast(data: cute.Tensor):\n    i: cutlass.Int32 = 42\n    f: cutlass.Float32 = cutlass.Float32(i)",
+        "@cute.kernel\ndef constexpr_vs_runtime(runtime_n: cutlass.Int32, compile_n: cutlass.Constexpr):",
+        "@cute.kernel\ndef requires_constexpr(n: cutlass.Constexpr):"
+      ],
+      "constraints": [
+        "Type annotations are mandatory for all kernel parameters",
+        "Compile-time constants must be marked with cutlass.Constexpr",
+        "Tensor types must be cute.Tensor, not torch.Tensor",
+        "Type mismatches are caught at compile time, preventing runtime errors",
+        "Implicit conversions may lead to precision loss and should be handled carefully"
+      ],
+      "compressed_summary": "CuTe DSL emphasizes type safety through mandatory type annotations for kernel parameters, enabling compile-time error detection and optimization. Strong typing ensures that errors are caught early, improving performance and code clarity. Key types include cute.Tensor for tensors and cutlass.Int32, cutlass.Float32 for scalars, with cutlass.Constexpr used for compile-time constants. Type inference is applied to return types and local variables, but explicit annotations are required for function parameters. Compile-time type checking prevents common errors like using incorrect types for array indices or mismatched function arguments. Type conversions should be explicit to avoid precision loss, and type specialization allows for optimized kernel compilation based on tensor dtypes. Best practices include always annotating parameters, using specific CuTe types over Python types, and employing Constexpr for values known at compile time. Runtime type validation is also recommended to ensure tensor compatibility before kernel execution. The document provides practical patterns and code snippets to guide developers in writing efficient and error-free GPU kernels with CuTe DSL."
+    }
+  ],
+  "unified_concepts": [
+    "Domain-Specific Language (DSL) for GPU kernel development",
+    "Compile-time optimization and template metaprogramming",
+    "JIT caching for performance enhancement",
+    "Type safety and compile-time type checking",
+    "Environment variables and compilation options"
+  ],
+  "essential_patterns": [
+    "Use template metaprogramming for compile-time optimizations to reduce runtime overhead.",
+    "Employ JIT caching to store compiled kernels, reducing execution time for subsequent calls.",
+    "Set environment variables before importing cutlass to control optimization levels and target architecture.",
+    "Annotate kernel parameters with specific CuTe types for compile-time error detection and optimization.",
+    "Precompile kernels using cute.compile() for production environments to minimize startup time."
+  ],
+  "common_pitfalls": [
+    "Ignoring hardware-specific constraints like shared memory size and maximum threads per block.",
+    "Forgetting to clear the JIT cache after DSL updates, leading to outdated kernel executions.",
+    "Setting environment variables post-import, which can lead to incorrect compilation settings.",
+    "Using Python types instead of specific CuTe types, which can cause type errors and inefficiencies."
+  ],
+  "compressed_overview": "CuTe DSL is a domain-specific language designed to optimize GPU kernel development through compile-time techniques and efficient memory management. It leverages template metaprogramming for performance improvements and employs JIT caching to store compiled kernels, significantly reducing execution time for repeated calls. Developers must manage environment variables to control optimization levels and target architectures, ensuring configurations are set before importing cutlass. Type safety is a critical feature, with mandatory annotations for kernel parameters enabling compile-time error detection and optimization. Precompilation using cute.compile() is recommended for production to minimize startup delays. Common pitfalls include neglecting hardware-specific constraints, failing to update the JIT cache, and incorrect environment variable settings. By adhering to these guidelines, developers can create efficient, error-free GPU kernels using CuTe DSL."
+}

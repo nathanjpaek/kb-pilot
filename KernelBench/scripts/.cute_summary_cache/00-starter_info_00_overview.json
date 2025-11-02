@@ -1,0 +1,28 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/00_overview.md",
+  "category": "00-starter_info",
+  "title": "CuTe DSL: High-Performance GPU Kernel Development in Python",
+  "key_concepts": [
+    "Python-based DSL for GPU kernel development",
+    "JIT compilation for optimized GPU code",
+    "DLPack protocol for framework integration",
+    "Compatibility with CuTe C++",
+    "Type inference and native type support"
+  ],
+  "critical_patterns": [
+    "JIT Compilation: Both host and device code are compiled just-in-time for performance optimization.",
+    "DLPack Integration: Enables zero-copy tensor conversion with major ML frameworks.",
+    "Intelligent Caching: Automatically caches JIT-compiled kernels to avoid recompilation.",
+    "Optional Lower-Level Control: Provides access to GPU-specific features for fine-grained control."
+  ],
+  "code_snippets": [
+    "from cute import kernel, jit\n@kernel\ndef my_kernel(...):\n    # Kernel code here",
+    "tensor = jit(my_kernel)(input_tensor)"
+  ],
+  "constraints": [
+    "Less ideal for simple element-wise operations.",
+    "Not suitable for operations already optimized in cuBLAS/cuDNN.",
+    "Primarily supports NVIDIA architectures: Ampere, Hopper, Blackwell."
+  ],
+  "compressed_summary": "CuTe DSL is a Python-based domain-specific language tailored for writing high-performance GPU kernels, offering a Pythonic interface while retaining the control of CUDA programming. It emphasizes ease of use, JIT compilation, and seamless integration with major machine learning frameworks via the DLPack protocol. CuTe DSL is consistent with CuTe C++ abstractions, facilitating a smooth transition for users familiar with CuTe C++. Key features include intelligent caching of JIT-compiled kernels, native type support with automatic inference, and optional access to low-level GPU features for advanced control. It is particularly suited for custom GPU kernels in machine learning, high-performance numeric computations, and rapid prototyping of GPU algorithms. However, it is less ideal for simple operations or tasks already optimized by existing libraries like cuBLAS or cuDNN. CuTe DSL supports modern NVIDIA architectures, offering advanced features like Tensor Cores and TMA. Compared to alternatives like Triton and raw CUDA, CuTe DSL provides a balance of control and ease of use, with excellent framework integration and debugging support. Users are encouraged to explore decorators and quick start guides to begin utilizing CuTe DSL effectively."
+}

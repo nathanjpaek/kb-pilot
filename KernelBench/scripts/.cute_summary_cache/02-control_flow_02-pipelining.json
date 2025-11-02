@@ -1,0 +1,26 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/02-control_flow/02-pipelining.md",
+  "category": "02-control_flow",
+  "title": "Software Pipelining in CuTe DSL",
+  "key_concepts": [
+    "Software pipelining overlaps memory loads with computation",
+    "CuTe DSL automates pipelining with cutlass.range() and prefetch_stages",
+    "Prefetching hides memory latency and improves GPU utilization"
+  ],
+  "critical_patterns": [
+    "GEMM K-Loop Pipeline: Overlaps matrix multiplication with data loading",
+    "Conv2D Input Pipeline: Prefetches input tiles and filters for convolution",
+    "Reduction Pipeline: Uses prefetching to load data chunks for reduction"
+  ],
+  "code_snippets": [
+    "@cute.jit\ndef pipelined_loop(bound, gmem, buffer):\n    for i in cutlass.range(bound, prefetch_stages=2):\n        cute.copy(atom, gmem[i], buffer[i % 3])\n        use(buffer[i % 3])",
+    "@cute.jit\ndef gemm_k_loop(num_k_tiles, gA, gB, smem_A, smem_B, acc):\n    for k in cutlass.range(num_k_tiles, prefetch_stages=2):\n        stage = k % 3\n        cute.copy(tma_A, gA[:, :, k], smem_A[:, :, stage])\n        cute.copy(tma_B, gB[:, :, k], smem_B[:, :, stage])\n        cute.arch.syncthreads()\n        cute.gemm(mma, acc, smem_A[:, :, stage], smem_B[:, :, stage], acc)"
+  ],
+  "constraints": [
+    "Requires async copy support on Hopper (SM90+) and Ampere (SM80)",
+    "Limited by shared memory capacity",
+    "Not beneficial for very fast compute or irregular memory access",
+    "Buffer size must be prefetch_stages + 1"
+  ],
+  "compressed_summary": "Software pipelining in CuTe DSL is a technique to overlap memory loads with computation, effectively hiding memory latency and improving GPU utilization. CuTe DSL simplifies this process through the use of the cutlass.range() function with a prefetch_stages parameter, allowing developers to specify how many iterations to prefetch ahead. This approach is particularly beneficial for memory-bound kernels and is best supported on Hopper (SM90+) and Ampere (SM80) architectures due to their enhanced async copy capabilities and larger shared memory. The key to effective pipelining is choosing the right number of prefetch stages, typically between 1 and 3, and ensuring that the buffer size is set to prefetch_stages + 1 to accommodate the circular buffer indexing. Common patterns include GEMM K-Loop pipelines, Conv2D input pipelines, and reduction pipelines, all of which leverage the overlap of computation and data loading to maximize performance. However, pipelining is not always beneficial, especially for compute-bound kernels with very fast operations or when shared memory is a limiting factor. Developers should profile their kernels to determine the actual performance gains, as the overhead of pipelining might outweigh its benefits in some cases. CuTe DSL automates much of the complexity involved in manual pipelining, making it easier to implement and tune for optimal performance. Key considerations include ensuring synchronization between loads and computations and verifying that shared memory usage does not exceed hardware limits. Overall, software pipelining in CuTe DSL offers a powerful tool for optimizing GPU kernels, particularly in scenarios where memory latency is a bottleneck."
+}

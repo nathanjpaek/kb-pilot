@@ -1,0 +1,28 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/01-dlpack.md",
+  "category": "07-framework_integration",
+  "title": "DLPack Integration in CuTe DSL",
+  "key_concepts": [
+    "Zero-copy tensor sharing",
+    "Memory layout preservation",
+    "Framework interoperability",
+    "DLPack capsule format"
+  ],
+  "critical_patterns": [
+    "Framework Bridge: Pass tensors between frameworks using DLPack for zero-copy",
+    "Batch Processing: Process multiple tensors efficiently using CuTe",
+    "In-Place Operations: Modify tensors in-place via CuTe kernels"
+  ],
+  "code_snippets": [
+    "cute_tensor = cute.from_dlpack(pt_tensor)",
+    "kernel.launch(...)(cute_tensor); torch.cuda.synchronize()",
+    "def safe_from_dlpack(tensor): if not tensor.is_contiguous(): tensor = tensor.contiguous(); return cute.from_dlpack(tensor)"
+  ],
+  "constraints": [
+    "Must use CUDA tensors for DLPack conversion",
+    "Original tensor must remain alive to ensure memory validity",
+    "Validate tensor properties (e.g., dtype, contiguity) before conversion",
+    "Synchronize after kernel execution to ensure completion"
+  ],
+  "compressed_summary": "DLPack is a standard format for zero-copy tensor exchange between frameworks, allowing CuTe DSL to interoperate seamlessly with PyTorch, JAX, TensorFlow, and others. By using DLPack, CuTe can perform zero-copy tensor sharing, preserving memory layout and device information, which is critical for efficient GPU memory usage. The key function `cute.from_dlpack(tensor)` enables conversion to CuTe tensors without memory copying, making it memory efficient and framework agnostic. DLPack capsules contain data pointers, shape, strides, dtype, and device information, ensuring that shared tensors maintain their properties across frameworks. Practical patterns include using DLPack for framework bridging, batch processing, and in-place operations. Constraints include ensuring tensors are on CUDA, keeping the original tensor alive, validating tensor properties before conversion, and synchronizing after kernel execution. Common errors involve using CPU tensors, unsupported dtypes, and incorrect device handling. Best practices emphasize explicit conversion, keeping the original tensor alive, and validating tensors before conversion. DLPack's zero-copy capability significantly speeds up tensor operations, especially for large tensors or frequent conversions, making it a powerful tool for integrating CuTe with existing codebases."
+}

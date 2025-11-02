@@ -1,0 +1,29 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/04-operations/03-partition_operations.md",
+  "category": "04-operations",
+  "title": "Partition Operations in CuTe DSL",
+  "key_concepts": [
+    "Partitioning divides tensors among computational units",
+    "Spatial, Strided, and Hierarchical partitioning types",
+    "Partition functions for source, destination, and MMA matrices"
+  ],
+  "critical_patterns": [
+    "Block-Level Partitioning: Each block processes a tile of the tensor",
+    "Thread-Level Partitioning: Threads within a block further partition data",
+    "2D Partitioning: Partition a 2D tensor among a 2D thread layout",
+    "Cyclic Partitioning: Distribute work cyclically for load balancing"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef spatial_partition(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    start = tid * 4\n    for i in range(4):\n        process(data[start + i])",
+    "@cute.kernel\ndef strided_partition(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    num_threads = cute.arch.block_dim_x()\n    for i in range(tid, cute.size(data), num_threads):\n        process(data[i])",
+    "@cute.kernel\ndef hierarchical_partition(data: cute.Tensor):\n    bid = cute.arch.block_idx()[0]\n    block_data = data[bid]\n    wid = cute.arch.thread_idx()[0] // 32\n    warp_data = block_data[wid]\n    lane = cute.arch.thread_idx()[0] % 32\n    thread_data = warp_data[lane]\n    process(thread_data)",
+    "@cute.kernel\ndef partition_source_example(gmem: cute.Tensor, smem: cute.Tensor):\n    tiled_copy = cute.make_tiled_copy(...)\n    tid = cute.arch.thread_idx()[0]\n    thread_copy = tiled_copy.get_slice(tid)\n    thread_src = thread_copy.partition_S(gmem)\n    thread_dst = thread_copy.partition_D(smem)\n    cute.copy(tiled_copy, thread_src, thread_dst)"
+  ],
+  "constraints": [
+    "Ensure partitions align with memory boundaries for coalesced access",
+    "Verify all elements are covered exactly once",
+    "Avoid non-coalesced and unbalanced partitions",
+    "Check bounds to prevent out-of-bounds access"
+  ],
+  "compressed_summary": "Partitioning in CuTe DSL is crucial for efficient parallel GPU programming, dividing large tensors into smaller views for threads, warps, or blocks. Key partitioning types include Spatial, Strided, and Hierarchical, each with specific use cases. Spatial partitioning assigns contiguous elements to threads, Strided assigns every Nth element, and Hierarchical divides data at multiple levels (block, warp, thread). CuTe provides functions like partition_S() for source tensors and partition_D() for destination tensors, essential for copy operations. For matrix operations, partition_A(), partition_B(), and partition_C() are used for MMA operations. Best practices include ensuring coalesced memory access, balancing workloads, and verifying partition coverage. Common patterns involve Block-Level Partitioning, where each block processes a tensor tile, and 2D Partitioning, which divides a 2D tensor among a 2D thread layout. Cyclic Partitioning helps balance irregular workloads. Avoid mistakes like incorrect partition sizes, non-coalesced access, and unbalanced partitions. Use static partitioning for compile-time constants and dynamic partitioning for runtime flexibility. Always verify that all elements are processed and no overlaps occur. For further exploration, refer to related topics like tiled operations and MMA atoms."
+}

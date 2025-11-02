@@ -1,0 +1,33 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/04-profiling.md",
+  "category": "08-optimization",
+  "title": "Profiling CuTe DSL Kernels",
+  "key_concepts": [
+    "Basic timing measurements",
+    "PyTorch profiler integration",
+    "NSight Systems for timeline analysis",
+    "NSight Compute for kernel metrics",
+    "Interpreting profiler output",
+    "Performance metrics"
+  ],
+  "critical_patterns": [
+    "Warm up GPU before profiling to avoid cold cache effects",
+    "Use CUDA events for accurate GPU timing",
+    "Annotate code with NVTX for better profiling insights",
+    "Profile multiple iterations to get average performance metrics",
+    "Use NSight Systems for timeline analysis to identify CPU/GPU bottlenecks",
+    "Use NSight Compute for detailed kernel analysis and metrics"
+  ],
+  "code_snippets": [
+    "import torch\nimport time\n\ndef time_kernel(kernel, grid, block, *args, num_iters=100, warmup=10):\n    for _ in range(warmup):\n        kernel.launch(grid=grid, block=block)(*args)\n    torch.cuda.synchronize()\n    start = time.time()\n    for _ in range(num_iters):\n        kernel.launch(grid=grid, block=block)(*args)\n    torch.cuda.synchronize()\n    elapsed = time.time() - start\n    avg_time = elapsed / num_iters\n    print(f\"Average time: {avg_time*1000:.3f} ms\")\n    return avg_time",
+    "def time_kernel_cuda_events(kernel, grid, block, *args, num_iters=100):\n    start_event = torch.cuda.Event(enable_timing=True)\n    end_event = torch.cuda.Event(enable_timing=True)\n    for _ in range(10):\n        kernel.launch(grid=grid, block=block)(*args)\n    torch.cuda.synchronize()\n    start_event.record()\n    for _ in range(num_iters):\n        kernel.launch(grid=grid, block=block)(*args)\n    end_event.record()\n    torch.cuda.synchronize()\n    elapsed_ms = start_event.elapsed_time(end_event)\n    avg_time_ms = elapsed_ms / num_iters\n    print(f\"Average time: {avg_time_ms:.3f} ms\")\n    return avg_time_ms / 1000",
+    "def calculate_metrics(kernel_time: float, problem_size: tuple, dtype_size: int = 2, operation: str = \"gemm\"):\n    if operation == \"gemm\":\n        M, N, K = problem_size\n        flops = 2 * M * N * K\n        tflops = flops / kernel_time / 1e12\n        bytes_transferred = (M*K + K*N + M*N) * dtype_size\n        bandwidth_gb_s = bytes_transferred / kernel_time / 1e9\n        arithmetic_intensity = flops / bytes_transferred\n        print(f\"\\nPerformance Metrics:\")\n        print(f\"  Time: {kernel_time*1000:.3f} ms\")\n        print(f\"  Throughput: {tflops:.2f} TFLOPS\")\n        print(f\"  Bandwidth: {bandwidth_gb_s:.1f} GB/s\")\n        print(f\"  Arithmetic Intensity: {arithmetic_intensity:.1f} FLOP/byte\")\n        return {'time': kernel_time, 'tflops': tflops, 'bandwidth': bandwidth_gb_s, 'arithmetic_intensity': arithmetic_intensity}"
+  ],
+  "constraints": [
+    "Always synchronize CUDA operations to ensure accurate timing",
+    "Avoid profiling in debug mode due to slower performance",
+    "Ensure kernels are warmed up to avoid profiling cold cache effects",
+    "Profile release builds only for accurate performance metrics"
+  ],
+  "compressed_summary": "Profiling CuTe DSL kernels is crucial for optimizing GPU performance. The documentation outlines various tools and techniques for effective profiling. Basic timing can be done using Python's time module or CUDA events for more precision. PyTorch profiler offers integration for timeline and memory profiling, while NSight Systems provides a comprehensive timeline analysis to identify bottlenecks between CPU and GPU operations. NSight Compute offers detailed kernel metrics, including memory throughput, compute throughput, occupancy, cache hit rates, and warp execution efficiency. Key profiling patterns include warming up the GPU to avoid cold cache effects, using CUDA events for accurate timing, annotating code with NVTX for better profiling insights, and profiling multiple iterations to obtain average performance metrics. Constraints to consider include always synchronizing CUDA operations, avoiding debug builds for profiling, and ensuring kernels are warmed up. The profiling workflow involves starting with basic timing to identify slow kernels, using PyTorch profiler for an overview, NSight Systems for timeline analysis, and NSight Compute for a deep dive into kernel metrics. Profiling should be done before optimization to accurately identify bottlenecks. The documentation also covers comparative profiling, A/B testing optimizations, and automated performance testing to track kernel performance over time and detect regressions. Best practices emphasize the importance of warming up, using CUDA events, profiling multiple iterations, and annotating with NVTX. Avoid profiling debug builds, unsynchronized operations, and cold cache effects. The document provides a comprehensive guide to profiling CuTe DSL kernels, focusing on practical patterns, constraints, and actionable insights to optimize GPU kernel performance effectively."
+}

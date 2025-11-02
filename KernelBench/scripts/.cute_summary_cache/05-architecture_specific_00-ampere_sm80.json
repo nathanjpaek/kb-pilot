@@ -1,0 +1,29 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/05-architecture_specific/00-ampere_sm80.md",
+  "category": "05-architecture_specific",
+  "title": "Ampere SM80 Architecture Features for CuTe DSL",
+  "key_concepts": [
+    "3rd generation Tensor Cores",
+    "Async copy (cp.async)",
+    "Structural sparsity (2:4)",
+    "Multi-Instance GPU (MIG)"
+  ],
+  "critical_patterns": [
+    "Use async copy for GMEM to SMEM transfers to hide latency",
+    "Pipeline with 3+ stages for better latency hiding",
+    "Prefer FP16/BF16 over FP32 for faster computations",
+    "Utilize TF32 for FP32 range with faster performance"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef async_copy(gmem: cute.Tensor, smem: cute.Tensor):\n    async_atom = cute.make_ampere_async_copy_atom(cutlass.Float16)\n    cute.copy(async_atom, gmem[tid], smem[tid])\n    cute.arch.cp_async_wait_all()\n    cute.arch.syncthreads()",
+    "@cute.kernel\ndef ampere_fp16_mma():\n    mma = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F32F32_TN)",
+    "@cute.kernel\ndef sparse_mma_ampere():\n    sparse_mma = cute.make_mma_atom(cute.SM80_16x8x32_F16F16F32F32_TN_SPARSE)"
+  ],
+  "constraints": [
+    "A matrix must be 2:4 sparse for sparse MMA",
+    "Shared memory configurations affect register availability and occupancy",
+    "TF32 is automatically used for FP32 operations on Tensor Cores",
+    "Profile to find optimal shared memory and register configurations"
+  ],
+  "compressed_summary": "The Ampere (SM80) architecture, exemplified by the NVIDIA A100 GPU, introduces significant advancements for deep learning workloads, including enhanced Tensor Cores, asynchronous data transfer capabilities, and structural sparsity support. Key features include 3rd generation Tensor Cores supporting various data types such as FP16, BF16, TF32, and INT8, with specific performance metrics like 312 TFLOPS for FP16 operations. The async copy instruction (cp.async) allows for non-blocking data transfers between global and shared memory, enabling computation to overlap with data movement, which is crucial for performance optimization. Structural sparsity, specifically 2:4 sparsity, offers a 2x speedup by ensuring that only two out of every four values in a weight matrix are non-zero. Best practices for leveraging Ampere's capabilities include using async copy for all global to shared memory transfers, employing multi-stage pipelining (preferably with 3 or more stages) to maximize latency hiding, and opting for mixed precision (FP16/BF16) over FP32 to exploit Tensor Core speedups. TF32 provides an automatic performance boost for FP32 operations by using a reduced mantissa precision. Shared memory configuration is critical, as it impacts the number of registers available per thread and overall occupancy, necessitating profiling to determine the optimal setup. Typical performance for an optimized GEMM kernel on Ampere can reach 250-310 TFLOPS, with expert implementations achieving up to 99% of theoretical peak performance. For further optimization, tuning tile sizes and the number of pipeline stages is recommended, alongside leveraging the full shared memory capacity per SM for complex workloads."
+}

@@ -1,0 +1,31 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/03-kernel_launch.md",
+  "category": "07-framework_integration",
+  "title": "CuTe DSL Kernel Launch Configuration",
+  "key_concepts": [
+    "Grid and block dimensions",
+    "Launch syntax",
+    "Thread/block indexing",
+    "Occupancy considerations",
+    "Launch parameters",
+    "Dynamic vs static configuration"
+  ],
+  "critical_patterns": [
+    "1D launch: grid=[num_blocks, 1, 1], block=[threads_per_block, 1, 1]",
+    "2D launch: grid=[blocks_x, blocks_y, 1], block=[threads_x, threads_y, 1]",
+    "Grid-stride loop for variable sizes",
+    "Persistent kernels for multiple work items"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef my_kernel(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    data[tid] = 0.0\n\nmy_kernel.launch(grid=[4, 1, 1], block=[256, 1, 1])(data)",
+    "def calculate_grid_1d(n: int, block_size: int) -> tuple:\n    num_blocks = (n + block_size - 1) // block_size\n    return (num_blocks, 1, 1)",
+    "@cute.kernel\ndef scale_2d(matrix: cute.Tensor, scale: cutlass.Float32):\n    tx = cute.arch.thread_idx()[0]\n    ty = cute.arch.thread_idx()[1]\n    bx = cute.arch.block_idx()[0]\n    by = cute.arch.block_idx()[1]\n    block_width = cute.arch.block_dim_x()\n    block_height = cute.arch.block_dim_y()\n    i = bx * block_width + tx\n    j = by * block_height + ty\n    if i < M and j < N:\n        matrix[i, j] = matrix[i, j] * scale"
+  ],
+  "constraints": [
+    "Maximum 1024 threads per block",
+    "Block dimensions must be multiples of warp size (32)",
+    "Grid and block must be 3D",
+    "Ensure bounds checking to avoid out-of-bounds access"
+  ],
+  "compressed_summary": "Launching CuTe DSL kernels requires understanding grid and block dimensions, launch syntax, and thread/block indexing. The `launch()` method is used to specify execution configuration, including grid and block dimensions. Common patterns include 1D, 2D, and 3D launches, with configurations like grid=[num_blocks, 1, 1] and block=[threads_per_block, 1, 1]. Occupancy considerations are crucial for performance, with higher occupancy generally improving latency hiding. However, optimal performance may require balancing occupancy with available resources. Dynamic launch configurations allow runtime adjustments based on problem size or GPU capabilities. Thread indexing involves accessing thread and block indices to compute global indices for data processing. Best practices include using multiples of warp size for block dimensions, ensuring grid covers the entire problem, and adding bounds checking to prevent out-of-bounds errors. Validating launch configurations is essential to ensure they adhere to hardware constraints. Common patterns like grid-stride loops and persistent kernels help efficiently handle varying problem sizes and workloads. For further optimization, understanding thread layouts and occupancy tuning is recommended."
+}

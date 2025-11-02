@@ -1,0 +1,34 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/06-compilation/02-compilation_options.md",
+  "category": "06-compilation",
+  "title": "CuTe DSL Compilation Options",
+  "key_concepts": [
+    "Environment variables for compilation control",
+    "Optimization levels",
+    "Debug vs release builds",
+    "Architecture targeting",
+    "Compiler flags",
+    "Assertion control"
+  ],
+  "critical_patterns": [
+    "Development: Fast iteration with -O0, debug enabled",
+    "Production: Maximum performance with -O3, debug disabled",
+    "Benchmarking: Accurate timing with profiling enabled",
+    "Debugging Performance: Inspect generated code with dump_code and keep_ptx"
+  ],
+  "code_snippets": [
+    "os.environ['CUTLASS_OPT_LEVEL'] = '3'",
+    "os.environ['CUTLASS_DEBUG'] = '1'",
+    "os.environ['CUTLASS_NVCC_ARCHS'] = '80;90'",
+    "os.environ['CUTLASS_VERBOSE'] = '2'",
+    "os.environ['CUTLASS_DUMP_CODE'] = '1'"
+  ],
+  "constraints": [
+    "Set options before importing cutlass",
+    "Most options are read at import time",
+    "Don't use -O0 in production",
+    "Don't disable assertions in development",
+    "Target correct architecture for GPU"
+  ],
+  "compressed_summary": "CuTe DSL offers various compilation options to control code generation, optimization levels, debugging, and target architecture. Key concepts include setting environment variables before importing cutlass, choosing appropriate optimization levels (-O0 to -O3), and enabling or disabling debug modes. Critical patterns for configuration include using -O0 for development with debugging enabled, -O3 for production with debugging disabled, and enabling profiling for benchmarking. Constraints emphasize setting options before import, avoiding -O0 in production, and targeting the correct GPU architecture. Code snippets demonstrate setting environment variables for different configurations. Best practices include documenting configurations and using verbose mode for debugging. The document also covers saving generated code and keeping PTX for analysis, with options for verbosity and assertion control. It advises against setting options post-import and highlights platform-specific settings for Linux/Mac and Windows. The document concludes with related topics and further reading on JIT compilation and GPU architecture."
+}

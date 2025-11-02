@@ -1,0 +1,30 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/03-memory_and_layouts/03-swizzling.md",
+  "category": "03-memory_and_layouts",
+  "title": "Memory Swizzling in CuTe DSL",
+  "key_concepts": [
+    "Swizzling rearranges data storage to avoid bank conflicts",
+    "Shared memory is divided into 32 banks",
+    "Bank conflicts occur when multiple threads access the same bank",
+    "Padding and swizzling are techniques to avoid conflicts"
+  ],
+  "critical_patterns": [
+    "Padding: Add extra columns to avoid power-of-2 strides",
+    "Swizzling: Permute address bits to distribute accesses across banks",
+    "GEMM with swizzled shared memory to avoid conflicts",
+    "Transpose with swizzled layout for conflict-free access"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef no_conflict_example():\n    smem = cute.make_smem_tensor(cute.make_shape(32, 32), cutlass.Float32)\n    tid = cute.arch.thread_idx()[0]\n    val = smem[0, tid]",
+    "@cute.kernel\ndef no_conflict_with_padding():\n    smem = cute.make_smem_tensor(cute.make_shape(128, 33), cutlass.Float32)",
+    "@cute.kernel\ndef swizzled_layout_example():\n    base_shape = cute.make_shape(128, 64)\n    swizzled_layout = apply_swizzle(base_shape, base_stride, swizzle_bits=3)",
+    "@cute.kernel\ndef gemm_with_swizzled_smem(gA, gB, gC):\n    smem_A = allocate_swizzled_smem(tile_shape, cutlass.Float16)"
+  ],
+  "constraints": [
+    "Padding increases memory usage slightly",
+    "Swizzling requires understanding of address bit manipulation",
+    "Swizzling API may vary between CuTe Python and C++",
+    "Profiling is essential to detect and verify conflict elimination"
+  ],
+  "compressed_summary": "Memory swizzling in CuTe DSL is an advanced technique used to rearrange data storage in shared memory to avoid bank conflicts, which occur when multiple threads access different addresses in the same memory bank, leading to serialization and performance loss. Shared memory is divided into 32 banks, and conflicts are common with stride-of-32 patterns. Two primary solutions exist: padding and swizzling. Padding involves adding extra columns to avoid power-of-2 strides, which is simple and effective for most cases, albeit with a small memory overhead. Swizzling permutes address bits to distribute accesses across banks without wasting memory, suitable for complex access patterns and when memory is tight. Swizzling can be more efficient than padding but requires careful implementation and may vary in API between CuTe Python and C++. Practical applications include GEMM and transpose operations, where swizzled shared memory can significantly improve performance by eliminating bank conflicts. Profiling tools like NVIDIA Nsight Systems and Compute are essential for detecting conflicts and verifying improvements. Best practices include starting with padding for simple cases and considering swizzling for complex patterns. Understanding shared memory hierarchy and efficient data movement is crucial for maximizing performance in shared memory-intensive kernels."
+}

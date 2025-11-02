@@ -1,0 +1,31 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/05-architecture_specific/02-blackwell_sm100.md",
+  "category": "05-architecture_specific",
+  "title": "CuTe DSL for Blackwell (SM100) Architecture",
+  "key_concepts": [
+    "5th generation Tensor Cores",
+    "Tensor Memory (TMEM)",
+    "2-CTA instructions",
+    "Block-scaled formats",
+    "Enhanced FP4/FP6 support"
+  ],
+  "critical_patterns": [
+    "Use TMEM for large accumulators to reduce register pressure",
+    "Adopt FP6/FP4 for inference to leverage extreme quantization",
+    "Leverage 2-CTA instructions for processing larger tiles efficiently",
+    "Use block-scaled formats for improved quantization accuracy"
+  ],
+  "code_snippets": [
+    "@cute.kernel\ndef blackwell_with_tmem():\n    tmem_accumulator = cute.make_tmem_tensor(cute.make_shape(128, 128), cutlass.Float32)",
+    "@cute.kernel\ndef blackwell_fp8_mma():\n    mma = cute.make_mma_atom(cute.SM100_16x8x32_E4M3E5M2F16_SS)",
+    "@cute.kernel\ndef blackwell_2cta_mma():\n    mma_2cta = cute.make_mma_atom_2cta(cute.SM100_2CTA_MMA_ATOM, cta_layout=cute.make_shape(2, 1))",
+    "@cute.kernel\ndef blackwell_tma_to_tmem(gmem: cute.Tensor, tma_desc: cute.TMADescriptor):\n    tmem = cute.make_tmem_tensor(cute.make_shape(128, 64), cutlass.Float16)"
+  ],
+  "constraints": [
+    "Documentation may be incomplete; check latest NVIDIA updates",
+    "APIs may change as Blackwell support evolves",
+    "CuTe Python DSL support is being expanded for Blackwell",
+    "B100/B200 availability is currently limited"
+  ],
+  "compressed_summary": "The Blackwell (SM100) architecture introduces significant advancements for AI workloads, featuring 5th generation Tensor Cores with enhanced support for FP4, FP6, and FP8, a new Tensor Memory (TMEM) hierarchy, and 2-CTA instructions for cross-block cooperation. The architecture supports block-scaled formats like MXFP4, MXFP6, and MXFP8, which improve quantization accuracy by applying different scale factors to each block of values. TMEM is positioned between registers and shared memory, offering faster access than shared memory and optimized for tensor core accumulator storage, reducing register pressure. Practical patterns for developers include using TMEM for large accumulators, adopting FP6/FP4 for inference tasks, leveraging 2-CTA instructions for efficient processing of larger tiles, and employing block-scaled formats for better quantization. The B200 GPU, a flagship of the Blackwell series, boasts approximately 208 SMs, 30,000+ CUDA cores, and 832+ Tensor Cores, with a memory bandwidth of 8 TB/s, significantly surpassing its predecessor, the Hopper H100. Performance expectations include up to 16,000 TFLOPS for FP4 operations and 8,000 TFLOPS for FP8, with substantial improvements in memory bandwidth and efficiency. Migration from Hopper to Blackwell is facilitated by the compatibility of most existing code, with new features like TMEM and lower precision formats offering opportunities for enhanced performance. Developers should remain aware of evolving documentation and tooling as Blackwell support continues to grow."
+}

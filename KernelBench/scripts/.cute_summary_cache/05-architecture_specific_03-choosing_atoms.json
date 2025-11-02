@@ -1,0 +1,29 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/05-architecture_specific/03-choosing_atoms.md",
+  "category": "05-architecture_specific",
+  "title": "Choosing the Right Atoms for GPU Kernel Optimization with CuTe DSL",
+  "key_concepts": [
+    "GPU architecture-specific atom selection",
+    "Precision and performance trade-offs",
+    "Memory bandwidth and register pressure considerations",
+    "MMA and copy atom usage"
+  ],
+  "critical_patterns": [
+    "Use FP16 inputs with FP32 accumulators for training on all architectures",
+    "Use FP8 for inference on Hopper and Blackwell for speed",
+    "Use cp.async for memory transfers on Ampere",
+    "Use TMA for memory transfers on Hopper and Blackwell"
+  ],
+  "code_snippets": [
+    "mma = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F32F32_TN)",
+    "async_atom = cute.make_ampere_async_copy_atom(element_type=cutlass.Float16, num_bits_per_copy=128)",
+    "tma_desc = cute.make_tma_descriptor(tensor=gmem, tile_shape=cute.make_shape(128, 64), element_type=cutlass.Float16)"
+  ],
+  "constraints": [
+    "FP32 accumulators are recommended for long accumulation chains",
+    "Use TMA for large tile transfers on Hopper and Blackwell",
+    "FP8 and lower precisions require careful accuracy validation",
+    "Always validate kernel correctness and performance"
+  ],
+  "compressed_summary": "This document provides guidance on selecting the appropriate MMA and copy atoms for GPU kernel optimization using the CuTe DSL, focusing on different GPU architectures (Ampere, Hopper, Blackwell) and data types (FP16, BF16, FP8, etc.). Key factors in atom selection include the target GPU architecture, data type precision requirements, performance vs accuracy trade-offs, memory bandwidth, and register pressure. For MMA atoms, FP16 inputs with FP32 accumulators are recommended for training across all architectures due to their balance of speed and precision. For inference, FP8 is preferred on Hopper and Blackwell for its speed advantage. Copy atoms selection varies by architecture: cp.async is used on Ampere for asynchronous memory transfers, while TMA is used on Hopper and Blackwell for efficient large tile transfers. The document emphasizes the importance of validating kernel correctness, performance, and accuracy, with specific recommendations for different scenarios such as LLM training and inference, vision model training, and quantized inference. It also outlines the precision hierarchy from FP64 to FP4, highlighting the trade-offs between speed and accuracy. The document concludes with architecture-specific recommendations and a decision matrix to aid in atom selection based on workload and GPU architecture."
+}

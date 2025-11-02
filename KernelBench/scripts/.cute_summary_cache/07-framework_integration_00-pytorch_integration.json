@@ -1,0 +1,34 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/00-pytorch_integration.md",
+  "category": "07-framework_integration",
+  "title": "PyTorch Integration with CuTe DSL",
+  "key_concepts": [
+    "Converting PyTorch tensors to CuTe tensors",
+    "Launching kernels from PyTorch",
+    "Memory management and ownership",
+    "Integration with PyTorch autograd",
+    "Mixed PyTorch/CuTe workflows"
+  ],
+  "critical_patterns": [
+    "Simple PyTorch to CuTe pipeline for kernel execution",
+    "Zero-copy conversion with from_dlpack()",
+    "In-place operations using CuTe kernels",
+    "Custom layer integration within nn.Module",
+    "Preprocessing pipeline with CuTe kernels"
+  ],
+  "code_snippets": [
+    "cute_tensor = cute.from_dlpack(tensor)",
+    "scale_kernel.launch(grid=grid, block=block)(cute_tensor, scale=2.0)",
+    "torch.cuda.synchronize()",
+    "def elementwise_add(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor",
+    "def relu_(tensor: torch.Tensor) -> torch.Tensor"
+  ],
+  "constraints": [
+    "Always use CUDA tensors with CuTe",
+    "Ensure tensors are contiguous for efficiency",
+    "Synchronize before accessing results in PyTorch",
+    "Avoid CPU tensors with CuTe",
+    "Don't mix different dtypes in kernel operations"
+  ],
+  "compressed_summary": "CuTe DSL integrates with PyTorch to allow writing custom CUDA kernels that operate directly on PyTorch tensors, facilitating optimized GPU operations within a Python workflow. Key concepts include converting PyTorch tensors to CuTe tensors using the zero-copy from_dlpack() function, launching kernels, and managing memory and ownership. CuTe and PyTorch tensors share memory, making changes in one immediately visible in the other. Always use CUDA tensors, ensure they are contiguous, and synchronize operations to avoid incorrect results. Custom kernels can be wrapped in Python functions for clean integration, and PyTorch's autograd can be extended with custom backward functions. Multi-GPU support is available, with kernels launchable on specific GPUs. Performance can be optimized by minimizing CPU-GPU transfers and batching synchronizations. Common patterns include custom layers in nn.Module, preprocessing pipelines, and custom loss functions. Debugging involves checking tensor properties and validating kernel results against PyTorch references. Best practices emphasize using CUDA tensors, synchronizing operations, and ensuring tensor contiguity. Avoid using CPU tensors, forgetting synchronization, and mixing dtypes in kernel operations. Further resources include DLPack specifications and PyTorch CUDA semantics."
+}

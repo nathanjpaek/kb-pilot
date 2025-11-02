@@ -1,0 +1,157 @@
+CuTe DSL Quick-Reference for LLM Kernel Generation
+=================================================
+
+0. Global style  
+• Only emit valid Python 3.10 code that imports cutlass (a.k.a. “cute”).  
+• Use tabs-in-two-spaces, snake_case names, explicit type annotations, and no unused imports.  
+• Keep kernels side-effect-free except for writes to user-supplied tensors.  
+• All host code must run under `@cute.jit`; all device code under `@cute.kernel`.
+
+──────────────────────────────────────────────────────────────────────────────
+1. Core Concepts – tensors, layouts, types
+──────────────────────────────────────────────────────────────────────────────
+• Tensor  =  (pointer, layout, meta). Meta is usually dtype & memory space.  
+• Layout  =  shape + stride; create with `make_shape(*sizes)` + `make_stride(*strides)` or helpers (`row_major`, `col_major`, `blocked`).  
+• Static layout  → compile-time `Constexpr` sizes ⇒ maximal optimization; dynamic layout → runtime sizes for flexibility. Mix: outer dims dynamic, inners static.  
+• Memory spaces: GMEM (“global”), SMEM (“shared”), RMEM (“register”) are explicit via pointer constructors (`make_ptr(g_ptr)`, `make_smem_ptr(shape, dtype)`, etc.).  
+• Alignment hints: `cute.assume(ptr, align=<bytes>)` enables vectorized loads and copy atoms.  
+• Data types: i8/u8/i32/f16/bf16/fp8_e4m3/fp8_e5m2/fp4/fp6/f32; promotion rules follow CUDA; accumulate in higher precision (`acc_dtype=`).  
+• Compile-time constants: wrap Python ints with `cutlass.Constexpr(n)` or `range_constexpr(start, stop)` when value participates in Static Single Assignment.
+
+──────────────────────────────────────────────────────────────────────────────
+2. Kernel Structure & Decorators
+──────────────────────────────────────────────────────────────────────────────
+Host orchestration  
+```
+@cute.jit
+def gemm_host(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):
+    grid = (C.shape[0] // 128, C.shape[1] // 128)
+    block = (128, 1, 1)
+    gemm_kernel.launch(grid, block, (A, B, C))
+```
+Device computation  
+```
+@cute.kernel
+def gemm_kernel(a: cute.Tensor, b: cute.Tensor, c: cute.Tensor):
+    # …device code…
+```
+• Launch is mandatory: `.launch(grid, block, args, stream=None)`; forgetting it produces silent no-op.  
+• Kernel parameters need CuTe types (`cute.Tensor`, `cute.int32`, not raw Python).  
+• Grid-stride loop pattern:  
+```
+for m in range(blockIdx.x, M, gridDim.x):
+    for n in range(blockIdx.y, N, gridDim.y):
+        …operate on tile (m,n)…  
+```
+• Device functions may be plain Python but must be reachable from kernels only; annotate with `@cute.jit` to inline.  
+• No dynamic kernel launches inside kernels (CUDA Dynamic Parallelism unsupported).  
+• Control flow inside kernels allowed only if resolvable by AST Rewriting; avoid unpredictable Python reflection.
+
+──────────────────────────────────────────────────────────────────────────────
+3. Memory Operations – copy atoms & MMA
+──────────────────────────────────────────────────────────────────────────────
+Copy atoms  
+• `copy_atom = cute.Copy(gmem_ptr, smem_ptr, shape, dtype, vec=128//dtype.bits)` chooses optimal vector width.  
+• `copy_atom.copy_async(stage_idx)` when GMEM→SMEM and architecture ≥ Ampere; pair each stage with `cute.cp_async_fence()` and one final `cute.cp_async_wait<N>()`.  
+• Hopper/Blackwell: prefer `cute.TMA_copy(plan, gmem_ptr, smem_ptr)` (turns into `tma.store`/`tma.load`).  
+• Always follow async copies with `syncthreads()` before reading SMEM.
+
+MMA atoms  
+• Create with `mma_atom = cute.MMA(shape_mnkl, dtype_a, dtype_b, dtype_acc)`; shape matches hardware (e.g., (16,8,16)).  
+• Perform:  
+```
+acc = mma_atom(a_tile, b_tile, acc)
+```  
+• Match tensor core generation:  
+– Ampere: use f16/bf16; Hopper: adds fp8; Blackwell adds fp4/fp6.  
+• Partition operands: `a_tile = partition_K(a_tensor, mma_atom)`, `b_tile = partition_N(b_tensor, mma_atom)`.
+
+──────────────────────────────────────────────────────────────────────────────
+4. Thread-Value Layouts & Tiling
+──────────────────────────────────────────────────────────────────────────────
+• Three-level tiling canonical stack: Threadblock → Warp → Thread → Element.  
+• Use `make_shape()` hierarchically:  
+```
+TB_MN = make_shape(128, 128)
+WARP_MN = make_shape(64, 64)
+THREAD_MN = make_shape(16, 8)
+```
+• Derive threadblock layout: `tb_layout = make_layout(TB_MN, order=(1,0))` (col-major).  
+• Partition tensors to each level with `cute.partition_S` (source) or `partition_D` (dest):  
+```
+A_warp = partition_S(A_smem, tb_layout, warp_idx)
+A_thread = partition_S(A_warp, warp_layout, lane_idx)
+```
+• Register tiles live in per-thread arrays; use `cute.fill(acc, 0)` to init.  
+• Choose tile sizes to:  
+– fit SMEM limit (`TB_MN*k*sizeof(dtype) < smem_capacity`),  
+– keep occupancy ≥4 warps/block,  
+– satisfy tensor core shapes exactly (k multiple of 16 for FP16).
+
+──────────────────────────────────────────────────────────────────────────────
+5. Critical Patterns & Idioms
+──────────────────────────────────────────────────────────────────────────────
+• Software pipelining  
+```
+for stage in cutlass.range(prefetch_stages):      # compile-time unrolled
+    copy_atom.copy_async(stage)
+    syncthreads()
+    compute_tile(stage)
+```
+– Choose `prefetch_stages` s.t. `(stages * tile_bytes) ≤ SMEM`.  
+• Compile-time branch elimination  
+```
+if cute.const_expr(UNROLL == 4):
+    …unrolled 4-version…
+else:
+    …generic…
+```  
+• Grid-level bounds check once per tile:  
+```
+if m + T_M > M or n + T_N > N:  cute.guard_store(c_sub, (M,N))
+```  
+• Mixed precision  
+```
+acc_dtype = cute.dtype("f32")
+mma_atom = cute.MMA((16,8,16), "fp8_e4m3", "fp8_e4m3", acc_dtype)
+```  
+• Range static loop (generates compile-time unroll):  
+```
+for k in cutlass.range_constexpr(0, K, k_step):
+    …
+```  
+• Autotune entry: expose hyperparams as Constexprs; external tuner varies them via environment vars then recompiles.
+
+──────────────────────────────────────────────────────────────────────────────
+6. Common Mistakes (and fixes)
+──────────────────────────────────────────────────────────────────────────────
+• Forget `.launch` → kernel never runs.  
+• Using `@cute.kernel` for host code → compilation error.  
+• Passing CPU tensors to `from_dlpack` → runtime failure; ensure `.is_cuda`.  
+• Omitting `syncthreads()` after async copy → race conditions.  
+• Misaligned GMEM ptr (e.g., 4-byte aligned for fp16x2) disables vectorization → call `assume(ptr, align=16)`.  
+• Warp divergence from per-thread `if` using runtime values → hoist condition to compile-time or tile level.  
+• Exceeding SMEM (`cute.SM90_SMEM_BYTES==99_840`) → reduce tile or stages.  
+• Tracing mode with untaken branches → switch to AST rewriting via `@cute.jit(style="ast")`.  
+• Env vars after import (e.g., `CUTLASS_ARCH`) → ignored; set before Python process starts.  
+• Stale JIT cache after code change → `cute.clear_cache()`.
+
+──────────────────────────────────────────────────────────────────────────────
+7. Architecture-Specific Notes
+──────────────────────────────────────────────────────────────────────────────
+Ampere (SM80)  
+• `cp.async` supported; optimal vector widths ≤16 bytes.  
+• Tensor core shapes 16×8×16 FP16/BF16 or 8×8×4 INT8.  
+Hopper (SM90)  
+• Use `TMA` copies; 128-byte transactions ideal.  
+• Tensor cores accept FP8 (E4M3/E5M2); enable `cute.use_fp8()`.  
+• Thread-block clusters via `cluster_shape=(2,2)` in `.launch`.  
+Blackwell (SM100+)  
+• Adds FP4/FP6, block-scaled FP8; select MMA atom `cute.MMA_BW`.  
+• Shared memory up to 286 kB; permits 4-stage pipelines with 128×256 tiles.  
+Generic adaptation  
+• Choose atom & copy classes via `cute.select_by_arch(sm=arch_id, fp8=True)`.  
+• Always profile (`nsys profile python script.py`) to verify bandwidth, occupancy, tensor core utilization.
+
+──────────────────────────────────────────────────────────────────────────────
+End of guideline (≈870 words)

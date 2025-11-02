@@ -1,0 +1,29 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/02-quick_start.md",
+  "category": "00-starter_info",
+  "title": "CuTe DSL Quick Start Guide",
+  "key_concepts": [
+    "Vector Addition Kernel",
+    "Matrix Transpose",
+    "Element-wise Operations with Dynamic Arguments",
+    "Compile-Time Constants with cutlass.Constexpr"
+  ],
+  "critical_patterns": [
+    "Bounds Checking: Ensure thread index is within array bounds before accessing memory.",
+    "Grid-Stride Loop: Use for processing arrays larger than grid size.",
+    "2D/3D Indexing: Calculate row and column indices from 2D block and thread indices."
+  ],
+  "code_snippets": [
+    "import torch\nimport cutlass\nimport cutlass.cute as cute\nfrom cutlass.cute.runtime import from_dlpack",
+    "Define a GPU kernel for element-wise vector addition using thread and block indices.",
+    "Create a host function to calculate grid dimensions and launch the kernel.",
+    "Use DLPack for zero-copy conversion of PyTorch tensors to CuTe tensors."
+  ],
+  "constraints": [
+    "Requires NVIDIA GPU (Ampere/Hopper/Blackwell recommended) and CUDA 11.8+.",
+    "Python 3.8+ is necessary.",
+    "Use PyTorch or JAX for framework integration.",
+    "Ensure grid/block dimensions are valid to avoid kernel launch failures."
+  ],
+  "compressed_summary": "The CuTe DSL Quick Start Guide provides a foundational overview for developers looking to write GPU kernels using the CuTe DSL. It begins with prerequisites, including the installation of CUTLASS Python and system requirements such as an NVIDIA GPU and CUDA 11.8+. The guide walks through a 'Hello World' example of vector addition, detailing the steps from importing libraries to defining and running a kernel. It emphasizes the importance of creating a host wrapper for kernel execution and using DLPack for efficient tensor conversion. Additional examples include matrix transposition using 2D indexing and element-wise operations with dynamic arguments, showcasing the flexibility of CuTe DSL in handling runtime parameters. The guide also highlights the use of compile-time constants to specialize kernels, demonstrating how cutlass.Constexpr can optimize performance by eliminating unused code branches. Common patterns such as bounds checking, grid-stride loops, and multi-dimensional indexing are discussed, providing practical strategies for efficient kernel development. Debugging tips include enabling logging, using cute.printf() for runtime debugging, and verifying results with PyTorch. Performance tips suggest choosing appropriate block sizes, minimizing divergence, coalescing memory access, and profiling with tools like nsys or ncu. The guide concludes with next steps for further learning and common errors with solutions, ensuring developers are well-equipped to tackle more complex CuTe DSL projects."
+}

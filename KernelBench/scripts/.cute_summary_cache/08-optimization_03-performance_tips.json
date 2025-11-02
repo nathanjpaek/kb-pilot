@@ -1,0 +1,37 @@
+{
+  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/03-performance_tips.md",
+  "category": "08-optimization",
+  "title": "Performance Optimization Techniques for CuTe DSL Kernels",
+  "key_concepts": [
+    "Occupancy optimization",
+    "Memory bandwidth optimization",
+    "Compute throughput maximization",
+    "Register pressure management",
+    "Instruction-level parallelism",
+    "Common performance pitfalls"
+  ],
+  "critical_patterns": [
+    "Identify kernel bottlenecks: Memory bandwidth, Compute throughput, or Latency",
+    "Optimize occupancy: High occupancy for memory-bound, balance resources for compute-bound",
+    "Coalesce memory access: Access consecutive memory for higher bandwidth",
+    "Use shared memory for data reuse: Cache frequently accessed data",
+    "Leverage tensor cores for compute: Use specialized hardware for matrix operations",
+    "Minimize synchronization: Use only necessary synchronizations",
+    "Tune block size and grid size: Ensure optimal launch configuration"
+  ],
+  "code_snippets": [
+    "def identify_bottleneck(kernel_name: str): ...",
+    "def calculate_occupancy(threads_per_block: int, ...): ...",
+    "@cute.kernel def coalesced_access(data: cute.Tensor): ...",
+    "@cute.kernel def tensor_core_gemm(A, B, C): ...",
+    "def tune_block_size(kernel, data): ..."
+  ],
+  "constraints": [
+    "Threads per block should not exceed 1024",
+    "Register usage must be balanced to avoid low occupancy",
+    "Shared memory usage should be optimized to avoid bank conflicts",
+    "Ensure data alignment for efficient memory access",
+    "Problem size should be large enough to amortize GPU overhead"
+  ],
+  "compressed_summary": "This guide provides practical performance optimization techniques for CuTe DSL kernels, focusing on maximizing GPU efficiency. Key concepts include occupancy optimization, memory bandwidth, compute throughput, register pressure management, and instruction-level parallelism. Kernels are typically limited by memory bandwidth, compute throughput, or latency. Identifying the bottleneck is crucial for optimization. Occupancy should be optimized based on the kernel type: high occupancy for memory-bound kernels and balanced resources for compute-bound kernels. Memory bandwidth can be optimized by coalescing memory access, using vectorized loads, and caching data in shared memory. Compute throughput can be enhanced by leveraging tensor cores and maximizing instruction-level parallelism. Register pressure should be managed to avoid spilling and ensure high occupancy. Shared memory should be used efficiently, avoiding bank conflicts and optimizing layout for access patterns. Synchronization should be minimized, using warp-level primitives when possible. Launch configurations should be tuned to maximize grid size and block size, ensuring the GPU is fully utilized. Profiling is essential to identify real bottlenecks before optimization. Common pitfalls include small problem sizes, unbalanced work, and ignoring data alignment. The guide emphasizes profiling before optimizing and provides a checklist for memory, compute, occupancy, launch configuration, and synchronization optimization. Following these tips can lead to significant performance improvements, with potential speedups ranging from 10x to 100x."
+}
