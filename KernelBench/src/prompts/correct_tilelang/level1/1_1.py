@@ -1,9 +1,9 @@
 """
 Problem Name: 1_Square_matrix_multiplication_
 Generated using DSPy RAG with openai/o3
-RAG Examples: 8
+RAG Examples: 5
 Evaluation Result:
-compiled=True correctness=True metadata={'hardware': 'NVIDIA H200', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=0.065 runtime_stats={'mean': 0.065, 'std': 0.00325, 'min': 0.0613, 'max': 0.0789, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 0.0443, 'std': 0.00778, 'min': 0.041, 'max': 0.117, 'num_trials': 100}, 'speedup_ratio': 0.682}}
+compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=0.0675 runtime_stats={'mean': 0.0675, 'std': 0.00138, 'min': 0.0652, 'max': 0.074, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 0.0449, 'std': 0.000823, 'min': 0.0438, 'max': 0.0504, 'num_trials': 100}, 'speedup_ratio': 0.665}}
 """
 
 import torch
@@ -24,7 +24,6 @@ def _build_matmul_kernel(
 ):
     """Return compiled TileLang kernel C = A @ B with shapes (M,K)*(K,N)."""
 
-    @tilelang.jit(out_idx=-1)
     @T.prim_func
     def matmul_kernel(
         A: T.Tensor((M, K), dtype),
@@ -58,7 +57,7 @@ def _build_matmul_kernel(
             # Write back
             T.copy(C_frag, C[by * block_M, bx * block_N])
 
-    return matmul_kernel
+    return tilelang.compile(matmul_kernel, out_idx=[2], target="cuda")
 
 
 class ModelNew(nn.Module):
@@ -75,17 +74,14 @@ class ModelNew(nn.Module):
         return self._kernel_cache[key]
 
     def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
-        # Preserve original dtype for output casting
-        orig_dtype = A.dtype
+        A_c = A.contiguous()
+        B_c = B.contiguous()
 
-        A_fp16 = A.to(device="cuda", dtype=torch.float16, copy=False).contiguous()
-        B_fp16 = B.to(device="cuda", dtype=torch.float16, copy=False).contiguous()
-
-        M, K = A_fp16.shape
-        Kb, N = B_fp16.shape
+        M, K = A_c.shape
+        Kb, N = B_c.shape
         assert K == Kb, "Inner dimensions must match"
 
         kernel = self._get_kernel(M, N, K, "float16")
-        C_fp16 = kernel(A_fp16, B_fp16)
+        C = kernel(A_c, B_c)
 
-        return C_fp16.to(orig_dtype)
+        return C

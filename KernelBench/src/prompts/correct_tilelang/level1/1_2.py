@@ -1,9 +1,9 @@
 """
 Problem Name: 2_Standard_matrix_multiplication_
 Generated using DSPy RAG with openai/o3
-RAG Examples: 8
+RAG Examples: 5
 Evaluation Result:
-compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=0.0688 runtime_stats={'mean': 0.0688, 'std': 0.00403, 'min': 0.0645, 'max': 0.084, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 0.0506, 'std': 0.0269, 'min': 0.0438, 'max': 0.315, 'num_trials': 100}, 'speedup_ratio': 0.735}}
+compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=0.0746 runtime_stats={'mean': 0.0746, 'std': 0.00484, 'min': 0.0692, 'max': 0.0972, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 0.0521, 'std': 0.0246, 'min': 0.0448, 'max': 0.294, 'num_trials': 100}, 'speedup_ratio': 0.698}}
 """
 
 import torch
@@ -27,7 +27,6 @@ def _build_matmul_kernel(
     for fixed (M, N, K) shapes.
     """
 
-    @tilelang.jit(out_idx=-1)
     @T.prim_func
     def matmul_kernel(
         A: T.Tensor((M, K), dtype),
@@ -61,7 +60,7 @@ def _build_matmul_kernel(
             # Write back the result
             T.copy(C_frag, C[by * block_M, bx * block_N])
 
-    return matmul_kernel
+    return tilelang.compile(matmul_kernel, out_idx=[2], target="cuda")
 
 
 class ModelNew(nn.Module):
@@ -75,7 +74,8 @@ class ModelNew(nn.Module):
 
     def __init__(self):
         super(ModelNew, self).__init__()
-        self._kernel_cache = {}
+        # prevent nn.Module.to() from touching JITKernel objects
+        object.__setattr__(self, '_kernel_cache', {})
 
     def _get_kernel(self, M: int, N: int, K: int, dtype: torch.dtype):
         key = (M, N, K, dtype)
@@ -92,15 +92,14 @@ class ModelNew(nn.Module):
         Returns:
             C : (M, N)   where C = A @ B
         """
-        orig_dtype = A.dtype
-        A_fp16 = A.to(device="cuda", dtype=torch.float16)
-        B_fp16 = B.to(device="cuda", dtype=torch.float16)
+        A_c = A.contiguous()
+        B_c = B.contiguous()
 
-        M, K = A_fp16.shape
-        Kb, N = B_fp16.shape
+        M, K = A_c.shape
+        Kb, N = B_c.shape
         assert K == Kb, "Inner dimensions must match for matmul"
 
-        kernel = self._get_kernel(M, N, K, A_fp16.dtype)
-        C_fp16 = kernel(A_fp16, B_fp16)
+        kernel = self._get_kernel(M, N, K, A_c.dtype)
+        C = kernel(A_c, B_c)
 
-        return C_fp16.to(orig_dtype)
+        return C

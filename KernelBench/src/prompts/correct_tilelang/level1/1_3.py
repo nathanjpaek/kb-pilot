@@ -1,9 +1,9 @@
 """
 Problem Name: 3_Batched_matrix_multiplication
 Generated using DSPy RAG with openai/o3
-RAG Examples: 8
+RAG Examples: 5
 Evaluation Result:
-compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=0.0944 runtime_stats={'mean': 0.0944, 'std': 0.00346, 'min': 0.09, 'max': 0.108, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 0.0449, 'std': 0.00392, 'min': 0.0412, 'max': 0.0682, 'num_trials': 100}, 'speedup_ratio': 0.476}}
+compiled=True correctness=True metadata={'hardware': 'NVIDIA H100 80GB HBM3', 'device': '0', 'correctness_trials': '(5 / 5)'} runtime=0.0606 runtime_stats={'mean': 0.0606, 'std': 0.00268, 'min': 0.0581, 'max': 0.0735, 'num_trials': 100, 'performance_comparison': {'original_pytorch_stats': {'mean': 0.0422, 'std': 0.00221, 'min': 0.0407, 'max': 0.0612, 'num_trials': 100}, 'speedup_ratio': 0.696}}
 """
 
 import torch
@@ -29,7 +29,6 @@ def _build_batched_matmul_kernel(
     grid_x = B * num_n_blocks
     grid_y = (M + block_M - 1) // block_M
 
-    @tilelang.jit(out_idx=-1)
     @T.prim_func
     def batched_gemm(
         A: T.Tensor((B, M, K), dtype),
@@ -82,7 +81,7 @@ def _build_batched_matmul_kernel(
                 if (g_m < M) & (g_n < N):
                     C[batch_id, g_m, g_n] = C_frag[i, j].astype(dtype)
 
-    return batched_gemm
+    return tilelang.compile(batched_gemm, out_idx=[2], target="cuda")
 
 
 class ModelNew(nn.Module):
@@ -95,7 +94,8 @@ class ModelNew(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self._kernel_cache = {}
+        # prevent nn.Module.to() from touching JITKernel objects
+        object.__setattr__(self, '_kernel_cache', {})
 
     def _get_kernel(self, B, M, N, K, dtype_str="float16"):
         key = (B, M, N, K, dtype_str)
@@ -106,14 +106,13 @@ class ModelNew(nn.Module):
         return self._kernel_cache[key]
 
     def forward(self, A: torch.Tensor, Bm: torch.Tensor) -> torch.Tensor:
-        orig_dtype = A.dtype
-        A_fp16 = A.to(device="cuda", dtype=torch.float16, copy=False).contiguous()
-        B_fp16 = Bm.to(device="cuda", dtype=torch.float16, copy=False).contiguous()
+        A_c = A.contiguous()
+        B_c = Bm.contiguous()
 
-        Bsz, M, K = A_fp16.shape
-        Bk, Kb, N = B_fp16.shape[0], B_fp16.shape[1], B_fp16.shape[2]
+        Bsz, M, K = A_c.shape
+        Bk, Kb, N = B_c.shape[0], B_c.shape[1], B_c.shape[2]
         assert Bsz == Bk and K == Kb, "Dimension mismatch for batched matmul"
 
         kernel = self._get_kernel(Bsz, M, N, K, "float16")
-        C_fp16 = kernel(A_fp16, B_fp16)
-        return C_fp16.to(orig_dtype)
+        C = kernel(A_c, B_c)
+        return C
