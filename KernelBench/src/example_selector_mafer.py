@@ -182,6 +182,8 @@ class SmartRAGSelector:
                     
                     examples.append({
                         "code": content,
+                        "solution_code": content,  # raw solution; caller can clean
+                        "reference_code": ref_code,
                         "problem_name": problem_name,
                         "level": level_num,
                         "operations": features["operations"],

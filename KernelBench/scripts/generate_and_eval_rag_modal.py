@@ -504,7 +504,7 @@ def main(config: RAGEvalConfig):
         )
         
         print(f"\n{'='*60}")
-        print(f"🎯 EVALUATION RESULT for Level {config.level} Problem {config.problem_id}")
+        print(f"INITIAL EVALUATION RESULT for Level {config.level} Problem {config.problem_id}")
         print(f"{'='*60}")
         print(f"Problem: {problem_name}")
         print(f"DSPy Model: {config.dspy_model}")

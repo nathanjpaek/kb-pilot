@@ -7,11 +7,22 @@ Supports multiple DSLs: TileLang, ThunderKittens, CUDA, etc.
 """
 
 import os
-from typing import Dict, List, Optional
+import pickle
+from typing import List, Optional
+from dataclasses import dataclass
 import dspy
 
 from .utils import read_file
-from .example_selector_mafer import select_smart_examples
+
+
+@dataclass
+class DSLExample:
+    """Language-agnostic DSL example representation"""
+    problem_name: str
+    original_code: str
+    dsl_solution: str
+    operations: List[str]
+    language: str  # e.g., "tilelang", "tk", "cuda"
 
 
 class KernelRAG(dspy.Module):
@@ -27,14 +38,107 @@ class KernelRAG(dspy.Module):
         self.exclude_current_problem = exclude_current_problem
         self.current_level = current_level
         self.current_problem_id = current_problem_id
-        self.correct_dsl_dir = correct_dsl_dir
-        self.kernelbench_dir = kernelbench_dir
-        self.k = k
+        
+        # Load and prepare examples
+        self.examples = self._load_examples(correct_dsl_dir, kernelbench_dir)
+        
+        # If we have at least one example, set up embeddings-based retrieval.
+        # Otherwise, skip retriever setup and fall back to generation without RAG context.
+        self.retriever = None
+        if len(self.examples) > 0:
+            # Use best embedding model
+            embedder = dspy.Embedder('openai/text-embedding-3-large', dimensions=3072)
+
+            # Create corpus for retrieval
+            corpus = []
+            for example in self.examples:
+                # Combine problem description and operations for better retrieval
+                text = f"Operations: {', '.join(example.operations)}\nCode: {example.original_code}"
+                corpus.append(text)
+
+            # Initialize retriever
+            self.retriever = dspy.retrievers.Embeddings(
+                embedder=embedder,
+                corpus=corpus,
+                k=k
+            )
+        else:
+            print(f"Loaded 0 {self.language.upper()} examples for RAG; proceeding without retrieval context.")
         
         # DSL generation module with optimized signature
         self.generate = dspy.ChainOfThought(
             "dsl_guidelines, context, original_code -> dsl_code"
         )
+    
+    def _load_examples(self, correct_dsl_dir: str, kernelbench_dir: str) -> List[DSLExample]:
+        """Load all DSL examples efficiently"""
+        examples = []
+        excluded_count = 0
+        
+        for level_dir in os.listdir(correct_dsl_dir):
+            if not level_dir.startswith('level'):
+                continue
+            
+            # exclude level3 from rag
+            if level_dir.startswith('level3'):
+                continue
+                
+            level_num = int(level_dir.replace('level', ''))
+            level_path = os.path.join(correct_dsl_dir, level_dir)
+            
+            for filename in os.listdir(level_path):
+                if not filename.endswith('.py'):
+                    continue
+                    
+                # Parse problem number from filename
+                parts = filename.replace('.py', '').split('_')
+                if len(parts) < 2:
+                    continue
+                    
+                try:
+                    problem_num = int(parts[1])
+                except ValueError:
+                    continue
+                
+                # Exclude current problem if specified
+                if (self.exclude_current_problem and 
+                    self.current_level is not None and 
+                    self.current_problem_id is not None and
+                    level_num == self.current_level and 
+                    problem_num == self.current_problem_id):
+                    
+                    print(f"🚫 Excluding current problem from RAG: {filename}")
+                    excluded_count += 1
+                    continue
+                
+                # Find original problem
+                original_path = self._find_original_problem(kernelbench_dir, level_num, problem_num)
+                if not original_path:
+                    continue
+                
+                try:
+                    original_code = read_file(original_path)
+                    solution_code = read_file(os.path.join(level_path, filename))
+                    
+                    # Extract clean solution code
+                    solution_code = self._extract_solution_code(solution_code)
+                    
+                    # Extract operations
+                    operations = self._extract_operations(original_code)
+                    
+                    examples.append(DSLExample(
+                        problem_name=os.path.basename(original_path).replace('.py', ''),
+                        original_code=original_code,
+                        dsl_solution=solution_code,
+                        operations=operations,
+                        language=self.language
+                    ))
+                    
+                except Exception:
+                    continue
+        
+        print(f"Loaded {len(examples)} {self.language.upper()} examples for RAG (excluded {excluded_count} current problem examples)")
+        return examples
     
     def _find_original_problem(self, kernelbench_dir: str, level: int, problem_num: int) -> Optional[str]:
         """Find original problem file"""
@@ -75,19 +179,15 @@ class KernelRAG(dspy.Module):
     def forward(self, original_code: str, dsl_guidelines: str = "") -> dspy.Prediction:
         """Generate DSL code using RAG"""
         
-        # Retrieve top examples using smart selector
-        examples = select_smart_examples(
-            problem_code=original_code,
-            language=self.language,
-            k=self.k,
-            current_level=self.current_level,
-            current_problem_id=self.current_problem_id,
-        )
+        # Create query from original code
+        operations = self._extract_operations(original_code)
+        query = f"Operations: {', '.join(operations)}\nCode: {original_code}"
         
-        if examples:
-            context = self._format_smart_examples(examples)
+        # Retrieve relevant examples when retriever is available
+        if self.retriever is not None:
+            retrieved = self.retriever(query).passages
+            context = self._format_context(retrieved)
         else:
-            print(f"No RAG examples found for {self.language.upper()} – generating without context.")
             context = ""
         
         # Generate optimized DSL code
@@ -97,38 +197,39 @@ class KernelRAG(dspy.Module):
             dsl_guidelines=dsl_guidelines
         )
     
-    def _format_smart_examples(self, examples: List[Dict]) -> str:
-        """Format smart-selected examples into retrieval context"""
+    def _format_context(self, retrieved_passages: List[str]) -> str:
+        """Format retrieved examples as context"""
         context_parts = []
-        print(f"\n📋 Retrieved {len(examples)} RAG examples for Level {self.current_level} Problem {self.current_problem_id}:")
+        retrieved_examples = []
         
-        for idx, example in enumerate(examples, 1):
-            problem_name = example.get("problem_name", "unknown")
-            score = example.get("score", 0.0)
-            speedup = example.get("speedup", 0.0)
-            solution_content = example.get("solution_code") or example.get("code", "")
-            solution_code = self._extract_solution_code(solution_content)
-            reference_code = example.get("reference_code", "")
-            ops = example.get("operations", [])
-            ops_str = ', '.join(ops) if ops else 'none detected'
-            score_str = f"{score:.1f}"
-            speedup_str = f"{speedup:.2f}×" if speedup else "unknown"
-            
-            print(f"  {idx}. {problem_name} (ops: {ops_str}) | score={score_str} | speedup={speedup_str}")
-            
-            context_parts.append(f"""
-Example {idx} - {problem_name} (score {score_str}, speedup {speedup_str}):
+        for i, passage in enumerate(retrieved_passages):
+            # Find corresponding example
+            for example in self.examples:
+                example_text = f"Operations: {', '.join(example.operations)}\nCode: {example.original_code}"
+                if passage.strip() == example_text.strip():
+                    retrieved_examples.append(example)
+                    context_parts.append(f"""
+Example {i+1} - {example.problem_name}:
 
 Original PyTorch Code:
 ```python
-{reference_code}
+{example.original_code}
 ```
 
 Optimized {self.language.upper()} Code:
 ```python
-{solution_code}
+{example.dsl_solution}
 ```
 """)
+                    break
+        
+        # Print retrieved examples info
+        if retrieved_examples:
+            print(f"\n📋 Retrieved {len(retrieved_examples)} RAG examples for Level {self.current_level} Problem {self.current_problem_id}:")
+            for i, example in enumerate(retrieved_examples, 1):
+                ops_str = ', '.join(example.operations) if example.operations else 'none detected'
+                print(f"  {i}. {example.problem_name} (ops: {ops_str})")
+            print()
         
         return "\n".join(context_parts)
 
