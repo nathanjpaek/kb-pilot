@@ -8,11 +8,12 @@ Supports multiple DSLs: TileLang, ThunderKittens, CUDA, etc.
 
 import os
 import pickle
-from typing import List, Optional
+from typing import List, Optional, Dict
 from dataclasses import dataclass
 import dspy
 
 from .utils import read_file
+from .example_selector_mafer import select_doc_chunks, select_smart_examples
 
 
 @dataclass
@@ -232,6 +233,43 @@ Optimized {self.language.upper()} Code:
             print()
         
         return "\n".join(context_parts)
+
+    def _format_example_context(self, examples: List[DSLExample]) -> str:
+        """Format smart-selected examples into retrieval context"""
+        context_parts = []
+        print(f"\n📋 Retrieved {len(examples)} RAG examples for Level {self.current_level} Problem {self.current_problem_id}:")
+        for i, example in enumerate(examples, 1):
+            context_parts.append(f"""
+Example {i} - {example.problem_name}:
+
+Original PyTorch Code:
+```python
+{example.original_code}
+```
+
+Optimized {self.language.upper()} Code:
+```python
+{example.dsl_solution}
+```
+""")
+        return "\n".join(context_parts)
+
+    def _format_doc_context(self, doc_chunks: List[Dict]) -> str:
+        """Format documentation summaries as context"""
+        lines = ["CuTe Documentation Insights:"]
+        print(f"📚 Retrieved {len(doc_chunks)} documentation chunks.")
+        for idx, doc in enumerate(doc_chunks, 1):
+            title = doc.get("title", "Unnamed")
+            category = doc.get("category", "")
+            summary = doc.get("compressed_summary", "")
+            key_concepts = doc.get("key_concepts", [])[:5]
+            speed = doc.get("score", 0.0)
+            lines.append(
+                f"\nDoc {idx}: {title} ({category}) [score {speed:.1f}]\n"
+                f"Key Concepts: {', '.join(key_concepts)}\n"
+                f"Summary:\n{summary}"
+            )
+        return "\n".join(lines)
 
 
 def create_kernel_rag(correct_dsl_dir: str, kernelbench_dir: str, language: str = "tilelang",

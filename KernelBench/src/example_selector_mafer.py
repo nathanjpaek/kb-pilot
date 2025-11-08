@@ -21,13 +21,81 @@ Usage:
     clean_rag_examples(language="cute", level=2, dry_run=True)
 """
 
+import json
 import os
 import re
 import shutil
-from typing import List, Dict, Tuple, Optional
 from collections import Counter, defaultdict
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
+
+
+DOC_CACHE: Dict[str, List[Dict]] = {}
+
+TORCH_OPS = [
+    "relu", "softmax", "matmul", "conv2d", "conv3d", "linear", "sigmoid",
+    "tanh", "gelu", "dropout", "batch_norm", "layer_norm", "max_pool",
+    "avg_pool", "transpose", "permute", "reshape", "view", "add", "mul",
+    "div", "sub", "sqrt", "pow", "exp", "log", "mean", "sum", "max", "min",
+    "clamp", "where", "abs", "sin", "cos"
+]
+
+
+def extract_operations_from_code(code: str) -> List[str]:
+    lower = code.lower()
+    return [op for op in TORCH_OPS if op in lower or f"torch.{op}" in lower or f"nn.{op}" in lower]
+
+
+def estimate_complexity(code: str) -> str:
+    num_ops = len(extract_operations_from_code(code))
+    if num_ops <= 2:
+        return "simple"
+    if num_ops <= 4:
+        return "medium"
+    return "complex"
+
+
+def has_activation(code: str) -> bool:
+    activations = ["relu", "gelu", "sigmoid", "tanh", "swish", "silu", "softmax"]
+    lower = code.lower()
+    return any(act in lower for act in activations)
+
+
+def extract_problem_features(code: str) -> Dict:
+    operations = extract_operations_from_code(code)
+    return {
+        "operations": operations,
+        "complexity": estimate_complexity(code),
+        "has_activation": has_activation(code),
+        "has_gemm": any(op in operations for op in ("matmul", "linear")),
+        "num_operations": len(operations),
+        "code_lower": code.lower(),
+    }
+
+
+def _load_doc_cache(language: str) -> List[Dict]:
+    cache_key = f"{language}_docs"
+    if cache_key in DOC_CACHE:
+        return DOC_CACHE[cache_key]
+
+    repo_root = Path(__file__).resolve().parents[1]
+    cache_dir = repo_root / "scripts" / ".cute_summary_cache"
+    entries: List[Dict] = []
+    if cache_dir.exists():
+        for path in sorted(cache_dir.glob("*.json")):
+            if path.name.startswith("category_"):
+                continue
+            try:
+                with open(path, "r") as f:
+                    entries.append(json.load(f))
+            except Exception:
+                continue
+
+    DOC_CACHE[cache_key] = entries
+    return entries
 
 
 class SmartRAGSelector:
@@ -313,6 +381,79 @@ def select_smart_examples(problem_code: str,
         current_level=current_level,
         current_problem_id=current_problem_id,
     )
+
+
+def select_doc_chunks(problem_code: str,
+                      language: str,
+                      max_chunks: int = 3,
+                      current_level: int = None,
+                      current_problem_id: int = None) -> List[Dict]:
+    """Select relevant documentation summaries for the given problem."""
+    docs = _load_doc_cache(language)
+    if not docs:
+        return []
+
+    features = extract_problem_features(problem_code)
+    operations = features["operations"]
+    code_lower = features["code_lower"]
+
+    scored_docs: List[Dict] = []
+
+    for doc in docs:
+        text_parts = [
+            doc.get("title", ""),
+            " ".join(doc.get("key_concepts", [])),
+            doc.get("compressed_summary", ""),
+            " ".join(doc.get("critical_patterns", [])),
+            " ".join(doc.get("constraints", [])),
+        ]
+        text = " ".join(text_parts).lower()
+
+        score = 0.0
+        for op in operations:
+            if op and op in text:
+                score += 4
+
+        if features["has_activation"] and any(keyword in text for keyword in ["activation", "relu", "gelu", "sigmoid", "tanh"]):
+            score += 2
+
+        if "layout" in code_lower and "layout" in text:
+            score += 3
+
+        if features["has_gemm"] and any(keyword in text for keyword in ["gemm", "tensor core", "mma", "matrix multiply"]):
+            score += 3
+
+        category = doc.get("category", "")
+        if category.startswith("03-"):
+            score += 1  # memory/layouts
+        if category.startswith("04-"):
+            score += 1  # operations
+        if category.startswith("08-"):
+            score += 1  # optimization
+        if category.startswith("00-"):
+            score += 0.5  # overview
+
+        if score > 0:
+            doc_copy = dict(doc)
+            doc_copy["score"] = score
+            scored_docs.append(doc_copy)
+
+    scored_docs.sort(key=lambda d: d.get("score", 0.0), reverse=True)
+
+    if not scored_docs:
+        fallback_names = {
+            "00_overview.md",
+            "00-code_generation.md",
+            "00-tiling_strategies.md",
+        }
+        for doc in docs:
+            file_name = Path(doc.get("file_path", "")).name
+            if file_name in fallback_names:
+                scored_docs.append(doc)
+            if len(scored_docs) >= max_chunks:
+                break
+
+    return scored_docs[:max_chunks]
 
 
 # =============================================================================
