@@ -1,5 +1,5 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/03-kernel_launch.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/03-kernel_launch.md",
   "category": "07-framework_integration",
   "title": "CuTe DSL Kernel Launch Configuration",
   "key_concepts": [
@@ -13,19 +13,23 @@
   "critical_patterns": [
     "1D launch: grid=[num_blocks, 1, 1], block=[threads_per_block, 1, 1]",
     "2D launch: grid=[blocks_x, blocks_y, 1], block=[threads_x, threads_y, 1]",
-    "Grid-stride loop for variable sizes",
-    "Persistent kernels for multiple work items"
+    "Element-wise operation: Use grid-stride loop for variable sizes",
+    "Reduction: Two-phase launch for partial and final reductions",
+    "Persistent kernels: Fewer blocks than items to keep blocks resident"
   ],
   "code_snippets": [
     "@cute.kernel\ndef my_kernel(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    data[tid] = 0.0\n\nmy_kernel.launch(grid=[4, 1, 1], block=[256, 1, 1])(data)",
     "def calculate_grid_1d(n: int, block_size: int) -> tuple:\n    num_blocks = (n + block_size - 1) // block_size\n    return (num_blocks, 1, 1)",
-    "@cute.kernel\ndef scale_2d(matrix: cute.Tensor, scale: cutlass.Float32):\n    tx = cute.arch.thread_idx()[0]\n    ty = cute.arch.thread_idx()[1]\n    bx = cute.arch.block_idx()[0]\n    by = cute.arch.block_idx()[1]\n    block_width = cute.arch.block_dim_x()\n    block_height = cute.arch.block_dim_y()\n    i = bx * block_width + tx\n    j = by * block_height + ty\n    if i < M and j < N:\n        matrix[i, j] = matrix[i, j] * scale"
+    "@cute.kernel\ndef scale_2d(matrix: cute.Tensor, scale: cutlass.Float32):\n    tx = cute.arch.thread_idx()[0]\n    ty = cute.arch.thread_idx()[1]\n    bx = cute.arch.block_idx()[0]\n    by = cute.arch.block_idx()[1]\n    i = bx * block_width + tx\n    j = by * block_height + ty\n    if i < M and j < N:\n        matrix[i, j] = matrix[i, j] * scale",
+    "def compute_occupancy(threads_per_block: int, registers_per_thread: int, shared_mem_per_block: int) -> float:\n    blocks_by_threads = max_threads_per_sm // threads_per_block\n    blocks_by_registers = max_registers_per_sm // (threads_per_block * registers_per_thread)\n    blocks_by_smem = max_shared_mem_per_sm // shared_mem_per_block\n    blocks_per_sm = min(blocks_by_threads, blocks_by_registers, blocks_by_smem)\n    active_threads = blocks_per_sm * threads_per_block\n    return active_threads / max_threads_per_sm",
+    "def validate_launch_config(grid: tuple, block: tuple):\n    assert len(grid) == 3, 'Grid must be 3D'\n    assert len(block) == 3, 'Block must be 3D'\n    threads_per_block = block[0] * block[1] * block[2]\n    assert threads_per_block <= 1024, f'Too many threads per block: {threads_per_block}'\n    assert threads_per_block % 32 == 0, f'Block size should be multiple of 32: {threads_per_block}'"
   ],
   "constraints": [
     "Maximum 1024 threads per block",
-    "Block dimensions must be multiples of warp size (32)",
-    "Grid and block must be 3D",
-    "Ensure bounds checking to avoid out-of-bounds access"
+    "Block dimensions must be 3D",
+    "Grid dimensions must be 3D",
+    "Block size should be a multiple of 32",
+    "Ensure grid covers entire problem space"
   ],
-  "compressed_summary": "Launching CuTe DSL kernels requires understanding grid and block dimensions, launch syntax, and thread/block indexing. The `launch()` method is used to specify execution configuration, including grid and block dimensions. Common patterns include 1D, 2D, and 3D launches, with configurations like grid=[num_blocks, 1, 1] and block=[threads_per_block, 1, 1]. Occupancy considerations are crucial for performance, with higher occupancy generally improving latency hiding. However, optimal performance may require balancing occupancy with available resources. Dynamic launch configurations allow runtime adjustments based on problem size or GPU capabilities. Thread indexing involves accessing thread and block indices to compute global indices for data processing. Best practices include using multiples of warp size for block dimensions, ensuring grid covers the entire problem, and adding bounds checking to prevent out-of-bounds errors. Validating launch configurations is essential to ensure they adhere to hardware constraints. Common patterns like grid-stride loops and persistent kernels help efficiently handle varying problem sizes and workloads. For further optimization, understanding thread layouts and occupancy tuning is recommended."
+  "compressed_summary": "Launching CuTe DSL kernels involves configuring grid and block dimensions to optimize performance. The grid specifies the number of blocks in each dimension, while the block defines the number of threads per block. Common patterns include 1D, 2D, and 3D launches, with grid-stride loops recommended for handling variable sizes efficiently. Occupancy, which measures active warps relative to maximum possible warps, is crucial for performance but doesn't always correlate with better results. Calculating grid sizes dynamically based on problem size and adapting configurations to GPU capabilities are recommended practices. Constraints include a maximum of 1024 threads per block and ensuring block sizes are multiples of 32. Validating configurations and using bounds checking are essential to avoid exceeding hardware limits. Best practices involve using grid-stride loops for flexibility, persistent kernels for keeping blocks resident, and validating configurations to ensure they meet hardware constraints. Overall, understanding and applying these configurations and patterns can significantly enhance kernel performance."
 }

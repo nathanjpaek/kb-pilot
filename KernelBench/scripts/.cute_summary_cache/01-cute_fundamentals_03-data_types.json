@@ -1,29 +1,33 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/03-data_types.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/03-data_types.md",
   "category": "01-cute_fundamentals",
-  "title": "CuTe DSL Data Types Overview",
+  "title": "CuTe DSL Data Types for GPU Kernels",
   "key_concepts": [
-    "Native GPU data types",
-    "Tensor core operations",
-    "Numerical precision trade-offs",
-    "Architecture compatibility"
+    "Native CuTe types map directly to hardware formats",
+    "Floating-point types: FP16, BF16, FP32, FP64",
+    "Low-precision types: Float8 (E4M3, E5M2)",
+    "Integer types: Int8, Int16, Int32, Int64",
+    "Type conversions and automatic promotion",
+    "Architecture-specific type support"
   ],
   "critical_patterns": [
     "Mixed-Precision GEMM: FP16 compute, FP32 accumulate",
-    "Quantization-Aware Operations: INT8 quantized inference",
-    "Dynamic Precision Selection: Compile-time flag for precision path"
+    "Quantization-Aware Operations: INT8 inference",
+    "Dynamic Precision Selection: Compile-time flag for FP16/FP32"
   ],
   "code_snippets": [
     "@cute.kernel\ndef fp32_example(a: cute.Tensor, b: cute.Tensor, c: cute.Tensor):\n  idx = cute.arch.thread_idx()[0]\n  c[idx] = a[idx] + b[idx]",
     "@cute.kernel\ndef mixed_precision_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):\n  pass",
     "@cute.kernel\ndef int8_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):\n  pass",
-    "@cute.jit\ndef typed_function(x: cutlass.Float32, y: cutlass.Int32, scale: cutlass.Float16):\n  result = x * scale + y\n  return result"
+    "@cute.jit\ndef adaptive_precision(data: cute.Tensor, use_fp16: cutlass.Constexpr):\n  if cutlass.const_expr(use_fp16):\n    result = process_fp16(data)\n  else:\n    result = process_fp32(data)\n  return result"
   ],
   "constraints": [
-    "Type mismatch in assignment can cause errors",
-    "Incompatible types in operations require explicit conversion",
-    "FP16 accumulators are too small for MMA operations, use FP32",
-    "Automatic promotion follows standard rules, e.g., FP16 + FP32 \u2192 FP32"
+    "FP16 has limited range and precision",
+    "BF16 has lower precision but same range as FP32",
+    "FP8 requires Hopper+ architecture",
+    "INT8 operations supported from Turing+",
+    "Type mismatch errors require explicit casting",
+    "FP64 is slower on consumer GPUs"
   ],
-  "compressed_summary": "CuTe DSL provides a range of native GPU data types optimized for tensor core operations, memory bandwidth, and numerical precision. Key types include various integer and floating-point formats such as Int8, Float16, BFloat16, and Float8, each with specific use cases and hardware support. Mixed-precision patterns, like computing in FP16 and accumulating in FP32, are common in deep learning. The DSL supports explicit type casting and automatic type promotion, with architecture-specific optimizations for Ampere, Hopper, and Blackwell GPUs. Developers should choose data types based on precision needs, hardware compatibility, and performance considerations, balancing memory bandwidth and compute throughput. Common patterns include mixed-precision GEMM and quantization-aware operations, while debugging focuses on resolving type mismatches and ensuring correct accumulator types. CuTe integrates with frameworks like PyTorch, facilitating type mapping and conversions. Performance is influenced by memory bandwidth and compute throughput, with lower precision types offering higher occupancy. The documentation emphasizes using the lowest precision that maintains task accuracy and aligning types with hardware capabilities for optimal performance."
+  "compressed_summary": "CuTe DSL provides a range of data types optimized for GPU operations, crucial for tensor core operations, memory bandwidth optimization, and numerical precision management. The primary floating-point types include FP16, BF16, FP32, and FP64, each with specific use cases and hardware support. FP16 is favored for deep learning due to its memory efficiency and native tensor core support, despite its limited precision. BF16 offers the same range as FP32 but with reduced precision, making it suitable for large model training. The introduction of Float8 types (E4M3 and E5M2) on Hopper+ architectures allows for extreme performance gains, particularly in large language models. Integer types, such as Int8 and Int4, support quantized neural networks, with tensor core operations providing significant throughput improvements. Type conversions and promotions follow standard rules, with explicit casting necessary to avoid type mismatch errors. Mixed-precision patterns, such as computing in lower precision and accumulating in higher precision, are common in deep learning. Architecture-specific support varies, with Ampere and Hopper architectures offering enhanced performance for various data types. The decision tree for type selection prioritizes correctness, hardware support, performance, and memory footprint, ensuring optimal use of resources. Debugging type issues involves careful attention to type assignments and conversions, with tools available for runtime type checking. CuTe DSL's interoperability with frameworks like PyTorch is facilitated through type mapping and DLPack conversion, ensuring seamless integration. Performance considerations highlight the importance of choosing the lowest precision that maintains accuracy, balancing memory bandwidth and compute throughput. Overall, CuTe DSL's data types and patterns enable efficient and precise GPU kernel development, aligning with modern hardware capabilities and performance demands."
 }

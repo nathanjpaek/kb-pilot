@@ -3,7 +3,7 @@
   "category_path": "",
   "file_summaries": [
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/00-pytorch_integration.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/00-pytorch_integration.md",
       "category": "07-framework_integration",
       "title": "PyTorch Integration with CuTe DSL",
       "key_concepts": [
@@ -14,30 +14,30 @@
         "Mixed PyTorch/CuTe workflows"
       ],
       "critical_patterns": [
-        "Simple PyTorch to CuTe pipeline for kernel execution",
-        "Zero-copy conversion with from_dlpack()",
-        "In-place operations using CuTe kernels",
-        "Custom layer integration within nn.Module",
-        "Preprocessing pipeline with CuTe kernels"
+        "Simple PyTorch to CuTe Pipeline: Define CuTe kernel, create PyTorch tensor, convert to CuTe tensor, launch kernel, synchronize.",
+        "Helper Function Pattern: Wrap kernel launch in a Python function for clean API.",
+        "In-Place Operations: Modify tensor in-place using CuTe kernel.",
+        "Custom Layer in nn.Module: Implement custom layers using CuTe kernels within PyTorch modules.",
+        "Preprocessing Pipeline: Combine PyTorch and CuTe operations for data preprocessing."
       ],
       "code_snippets": [
-        "cute_tensor = cute.from_dlpack(tensor)",
+        "cute_tensor = cute.from_dlpack(torch_tensor)",
         "scale_kernel.launch(grid=grid, block=block)(cute_tensor, scale=2.0)",
         "torch.cuda.synchronize()",
-        "def elementwise_add(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor",
-        "def relu_(tensor: torch.Tensor) -> torch.Tensor"
+        "if not tensor.is_contiguous(): tensor = tensor.contiguous()",
+        "def my_operation(x: torch.Tensor) -> torch.Tensor: cute_x = cute.from_dlpack(x); kernel.launch(...)(cute_x); return x"
       ],
       "constraints": [
-        "Always use CUDA tensors with CuTe",
-        "Ensure tensors are contiguous for efficiency",
+        "Always use CUDA tensors",
+        "Ensure tensor contiguity for efficiency",
         "Synchronize before accessing results in PyTorch",
-        "Avoid CPU tensors with CuTe",
-        "Don't mix different dtypes in kernel operations"
+        "Avoid mixing different data types",
+        "PyTorch tensor owns memory; manage lifetime carefully"
       ],
-      "compressed_summary": "CuTe DSL integrates with PyTorch to allow writing custom CUDA kernels that operate directly on PyTorch tensors, facilitating optimized GPU operations within a Python workflow. Key concepts include converting PyTorch tensors to CuTe tensors using the zero-copy from_dlpack() function, launching kernels, and managing memory and ownership. CuTe and PyTorch tensors share memory, making changes in one immediately visible in the other. Always use CUDA tensors, ensure they are contiguous, and synchronize operations to avoid incorrect results. Custom kernels can be wrapped in Python functions for clean integration, and PyTorch's autograd can be extended with custom backward functions. Multi-GPU support is available, with kernels launchable on specific GPUs. Performance can be optimized by minimizing CPU-GPU transfers and batching synchronizations. Common patterns include custom layers in nn.Module, preprocessing pipelines, and custom loss functions. Debugging involves checking tensor properties and validating kernel results against PyTorch references. Best practices emphasize using CUDA tensors, synchronizing operations, and ensuring tensor contiguity. Avoid using CPU tensors, forgetting synchronization, and mixing dtypes in kernel operations. Further resources include DLPack specifications and PyTorch CUDA semantics."
+      "compressed_summary": "CuTe DSL integrates with PyTorch, allowing seamless writing of custom CUDA kernels that operate directly on PyTorch tensors. Key concepts include converting PyTorch tensors to CuTe tensors using `cute.from_dlpack()`, launching kernels, and managing memory ownership. CuTe and PyTorch tensors share memory, enabling zero-copy conversions. Always use CUDA tensors and ensure they are contiguous for optimal performance. Synchronization is crucial; use `torch.cuda.synchronize()` to ensure kernel completion before accessing results in PyTorch. Custom kernels can be wrapped in Python functions for a clean API, and can be integrated into PyTorch modules or preprocessing pipelines. Constraints include using only CUDA tensors, ensuring tensor contiguity, and managing memory ownership carefully. Avoid mixing data types and ensure synchronization to prevent incorrect results. Performance tips include minimizing CPU-GPU transfers, batching synchronizations, and using contiguous tensors. PyTorch autograd integration is possible with custom autograd functions, allowing gradient computation through custom kernels. Multi-GPU support is available by launching kernels on specific devices. Common patterns include custom layers in nn.Module, preprocessing pipelines, and custom loss functions. Debugging involves checking tensor properties and validating kernel results against PyTorch references. Best practices emphasize using CUDA tensors, synchronizing operations, checking contiguity, and wrapping kernels in functions. Avoid using CPU tensors, forgetting synchronization, and mixing data types. The workflow involves creating a PyTorch tensor on CUDA, converting it to a CuTe tensor, launching the kernel, synchronizing, and using the result in PyTorch. For further optimization, explore DLPack, bypassing DLPack for direct pointer access, and autotuning kernel parameters."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/01-dlpack.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/01-dlpack.md",
       "category": "07-framework_integration",
       "title": "DLPack Integration in CuTe DSL",
       "key_concepts": [
@@ -48,54 +48,56 @@
       ],
       "critical_patterns": [
         "Framework Bridge: Pass tensors between frameworks using DLPack for zero-copy",
-        "Batch Processing: Process multiple tensors efficiently using CuTe",
+        "Batch Processing: Process multiple tensors efficiently with CuTe",
         "In-Place Operations: Modify tensors in-place via CuTe kernels"
       ],
       "code_snippets": [
         "cute_tensor = cute.from_dlpack(pt_tensor)",
         "kernel.launch(...)(cute_tensor); torch.cuda.synchronize()",
-        "def safe_from_dlpack(tensor): if not tensor.is_contiguous(): tensor = tensor.contiguous(); return cute.from_dlpack(tensor)"
+        "def safe_from_dlpack(tensor: torch.Tensor): if not tensor.is_contiguous(): tensor = tensor.contiguous(); return cute.from_dlpack(tensor)"
       ],
       "constraints": [
-        "Must use CUDA tensors for DLPack conversion",
+        "Tensor must be on CUDA device",
         "Original tensor must remain alive to ensure memory validity",
-        "Validate tensor properties (e.g., dtype, contiguity) before conversion",
-        "Synchronize after kernel execution to ensure completion"
+        "Explicit conversion is recommended over implicit conversion",
+        "DLPack requires supported dtypes like float32, int32"
       ],
-      "compressed_summary": "DLPack is a standard format for zero-copy tensor exchange between frameworks, allowing CuTe DSL to interoperate seamlessly with PyTorch, JAX, TensorFlow, and others. By using DLPack, CuTe can perform zero-copy tensor sharing, preserving memory layout and device information, which is critical for efficient GPU memory usage. The key function `cute.from_dlpack(tensor)` enables conversion to CuTe tensors without memory copying, making it memory efficient and framework agnostic. DLPack capsules contain data pointers, shape, strides, dtype, and device information, ensuring that shared tensors maintain their properties across frameworks. Practical patterns include using DLPack for framework bridging, batch processing, and in-place operations. Constraints include ensuring tensors are on CUDA, keeping the original tensor alive, validating tensor properties before conversion, and synchronizing after kernel execution. Common errors involve using CPU tensors, unsupported dtypes, and incorrect device handling. Best practices emphasize explicit conversion, keeping the original tensor alive, and validating tensors before conversion. DLPack's zero-copy capability significantly speeds up tensor operations, especially for large tensors or frequent conversions, making it a powerful tool for integrating CuTe with existing codebases."
+      "compressed_summary": "DLPack is a standard format for zero-copy tensor exchange between frameworks, crucial for efficient interoperability in CuTe DSL. It allows sharing of GPU memory without copying, preserving memory layout and device information. The primary function `cute.from_dlpack()` converts tensors to CuTe format instantly, making it essential for seamless integration with PyTorch, JAX, and other frameworks. Key patterns include using DLPack for framework bridging, batch processing, and in-place operations. Constraints involve ensuring tensors are on CUDA, maintaining original tensor lifetimes, and using explicit conversions. Best practices include validating tensors before conversion, synchronizing after kernel execution, and avoiding CPU tensors. DLPack's zero-copy capability offers significant performance benefits, especially for large tensors or frequent conversions, making it a powerful tool for GPU kernel development in CuTe."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/02-bypassing_dlpack.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/02-bypassing_dlpack.md",
       "category": "07-framework_integration",
       "title": "Bypassing DLPack in CuTe DSL",
       "key_concepts": [
-        "Direct pointer access with cute.make_ptr()",
+        "Direct GPU memory pointer access",
         "Manual tensor construction",
         "Custom memory layouts",
         "Performance optimization",
         "Integration with external libraries"
       ],
       "critical_patterns": [
-        "Memory Pool: Reuse preallocated memory for multiple tensors",
+        "Memory Pool: Reuse preallocated memory for efficiency",
         "Slice Views: Create views into larger tensors for sub-tensor operations",
-        "Interleaved Layouts: Handle custom interleaved memory layouts"
+        "Interleaved Layouts: Handle custom interleaved memory layouts for specific data patterns"
       ],
       "code_snippets": [
         "cute_ptr = cute.make_ptr(tensor.data_ptr(), cutlass.Float32)",
         "layout = cute.make_layout(cute.make_shape(1024))",
         "cute_tensor = cute.make_tensor(cute_ptr, layout)",
-        "ptr = tensor.data_ptr(); assert ptr != 0, 'Null pointer'"
+        "@cute.kernel\ndef fill_kernel(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    if tid < cute.size(data):\n        data[tid] = 42.0",
+        "class MemoryPool:\n    def __init__(self, size: int, dtype):\n        self.tensor = torch.empty(size, device='cuda', dtype=dtype)\n        self.ptr = self.tensor.data_ptr()",
+        "def get_slice_view(start: int, length: int):\n    offset_ptr = base_ptr + (start * element_size)\n    cute_ptr = cute.make_ptr(offset_ptr, cutlass.Float32)"
       ],
       "constraints": [
-        "Ensure memory owner stays alive to prevent dangling pointers",
-        "Match pointer types to the actual data types",
-        "Validate pointer addresses for alignment and validity",
-        "Ensure custom layouts fit within allocated memory bounds"
+        "Ensure memory owner stays alive to avoid dangling pointers",
+        "Match pointer types to the actual data type to prevent undefined behavior",
+        "Validate pointer addresses to ensure they are reasonable and aligned",
+        "Ensure layouts match the allocated memory size to avoid out-of-bounds access"
       ],
-      "compressed_summary": "The CuTe DSL allows developers to bypass DLPack for direct control over GPU memory pointers, layouts, and addressing, which is crucial for performance optimization and integration with external libraries. Key functions include `cute.make_ptr()` for creating typed pointers and `cute.make_tensor()` for constructing tensors from these pointers. This approach is beneficial when working with custom memory management, non-standard layouts, or performance-critical paths, but requires careful attention to memory safety, such as keeping memory owners alive, matching pointer types to data, and validating pointer addresses. Common patterns include using memory pools for efficient memory reuse, creating slice views for sub-tensor operations, and handling interleaved layouts for complex data arrangements. While direct pointer access offers flexibility, it demands rigorous memory management practices to avoid errors like dangling pointers or type mismatches. Developers are advised to use DLPack when possible for simplicity and safety, and resort to direct pointers only when necessary. The document emphasizes the importance of understanding CUDA memory management and provides guidelines for safely implementing direct pointer access in GPU kernels."
+      "compressed_summary": "CuTe DSL allows advanced users to bypass DLPack for direct GPU memory manipulation, offering precise control over memory pointers, layouts, and addressing. This is particularly useful when integrating with external libraries, managing custom memory layouts, or optimizing performance-critical paths. Key functions include `cute.make_ptr()` for creating typed pointers and `cute.make_tensor()` for constructing tensors from these pointers. Users can manually define custom layouts, such as tiled, padded, or swizzled layouts, to optimize memory access patterns. Practical patterns include using memory pools to efficiently manage preallocated memory, creating slice views for sub-tensor operations, and handling interleaved layouts for specific data structures. Constraints include ensuring the memory owner remains alive to avoid dangling pointers, matching pointer types to data types, validating pointer addresses, and ensuring layout sizes fit the allocated memory. While direct pointer access offers flexibility, it requires careful memory management, making DLPack a safer choice when its overhead is acceptable. This document emphasizes the importance of understanding memory safety and performance implications when opting for direct pointer manipulation in GPU kernel development."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/03-kernel_launch.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/07-framework_integration/03-kernel_launch.md",
       "category": "07-framework_integration",
       "title": "CuTe DSL Kernel Launch Configuration",
       "key_concepts": [
@@ -109,40 +111,45 @@
       "critical_patterns": [
         "1D launch: grid=[num_blocks, 1, 1], block=[threads_per_block, 1, 1]",
         "2D launch: grid=[blocks_x, blocks_y, 1], block=[threads_x, threads_y, 1]",
-        "Grid-stride loop for variable sizes",
-        "Persistent kernels for multiple work items"
+        "Element-wise operation: Use grid-stride loop for variable sizes",
+        "Reduction: Two-phase launch for partial and final reductions",
+        "Persistent kernels: Fewer blocks than items to keep blocks resident"
       ],
       "code_snippets": [
         "@cute.kernel\ndef my_kernel(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    data[tid] = 0.0\n\nmy_kernel.launch(grid=[4, 1, 1], block=[256, 1, 1])(data)",
         "def calculate_grid_1d(n: int, block_size: int) -> tuple:\n    num_blocks = (n + block_size - 1) // block_size\n    return (num_blocks, 1, 1)",
-        "@cute.kernel\ndef scale_2d(matrix: cute.Tensor, scale: cutlass.Float32):\n    tx = cute.arch.thread_idx()[0]\n    ty = cute.arch.thread_idx()[1]\n    bx = cute.arch.block_idx()[0]\n    by = cute.arch.block_idx()[1]\n    block_width = cute.arch.block_dim_x()\n    block_height = cute.arch.block_dim_y()\n    i = bx * block_width + tx\n    j = by * block_height + ty\n    if i < M and j < N:\n        matrix[i, j] = matrix[i, j] * scale"
+        "@cute.kernel\ndef scale_2d(matrix: cute.Tensor, scale: cutlass.Float32):\n    tx = cute.arch.thread_idx()[0]\n    ty = cute.arch.thread_idx()[1]\n    bx = cute.arch.block_idx()[0]\n    by = cute.arch.block_idx()[1]\n    i = bx * block_width + tx\n    j = by * block_height + ty\n    if i < M and j < N:\n        matrix[i, j] = matrix[i, j] * scale",
+        "def compute_occupancy(threads_per_block: int, registers_per_thread: int, shared_mem_per_block: int) -> float:\n    blocks_by_threads = max_threads_per_sm // threads_per_block\n    blocks_by_registers = max_registers_per_sm // (threads_per_block * registers_per_thread)\n    blocks_by_smem = max_shared_mem_per_sm // shared_mem_per_block\n    blocks_per_sm = min(blocks_by_threads, blocks_by_registers, blocks_by_smem)\n    active_threads = blocks_per_sm * threads_per_block\n    return active_threads / max_threads_per_sm",
+        "def validate_launch_config(grid: tuple, block: tuple):\n    assert len(grid) == 3, 'Grid must be 3D'\n    assert len(block) == 3, 'Block must be 3D'\n    threads_per_block = block[0] * block[1] * block[2]\n    assert threads_per_block <= 1024, f'Too many threads per block: {threads_per_block}'\n    assert threads_per_block % 32 == 0, f'Block size should be multiple of 32: {threads_per_block}'"
       ],
       "constraints": [
         "Maximum 1024 threads per block",
-        "Block dimensions must be multiples of warp size (32)",
-        "Grid and block must be 3D",
-        "Ensure bounds checking to avoid out-of-bounds access"
+        "Block dimensions must be 3D",
+        "Grid dimensions must be 3D",
+        "Block size should be a multiple of 32",
+        "Ensure grid covers entire problem space"
       ],
-      "compressed_summary": "Launching CuTe DSL kernels requires understanding grid and block dimensions, launch syntax, and thread/block indexing. The `launch()` method is used to specify execution configuration, including grid and block dimensions. Common patterns include 1D, 2D, and 3D launches, with configurations like grid=[num_blocks, 1, 1] and block=[threads_per_block, 1, 1]. Occupancy considerations are crucial for performance, with higher occupancy generally improving latency hiding. However, optimal performance may require balancing occupancy with available resources. Dynamic launch configurations allow runtime adjustments based on problem size or GPU capabilities. Thread indexing involves accessing thread and block indices to compute global indices for data processing. Best practices include using multiples of warp size for block dimensions, ensuring grid covers the entire problem, and adding bounds checking to prevent out-of-bounds errors. Validating launch configurations is essential to ensure they adhere to hardware constraints. Common patterns like grid-stride loops and persistent kernels help efficiently handle varying problem sizes and workloads. For further optimization, understanding thread layouts and occupancy tuning is recommended."
+      "compressed_summary": "Launching CuTe DSL kernels involves configuring grid and block dimensions to optimize performance. The grid specifies the number of blocks in each dimension, while the block defines the number of threads per block. Common patterns include 1D, 2D, and 3D launches, with grid-stride loops recommended for handling variable sizes efficiently. Occupancy, which measures active warps relative to maximum possible warps, is crucial for performance but doesn't always correlate with better results. Calculating grid sizes dynamically based on problem size and adapting configurations to GPU capabilities are recommended practices. Constraints include a maximum of 1024 threads per block and ensuring block sizes are multiples of 32. Validating configurations and using bounds checking are essential to avoid exceeding hardware limits. Best practices involve using grid-stride loops for flexibility, persistent kernels for keeping blocks resident, and validating configurations to ensure they meet hardware constraints. Overall, understanding and applying these configurations and patterns can significantly enhance kernel performance."
     }
   ],
   "unified_concepts": [
     "Zero-copy tensor sharing and memory management",
-    "Kernel launching and execution configuration",
-    "Integration with multiple frameworks via DLPack",
-    "Direct GPU memory access and custom memory layouts"
+    "Integration with PyTorch and other frameworks using DLPack",
+    "Direct GPU memory manipulation for advanced performance optimization",
+    "Kernel launch configuration and optimization"
   ],
   "essential_patterns": [
-    "Converting PyTorch tensors to CuTe tensors using from_dlpack() for zero-copy operations",
-    "Launching kernels with grid and block dimensions using launch() method for efficient execution",
-    "Using DLPack for seamless interoperability between CuTe and other frameworks like PyTorch, JAX, and TensorFlow",
-    "Direct pointer access with cute.make_ptr() for performance-critical paths and custom memory management"
+    "Convert PyTorch tensors to CuTe using DLPack for seamless integration",
+    "Use grid and block configurations to optimize kernel launches",
+    "Employ grid-stride loops for handling variable sizes efficiently",
+    "Wrap custom kernels in Python functions for clean API integration",
+    "Utilize memory pools and custom layouts for advanced memory management"
   ],
   "common_pitfalls": [
-    "Using CPU tensors instead of CUDA tensors",
-    "Forgetting to synchronize operations leading to incorrect results",
-    "Mixing data types in kernel operations",
-    "Incorrect device handling and unsupported dtypes"
+    "Using non-CUDA tensors or forgetting to ensure tensor contiguity",
+    "Neglecting synchronization, leading to incorrect results",
+    "Mixing data types or exceeding hardware limits in kernel launches",
+    "Failing to manage memory ownership, resulting in dangling pointers"
   ],
-  "compressed_overview": "CuTe DSL provides robust integration capabilities with frameworks like PyTorch, leveraging DLPack for zero-copy tensor sharing and efficient memory management. Developers can convert PyTorch tensors to CuTe tensors using the from_dlpack() function, enabling optimized GPU operations without memory copying. Kernel execution is configured through the launch() method, where understanding grid and block dimensions is crucial for performance. Direct GPU memory access is available via cute.make_ptr(), allowing custom memory layouts and integration with external libraries, though it requires careful memory management. Best practices include ensuring tensors are CUDA-based, synchronizing operations, and validating tensor properties before conversion. Common pitfalls involve incorrect device handling and mixing data types. By adhering to these guidelines, developers can effectively harness CuTe's capabilities for high-performance GPU computing."
+  "compressed_overview": "The CuTe DSL framework integration category focuses on efficient interoperability and performance optimization in GPU kernel development. Core concepts include zero-copy tensor sharing via DLPack, which facilitates seamless integration with frameworks like PyTorch and JAX, and direct GPU memory manipulation for advanced users seeking performance gains. Essential patterns involve converting tensors using DLPack, configuring grid and block dimensions for optimal kernel launches, and employing grid-stride loops for flexibility. Developers are advised to wrap custom kernels in Python functions for ease of use and to leverage memory pools and custom layouts for sophisticated memory management. Common pitfalls include neglecting synchronization, using non-CUDA tensors, and improper memory management, which can lead to errors or suboptimal performance. Understanding these concepts and patterns is crucial for developing efficient and robust GPU kernels using CuTe DSL."
 }

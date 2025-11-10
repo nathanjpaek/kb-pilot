@@ -1,31 +1,29 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/01_decorators.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/01_decorators.md",
   "category": "00-starter_info",
   "title": "CuTe DSL Decorators Overview",
   "key_concepts": [
-    "@cute.jit for host-side JIT-compiled functions",
+    "@cute.jit for host-side JIT compilation",
     "@cute.kernel for GPU kernel functions",
-    "preprocessor parameter for control flow handling",
-    "JIT caching with no_cache parameter",
-    "Kernel launch with grid and block configuration"
+    "Dynamic compilation and optimization",
+    "Control flow handling with preprocessor"
   ],
   "critical_patterns": [
-    "Use @cute.jit for orchestrating GPU work from the CPU",
-    "Use @cute.kernel for writing GPU computations",
-    "Common pattern: @cute.kernel for computation, @cute.jit for orchestration",
-    "Use preprocessor=True for functions with control flow",
-    "Launch kernels with .launch() method"
+    "Use @cute.jit to orchestrate GPU work from the CPU",
+    "Use @cute.kernel for writing GPU computation with explicit thread/block control",
+    "Common pattern: @cute.jit hosts function orchestrates @cute.kernel launch",
+    "Nesting @jit functions to launch multiple kernels for complex pipelines"
   ],
   "code_snippets": [
-    "@cute.jit\ndef host_function():\n    # Host-side logic",
-    "@cute.kernel\ndef gpu_kernel():\n    # GPU computation logic",
+    "@cute.jit(preprocessor=True)\ndef host_function():\n    # Host-side logic",
+    "@cute.kernel(preprocessor=True)\ndef gpu_kernel():\n    # GPU computation logic",
     "kernel_function.launch(grid=[1, 1, 1], block=[256, 1, 1])"
   ],
   "constraints": [
     "Python functions cannot directly call @kernel functions",
     "@kernel functions cannot call other @kernel functions",
-    "preprocessor=False requires straight-line code",
-    "Must use .launch() for kernel execution"
+    "Control flow may not work with preprocessor=False",
+    "Must use .launch() to execute @kernel functions"
   ],
-  "compressed_summary": "CuTe DSL provides two primary decorators: @cute.jit for host-side JIT-compiled functions and @cute.kernel for GPU kernel functions. The @cute.jit decorator is used for functions that run on the CPU and manage GPU execution, while @cute.kernel is used for defining GPU computations with explicit grid and block configurations. The preprocessor parameter in both decorators controls how loops and conditionals are handled, with the default setting (preprocessor=True) recommended for functions with control flow. JIT caching can be managed with the no_cache parameter, allowing for recompilation when needed. Kernel functions must be launched using the .launch() method, specifying grid and block dimensions. Python functions can call @jit functions directly but cannot call @kernel functions without using .launch(). @jit functions can launch @kernel functions, but @kernel functions cannot call other @kernel functions. A typical pattern involves using @cute.kernel for GPU computation and @cute.jit for orchestrating kernel launches and managing memory. Common pitfalls include forgetting to use .launch() for kernel execution and using @kernel for host-side code. The documentation provides guidance on choosing between the decorators based on the task, with @cute.jit suitable for orchestrating GPU work and @cute.kernel for implementing GPU computations."
+  "compressed_summary": "CuTe DSL provides two main decorators, @cute.jit and @cute.kernel, for generating optimized code through dynamic compilation. @cute.jit is used for host-side JIT-compiled functions that typically run on the CPU and manage GPU execution, while @cute.kernel is used for defining GPU kernel functions that require explicit grid and block configuration. The preprocessor parameter in both decorators controls the handling of loops and conditionals, with preprocessor=True automatically converting control flow to intermediate representation, which is recommended for most use cases. The no_cache parameter in @cute.jit controls JIT caching behavior, useful for debugging and testing. Kernel functions are launched using the .launch() method, specifying grid and block dimensions, and optionally, cluster dimensions, shared memory size, and CUDA stream. Python functions can call @jit functions directly but cannot call @kernel functions directly; instead, @jit functions can launch @kernel functions. A typical pattern involves using @cute.jit to orchestrate GPU work and @cute.kernel for the actual computation. Common pitfalls include forgetting to use .launch() for kernels, using @kernel for host code, and incorrect control flow handling with preprocessor=False. The documentation encourages using @cute.jit for orchestrating GPU work and preparing data, and @cute.kernel for parallel computation and explicit control over threads and blocks. Advanced usage includes nesting @jit functions to create complex pipelines. Related topics include quick start guides, code generation, and control flow handling."
 }

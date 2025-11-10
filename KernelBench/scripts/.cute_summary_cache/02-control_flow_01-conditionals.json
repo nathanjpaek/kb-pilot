@@ -1,31 +1,29 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/02-control_flow/01-conditionals.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/02-control_flow/01-conditionals.md",
   "category": "02-control_flow",
   "title": "Conditionals in CuTe DSL",
   "key_concepts": [
     "Runtime conditionals are evaluated on the GPU",
-    "Compile-time conditionals use cutlass.const_expr",
-    "Runtime conditionals include both branches in generated code",
-    "Compile-time conditionals eliminate unused branches",
-    "Avoid warp divergence for better performance"
+    "Compile-time conditionals use cutlass.const_expr and are evaluated during JIT compilation",
+    "Both branches exist in runtime conditionals, only the taken branch exists in compile-time conditionals"
   ],
   "critical_patterns": [
-    "Activation Functions: Compile-time dispatch for different activations",
-    "Precision Selection: Compile-time choice between FP16 and FP32",
-    "Bounds Checking: Runtime checks for safe data access",
+    "Activation Functions: Use compile-time dispatch to eliminate runtime overhead",
+    "Precision Selection: Choose between FP16 and FP32 computations at compile-time",
+    "Bounds Checking: Use runtime conditionals for safe array access",
     "Warp Divergence Mitigation: Use predicated execution to minimize divergence"
   ],
   "code_snippets": [
-    "@cute.jit\ndef runtime_conditional(x: cutlass.Int32):\n    if x > 10:\n        cute.printf('x is large\\n')\n    else:\n        cute.printf('x is small\\n')",
-    "@cute.jit\ndef compile_time_conditional(flag: cutlass.Constexpr):\n    if cutlass.const_expr(flag):\n        cute.printf('Flag is True\\n')\n    else:\n        cute.printf('Flag is False\\n')",
-    "@cute.jit\ndef basic_if(value: cutlass.Float32):\n    if value > 0:\n        cute.printf('Positive\\n')",
-    "@cute.jit\ndef nested_if(x: cutlass.Int32, y: cutlass.Int32):\n    if x > 0:\n        if y > 0:\n            cute.printf('Both positive\\n')\n        else:\n            cute.printf('x positive, y non-positive\\n')\n    else:\n        cute.printf('x non-positive\\n')"
+    "@cute.jit\ndef runtime_conditional(x: cutlass.Int32):\n    if x > 10:\n        cute.printf(\"x is large\\n\")\n    else:\n        cute.printf(\"x is small\\n\")",
+    "@cute.jit\ndef compile_time_conditional(flag: cutlass.Constexpr):\n    if cutlass.const_expr(flag):\n        cute.printf(\"Flag is True\\n\")\n    else:\n        cute.printf(\"Flag is False\\n\")",
+    "@cute.kernel\ndef safe_access(data: cute.Tensor, n: cutlass.Int32):\n    idx = cute.arch.block_idx()[0] * cute.arch.block_dim_x() + cute.arch.thread_idx()[0]\n    if idx < n:\n        process(data[idx])",
+    "@cute.kernel\ndef minimize_divergence(data: cute.Tensor, flags: cute.Tensor):\n    idx = cute.arch.thread_idx()[0]\n    flag = flags[idx]\n    result = cute.where(flag, compute_a(data[idx]), compute_b(data[idx]))\n    data[idx] = result"
   ],
   "constraints": [
     "Cannot use return, raise, or pass in dynamic conditionals",
-    "Variables defined in if block are not available outside",
-    "Cannot change variable type within conditionals",
+    "Variables defined in an if block are not available outside unless defined before",
+    "Cannot change variable types within conditionals",
     "Runtime values cannot be used with cutlass.const_expr"
   ],
-  "compressed_summary": "CuTe DSL supports both runtime and compile-time conditionals, allowing for flexible and optimized GPU kernel code generation. Runtime conditionals are evaluated on the GPU, keeping both branches in the generated code, which can lead to warp divergence if not managed carefully. Compile-time conditionals, using cutlass.const_expr, are evaluated during JIT compilation, resulting in only the taken branch being included in the final code, thus eliminating dead code and improving performance. Key patterns include activation functions, precision selection, and bounds checking, each leveraging compile-time evaluation to optimize execution paths. Constraints include the prohibition of return, raise, or pass statements within dynamic conditionals, and the necessity to define variables outside conditionals if they are needed later. Additionally, variable types cannot change within conditionals, and runtime values are incompatible with cutlass.const_expr. To minimize warp divergence, predicated execution or structuring work so entire warps take the same path is recommended. Understanding when to use runtime versus compile-time conditionals is crucial for achieving optimal performance and code efficiency in CuTe DSL."
+  "compressed_summary": "CuTe DSL provides support for conditionals in GPU kernels, distinguishing between runtime and compile-time conditionals. Runtime conditionals are evaluated on the GPU, with both branches existing in the generated code. Compile-time conditionals, using cutlass.const_expr, are evaluated during JIT compilation, resulting in only the taken branch being included in the generated code. Key patterns include activation functions, precision selection, bounds checking, and warp divergence mitigation. Activation functions can leverage compile-time dispatch to avoid runtime overhead, while precision selection allows choosing between FP16 and FP32 computations at compile-time. Runtime conditionals are useful for safe array access, ensuring bounds are checked during execution. Warp divergence can be mitigated by using predicated execution, reducing the performance impact of divergent threads. Constraints include the inability to use return, raise, or pass in dynamic conditionals, the need to define variables before conditionals if they are used outside, and the restriction against changing variable types within conditionals. Runtime values are incompatible with cutlass.const_expr, which is reserved for compile-time constants. Understanding these patterns and constraints is crucial for optimizing GPU kernel performance using CuTe DSL."
 }

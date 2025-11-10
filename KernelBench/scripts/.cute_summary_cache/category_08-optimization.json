@@ -3,39 +3,40 @@
   "category_path": "",
   "file_summaries": [
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/00-tiling_strategies.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/00-tiling_strategies.md",
       "category": "08-optimization",
-      "title": "Tiling Strategies in CuTe DSL for Optimized GPU Kernels",
+      "title": "Tiling Strategies in CuTe DSL",
       "key_concepts": [
         "Tiling divides large problems into smaller tiles for shared memory",
-        "Tile size selection is crucial for performance",
-        "Hierarchical tiling leverages memory hierarchy",
-        "Tiling patterns optimize different operations"
+        "Tile size selection affects performance and resource usage",
+        "Hierarchical tiling maps computations to memory hierarchy",
+        "Common tiling patterns optimize for different matrix shapes"
       ],
       "critical_patterns": [
         "Square Tiles: Good for square matrices, balanced memory access",
         "Rectangular Tiles: Match matrix aspect ratio for non-square matrices",
-        "K-Slicing: Small K dimension for better pipelining",
+        "K-Slicing: Small K for pipelining, large K for fewer iterations",
         "Register Blocking: Tile within registers for efficient computation"
       ],
       "code_snippets": [
-        "@cute.kernel\ndef naive_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor): ...",
-        "@cute.kernel\ndef tiled_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor): ...",
-        "def calculate_smem_usage(tile_m: int, tile_n: int, tile_k: int, dtype_size: int = 2) -> int: ...",
-        "def choose_tile_size(M: int, N: int, K: int, architecture: str, memory_bound: bool): ..."
+        "@cute.kernel\ndef naive_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):",
+        "@cute.kernel\ndef tiled_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):",
+        "def calculate_smem_usage(tile_m: int, tile_n: int, tile_k: int, dtype_size: int = 2) -> int:",
+        "@cute.kernel\ndef hierarchical_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):",
+        "def design_tile_hierarchy(block_tile_m: int, block_tile_n: int, thread_tile_m: int, thread_tile_n: int):"
       ],
       "constraints": [
-        "Shared memory capacity limits tile size",
-        "Register pressure affects occupancy",
-        "Tile sizes must align with warp size",
-        "Avoid exceeding shared memory limits"
+        "Tile sizes must fit within shared memory limits",
+        "Register pressure increases with larger tiles, affecting occupancy",
+        "Thread count should be a multiple of warp size (32)",
+        "Avoid exceeding shared memory capacity with large tiles"
       ],
-      "compressed_summary": "Tiling is a fundamental optimization in GPU computing, dividing problems into smaller tiles that fit in shared memory to enable data reuse and reduce global memory traffic. Selecting the right tile size is crucial, balancing shared memory capacity, register pressure, and occupancy. Common tile sizes for GEMM operations include 128x128x32, with variations for different architectures and memory constraints. Hierarchical tiling involves multiple levels: grid, block, warp, and thread, each mapping to different memory hierarchies. Key tiling patterns include square and rectangular tiles, K-slicing for pipelining, and register blocking for efficient computation. Constraints include shared memory limits, register pressure, and ensuring tile sizes align with warp sizes. Practical implementation involves calculating shared memory usage, choosing appropriate tile sizes based on architecture and workload, and using hierarchical tiling to maximize performance. Tiling can lead to 10-100x speedup for memory-bound operations, making it the most important optimization for GPU kernels. Advanced techniques like swizzled and multi-buffered tiling further enhance performance by reducing bank conflicts and overlapping computation with memory operations."
+      "compressed_summary": "Tiling is a crucial optimization technique in GPU computing, breaking down large problems into smaller tiles that fit into fast shared memory, thereby reducing global memory traffic and enhancing data reuse. The selection of tile size is influenced by shared memory capacity, register pressure, occupancy, and compute intensity. Common tile sizes for GEMM operations range from small (64x64x16) to very large (256x256x64), depending on the architecture and whether the operation is memory or compute-bound. Hierarchical tiling involves multiple levels: grid, block, warp, and thread, each corresponding to different memory hierarchies. Implementing effective tiling strategies can lead to significant performance improvements, often achieving 10-100x speedups for memory-bound operations. Key patterns include square and rectangular tiles, K-slicing for pipelining, and register blocking for efficient computation. Constraints such as shared memory limits and thread alignment must be considered to avoid performance bottlenecks. Advanced techniques like swizzled and multi-buffered tiling can further optimize performance by reducing bank conflicts and enabling pipelining. Ultimately, tiling is the most important optimization for GPU performance, and getting it right is essential for maximizing computational efficiency."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/01-pipelining_patterns.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/01-pipelining_patterns.md",
       "category": "08-optimization",
-      "title": "Pipelining Patterns in CuTe DSL",
+      "title": "Advanced Pipelining Patterns in CuTe DSL",
       "key_concepts": [
         "Producer-consumer patterns",
         "Multi-stage pipelines",
@@ -45,29 +46,30 @@
         "Performance tuning"
       ],
       "critical_patterns": [
-        "Double buffering: Alternate between two buffers to load and compute simultaneously.",
-        "Triple buffering: Utilize three buffers for deeper pipeline overlap.",
-        "Warp specialization: Separate warps for loading and computing to enhance parallelism.",
-        "cp.async Pipeline: Use hardware-accelerated async copy for efficient data movement.",
-        "TMA Pipeline (Hopper): Use transaction-based pipelining with hardware-managed synchronization."
+        "Double Buffering: Alternate between two buffers to load and compute simultaneously.",
+        "Triple Buffering: Use three or more buffers for maximum overlap.",
+        "Warp-Specialized Pipeline: Dedicate warps to loading and computing separately.",
+        "Async Copy Patterns: Use hardware-accelerated async copy for efficient data transfer.",
+        "TMA Pipeline: Use Hopper's Tensor Memory Accelerator with transaction-based pipelining."
       ],
       "code_snippets": [
-        "@cute.kernel\ndef basic_pipeline(gmem: cute.Tensor, num_tiles: cutlass.Int32):",
-        "@cute.kernel\ndef double_buffer_pipeline(gmem: cute.Tensor, num_tiles: cutlass.Int32):",
-        "@cute.kernel\ndef triple_buffer_pipeline(gmem_A: cute.Tensor, gmem_B: cute.Tensor, result: cute.Tensor, num_k_tiles: cutlass.Int32):",
-        "@cute.kernel\ndef warp_specialized_pipeline(gmem_A: cute.Tensor, gmem_B: cute.Tensor, result: cute.Tensor, num_k_tiles: cutlass.Int32):",
-        "@cute.kernel\ndef cp_async_pipeline(gmem: cute.Tensor, result: cute.Tensor, num_tiles: cutlass.Int32):"
+        "@cute.kernel\ndef basic_pipeline(gmem: cute.Tensor, num_tiles: cutlass.Int32): ...",
+        "@cute.kernel\ndef double_buffer_pipeline(gmem: cute.Tensor, num_tiles: cutlass.Int32): ...",
+        "@cute.kernel\ndef triple_buffer_pipeline(gmem_A: cute.Tensor, gmem_B: cute.Tensor, result: cute.Tensor, num_k_tiles: cutlass.Int32): ...",
+        "@cute.kernel\ndef warp_specialized_pipeline(gmem_A: cute.Tensor, gmem_B: cute.Tensor, result: cute.Tensor, num_k_tiles: cutlass.Int32): ...",
+        "@cute.kernel\ndef cp_async_pipeline(gmem: cute.Tensor, result: cute.Tensor, num_tiles: cutlass.Int32): ..."
       ],
       "constraints": [
         "Use 3-4 stages for most cases to balance resource usage and performance.",
-        "Ensure shared memory usage does not exceed available limits.",
-        "Correctly synchronize to avoid race conditions and ensure data readiness.",
-        "Avoid over-pipelining as it can lead to reduced occupancy and performance."
+        "Ensure NUM_STAGES * stage_size is less than maximum shared memory.",
+        "Avoid over-pipelining as it can lead to reduced occupancy and performance.",
+        "Synchronize correctly to avoid race conditions and ensure data readiness.",
+        "Pipeline only memory-bound kernels; compute-bound kernels may not benefit."
       ],
-      "compressed_summary": "Pipelining in CuTe DSL involves overlapping data movement and computation to hide memory latency and optimize performance. Key concepts include producer-consumer patterns, multi-stage pipelines, warp specialization, async copy pipelining, and TMA pipelining. Critical patterns such as double buffering and triple buffering allow simultaneous loading and computing, enhancing throughput. Warp specialization dedicates specific warps to loading and computing tasks, improving instruction-level parallelism. The cp.async pipeline leverages hardware-accelerated async copy for efficient data transfer, while the TMA pipeline in Hopper uses transaction-based synchronization for better efficiency. Constraints include using an optimal number of stages (typically 3-4) to balance performance and resource usage, ensuring shared memory limits are not exceeded, and correctly synchronizing operations to prevent race conditions. Common pitfalls include over-pipelining, incorrect wait points, and missing synchronization, which can degrade performance. Best practices involve profiling to determine the optimal pipeline depth, using warp specialization on Hopper, and ensuring proper synchronization. Pipelining can lead to significant performance improvements, especially for memory-bound kernels, by keeping the GPU busy and hiding latency effectively."
+      "compressed_summary": "Pipelining in CuTe DSL involves overlapping data movement with computation to hide memory latency, enhancing performance. Key patterns include double buffering, which uses two buffers to load and compute simultaneously, and triple buffering, which employs three or more buffers for deeper pipelining. Warp specialization separates loading and computing tasks across different warps, improving parallelism. Async copy patterns leverage hardware-accelerated operations for efficient data transfer, while TMA pipelining on Hopper utilizes transaction-based synchronization for optimal performance. Effective pipelining requires careful stage management, typically using 3-4 stages to balance latency hiding and resource constraints. Over-pipelining can lead to reduced occupancy, so it's crucial to measure and tune pipeline depth based on specific kernel characteristics. Synchronization points must be correctly placed to prevent race conditions. Pipelining is particularly beneficial for memory-bound kernels, offering 1.5-3\u00d7 speedup by keeping the GPU busy and minimizing idle time. The document emphasizes the importance of profiling to determine the optimal pipeline configuration and warns against exceeding shared memory limits or improperly synchronizing stages. For further optimization, related topics such as tiling strategies and thread layouts are recommended."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/02-thread_layouts.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/02-thread_layouts.md",
       "category": "08-optimization",
       "title": "Thread Layouts in CuTe DSL",
       "key_concepts": [
@@ -79,29 +81,29 @@
         "Layout composition"
       ],
       "critical_patterns": [
-        "Linear Layout: 1D sequential thread mapping for simple data processing",
+        "Linear Layout: 1D sequential mapping of threads to data elements",
         "2D Layout: Mapping threads to a 2D grid for matrix operations",
-        "Tiled Layout: Each thread processes a tile of elements for efficient data handling",
+        "Tiled Layout: Each thread processes a tile of elements",
         "Vectorized Layout: Threads access vector elements for SIMD operations"
       ],
       "code_snippets": [
         "@cute.kernel\ndef good_layout(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    bid = cute.arch.block_idx()[0]\n    block_size = cute.arch.block_dim_x()\n    idx = bid * block_size + tid\n    if idx < cute.size(data):\n        data[idx] = data[idx] * 2.0",
-        "@cute.kernel\ndef layout_2d(matrix: cute.Tensor):\n    tx = cute.arch.thread_idx()[0]\n    ty = cute.arch.thread_idx()[1]\n    bx = cute.arch.block_idx()[0]\n    by = cute.arch.block_idx()[1]\n    TILE_X, TILE_Y = 16, 16\n    i = bx * TILE_X + tx\n    j = by * TILE_Y + ty\n    if i < cute.shape(matrix)[0] and j < cute.shape(matrix)[1]:\n        matrix[i, j] = process(matrix[i, j])",
         "@cute.kernel\ndef no_bank_conflict():\n    smem = cute.make_smem_tensor(cute.make_shape(32, 32), cutlass.Float32)\n    tid = cute.arch.thread_idx()[0]\n    lane_id = tid % 32\n    value = smem[lane_id, lane_id]",
-        "@cute.kernel\ndef warp_specialized():\n    tid = cute.arch.thread_idx()[0]\n    warp_id = tid // 32\n    if warp_id == 0:\n        producer_work()\n    else:\n        consumer_id = warp_id - 1\n        consumer_work(consumer_id)"
+        "@cute.kernel\ndef linear_layout(data: cute.Tensor):\n    tid = cute.arch.thread_idx()[0]\n    bid = cute.arch.block_idx()[0]\n    global_tid = bid * 256 + tid\n    if global_tid < cute.size(data):\n        data[global_tid] = process(data[global_tid])",
+        "@cute.kernel\ndef layout_2d(matrix: cute.Tensor):\n    tx = cute.arch.thread_idx()[0]\n    ty = cute.arch.thread_idx()[1]\n    bx = cute.arch.block_idx()[0]\n    by = cute.arch.block_idx()[1]\n    TILE_X, TILE_Y = 16, 16\n    i = bx * TILE_X + tx\n    j = by * TILE_Y + ty\n    if i < cute.shape(matrix)[0] and j < cute.shape(matrix)[1]:\n        matrix[i, j] = process(matrix[i, j])"
       ],
       "constraints": [
         "Ensure threads access consecutive memory for coalescing",
-        "Avoid shared memory bank conflicts by padding",
+        "Align base address to cache line (128 bytes)",
         "Use warp-size multiples for thread counts",
-        "Vectorize data access when possible"
+        "Avoid shared memory bank conflicts by adding padding"
       ],
-      "compressed_summary": "Thread layouts in CuTe DSL are essential for optimizing GPU kernel performance, focusing on how threads map to data, ensuring coalesced memory access, and avoiding bank conflicts. Proper thread layout can significantly enhance compute throughput by organizing threads into efficient patterns. Key patterns include Linear Layout for simple 1D data processing, 2D Layout for matrix operations, Tiled Layout where each thread processes a tile of elements, and Vectorized Layout for SIMD operations. Code snippets illustrate good practices, such as ensuring contiguous memory access and avoiding bank conflicts by using padding. Constraints emphasize the importance of coalesced access, avoiding shared memory bank conflicts, using warp-size multiples, and vectorizing data access. Understanding and applying these principles can lead to substantial performance improvements, with potential speedups of 10-100\u00d7. The document also highlights the importance of warp-level organization and specialized layouts for advanced operations like GEMM and MMA on tensor cores. Best practices include ensuring coalesced access, using 2D layouts for matrices, adding padding to avoid bank conflicts, and vectorizing when possible. Avoid strided access, shared memory bank conflicts, and arbitrary thread counts not aligned with warp sizes. The right thread layout is critical for achieving optimal performance in GPU computing."
+      "compressed_summary": "Thread layouts in CuTe DSL are essential for optimizing GPU kernel performance. They determine how threads map to data, affecting memory access patterns and computation distribution. Key concepts include thread-to-data mapping, coalesced memory access, and bank conflict avoidance. Proper thread layouts ensure warp-level organization and efficient thread tile partitioning. Critical patterns include Linear Layout for 1D sequential mapping, 2D Layout for matrix operations, Tiled Layout for processing multiple elements per thread, and Vectorized Layout for SIMD operations. Code snippets illustrate good practices like ensuring coalesced access and avoiding bank conflicts. Constraints emphasize the importance of accessing consecutive memory, aligning addresses to cache lines, using warp-size multiples, and adding padding to avoid conflicts. The right thread layout can significantly enhance performance, providing up to 100\u00d7 speedup by optimizing memory access and reducing conflicts. Best practices include ensuring coalesced access, using 2D layouts for matrices, adding padding to avoid bank conflicts, and vectorizing operations when possible. Avoid strided access patterns, shared memory bank conflicts, and non-warp-size thread counts to maintain optimal performance."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/03-performance_tips.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/03-performance_tips.md",
       "category": "08-optimization",
-      "title": "Performance Optimization Techniques for CuTe DSL Kernels",
+      "title": "Performance Optimization Tips for CuTe DSL Kernels",
       "key_concepts": [
         "Occupancy optimization",
         "Memory bandwidth optimization",
@@ -111,32 +113,31 @@
         "Common performance pitfalls"
       ],
       "critical_patterns": [
-        "Identify kernel bottlenecks: Memory bandwidth, Compute throughput, or Latency",
-        "Optimize occupancy: High occupancy for memory-bound, balance resources for compute-bound",
-        "Coalesce memory access: Access consecutive memory for higher bandwidth",
-        "Use shared memory for data reuse: Cache frequently accessed data",
-        "Leverage tensor cores for compute: Use specialized hardware for matrix operations",
-        "Minimize synchronization: Use only necessary synchronizations",
-        "Tune block size and grid size: Ensure optimal launch configuration"
+        "Identify bottlenecks using memory bandwidth, compute throughput, or latency.",
+        "Optimize occupancy by balancing active warps and resource allocation.",
+        "Coalesce memory access to improve bandwidth utilization.",
+        "Use shared memory for data reuse to reduce global memory access.",
+        "Leverage tensor cores for compute-intensive operations.",
+        "Minimize synchronization and use warp-level primitives when possible."
       ],
       "code_snippets": [
         "def identify_bottleneck(kernel_name: str): ...",
         "def calculate_occupancy(threads_per_block: int, ...): ...",
         "@cute.kernel def coalesced_access(data: cute.Tensor): ...",
         "@cute.kernel def tensor_core_gemm(A, B, C): ...",
-        "def tune_block_size(kernel, data): ..."
+        "@cute.kernel def minimal_sync(): ..."
       ],
       "constraints": [
-        "Threads per block should not exceed 1024",
-        "Register usage must be balanced to avoid low occupancy",
-        "Shared memory usage should be optimized to avoid bank conflicts",
-        "Ensure data alignment for efficient memory access",
-        "Problem size should be large enough to amortize GPU overhead"
+        "Threads per block should not exceed 1024.",
+        "Register usage should be balanced to avoid low occupancy.",
+        "Shared memory should be padded to avoid bank conflicts.",
+        "Block size should be a multiple of 32 for optimal occupancy.",
+        "Ensure problem size is large enough to amortize GPU launch overhead."
       ],
-      "compressed_summary": "This guide provides practical performance optimization techniques for CuTe DSL kernels, focusing on maximizing GPU efficiency. Key concepts include occupancy optimization, memory bandwidth, compute throughput, register pressure management, and instruction-level parallelism. Kernels are typically limited by memory bandwidth, compute throughput, or latency. Identifying the bottleneck is crucial for optimization. Occupancy should be optimized based on the kernel type: high occupancy for memory-bound kernels and balanced resources for compute-bound kernels. Memory bandwidth can be optimized by coalescing memory access, using vectorized loads, and caching data in shared memory. Compute throughput can be enhanced by leveraging tensor cores and maximizing instruction-level parallelism. Register pressure should be managed to avoid spilling and ensure high occupancy. Shared memory should be used efficiently, avoiding bank conflicts and optimizing layout for access patterns. Synchronization should be minimized, using warp-level primitives when possible. Launch configurations should be tuned to maximize grid size and block size, ensuring the GPU is fully utilized. Profiling is essential to identify real bottlenecks before optimization. Common pitfalls include small problem sizes, unbalanced work, and ignoring data alignment. The guide emphasizes profiling before optimizing and provides a checklist for memory, compute, occupancy, launch configuration, and synchronization optimization. Following these tips can lead to significant performance improvements, with potential speedups ranging from 10x to 100x."
+      "compressed_summary": "This guide provides intermediate-level performance optimization techniques for CuTe DSL kernels, focusing on maximizing GPU efficiency. Key concepts include optimizing occupancy, memory bandwidth, and compute throughput while managing register pressure and instruction-level parallelism. Critical patterns involve identifying bottlenecks, optimizing occupancy by balancing active warps and resources, coalescing memory access, using shared memory for data reuse, leveraging tensor cores, and minimizing synchronization. Constraints include keeping threads per block under 1024, balancing register usage, padding shared memory to avoid bank conflicts, ensuring block size is a multiple of 32, and maintaining a large enough problem size to offset GPU launch overhead. Code snippets illustrate identifying bottlenecks, calculating occupancy, coalescing memory access, using tensor cores, and minimizing synchronization. The guide emphasizes profiling to identify real bottlenecks before optimizing, as the right optimization can lead to significant speedups. It provides a checklist for memory, compute, occupancy, launch configuration, and synchronization optimizations, and advises profiling as a first step before any optimization efforts."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/04-profiling.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/04-profiling.md",
       "category": "08-optimization",
       "title": "Profiling CuTe DSL Kernels",
       "key_concepts": [
@@ -148,33 +149,34 @@
         "Performance metrics"
       ],
       "critical_patterns": [
-        "Warm up GPU before profiling to avoid cold cache effects",
-        "Use CUDA events for accurate GPU timing",
-        "Annotate code with NVTX for better profiling insights",
+        "Warm up GPU before profiling to ensure accurate measurements",
+        "Use CUDA events for precise GPU timing",
         "Profile multiple iterations to get average performance metrics",
-        "Use NSight Systems for timeline analysis to identify CPU/GPU bottlenecks",
-        "Use NSight Compute for detailed kernel analysis and metrics"
+        "Annotate code with NVTX for better profiling insights",
+        "Use NSight Systems for timeline analysis to identify CPU/GPU interactions"
       ],
       "code_snippets": [
-        "import torch\nimport time\n\ndef time_kernel(kernel, grid, block, *args, num_iters=100, warmup=10):\n    for _ in range(warmup):\n        kernel.launch(grid=grid, block=block)(*args)\n    torch.cuda.synchronize()\n    start = time.time()\n    for _ in range(num_iters):\n        kernel.launch(grid=grid, block=block)(*args)\n    torch.cuda.synchronize()\n    elapsed = time.time() - start\n    avg_time = elapsed / num_iters\n    print(f\"Average time: {avg_time*1000:.3f} ms\")\n    return avg_time",
+        "import torch\nimport time\ndef time_kernel(kernel, grid, block, *args, num_iters=100, warmup=10):\n    for _ in range(warmup):\n        kernel.launch(grid=grid, block=block)(*args)\n    torch.cuda.synchronize()\n    start = time.time()\n    for _ in range(num_iters):\n        kernel.launch(grid=grid, block=block)(*args)\n    torch.cuda.synchronize()\n    elapsed = time.time() - start\n    avg_time = elapsed / num_iters\n    print(f\"Average time: {avg_time*1000:.3f} ms\")\n    return avg_time",
         "def time_kernel_cuda_events(kernel, grid, block, *args, num_iters=100):\n    start_event = torch.cuda.Event(enable_timing=True)\n    end_event = torch.cuda.Event(enable_timing=True)\n    for _ in range(10):\n        kernel.launch(grid=grid, block=block)(*args)\n    torch.cuda.synchronize()\n    start_event.record()\n    for _ in range(num_iters):\n        kernel.launch(grid=grid, block=block)(*args)\n    end_event.record()\n    torch.cuda.synchronize()\n    elapsed_ms = start_event.elapsed_time(end_event)\n    avg_time_ms = elapsed_ms / num_iters\n    print(f\"Average time: {avg_time_ms:.3f} ms\")\n    return avg_time_ms / 1000",
-        "def calculate_metrics(kernel_time: float, problem_size: tuple, dtype_size: int = 2, operation: str = \"gemm\"):\n    if operation == \"gemm\":\n        M, N, K = problem_size\n        flops = 2 * M * N * K\n        tflops = flops / kernel_time / 1e12\n        bytes_transferred = (M*K + K*N + M*N) * dtype_size\n        bandwidth_gb_s = bytes_transferred / kernel_time / 1e9\n        arithmetic_intensity = flops / bytes_transferred\n        print(f\"\\nPerformance Metrics:\")\n        print(f\"  Time: {kernel_time*1000:.3f} ms\")\n        print(f\"  Throughput: {tflops:.2f} TFLOPS\")\n        print(f\"  Bandwidth: {bandwidth_gb_s:.1f} GB/s\")\n        print(f\"  Arithmetic Intensity: {arithmetic_intensity:.1f} FLOP/byte\")\n        return {'time': kernel_time, 'tflops': tflops, 'bandwidth': bandwidth_gb_s, 'arithmetic_intensity': arithmetic_intensity}"
+        "import torch.profiler as profiler\ndef profile_kernel_torch(kernel, grid, block, *args, num_iters=100):\n    with profiler.profile(activities=[profiler.ProfilerActivity.CPU, profiler.ProfilerActivity.CUDA], record_shapes=True, profile_memory=True, with_stack=True) as prof:\n        for _ in range(num_iters):\n            kernel.launch(grid=grid, block=block)(*args)\n            torch.cuda.synchronize()\n    print(prof.key_averages().table(sort_by=\"cuda_time_total\", row_limit=20))\n    prof.export_chrome_trace(\"trace.json\")\n    print(\"\\nTrace exported to trace.json\")\n    print(\"Open chrome://tracing and load the file\")\n    return prof",
+        "import torch.cuda.nvtx as nvtx\n@cute.jit\ndef annotated_workflow():\n    nvtx.range_push(\"Data Preparation\")\n    data = torch.randn(4096, 4096, device='cuda')\n    nvtx.range_pop()\n    nvtx.range_push(\"Preprocessing Kernel\")\n    preprocess_kernel.launch(grid, block)(data)\n    torch.cuda.synchronize()\n    nvtx.range_pop()\n    nvtx.range_push(\"Main Computation\")\n    compute_kernel.launch(grid, block)(data)\n    torch.cuda.synchronize()\n    nvtx.range_pop()\n    nvtx.range_push(\"Postprocessing\")\n    postprocess_kernel.launch(grid, block)(data)\n    torch.cuda.synchronize()\n    nvtx.range_pop()"
       ],
       "constraints": [
-        "Always synchronize CUDA operations to ensure accurate timing",
-        "Avoid profiling in debug mode due to slower performance",
-        "Ensure kernels are warmed up to avoid profiling cold cache effects",
-        "Profile release builds only for accurate performance metrics"
+        "Profile release builds only, not debug builds",
+        "Always synchronize CUDA streams before timing",
+        "Avoid profiling with cold cache as it skews results",
+        "Ensure high GPU utilization (>80%) to avoid CPU bottlenecks",
+        "Minimize memory transfers between host and device"
       ],
-      "compressed_summary": "Profiling CuTe DSL kernels is crucial for optimizing GPU performance. The documentation outlines various tools and techniques for effective profiling. Basic timing can be done using Python's time module or CUDA events for more precision. PyTorch profiler offers integration for timeline and memory profiling, while NSight Systems provides a comprehensive timeline analysis to identify bottlenecks between CPU and GPU operations. NSight Compute offers detailed kernel metrics, including memory throughput, compute throughput, occupancy, cache hit rates, and warp execution efficiency. Key profiling patterns include warming up the GPU to avoid cold cache effects, using CUDA events for accurate timing, annotating code with NVTX for better profiling insights, and profiling multiple iterations to obtain average performance metrics. Constraints to consider include always synchronizing CUDA operations, avoiding debug builds for profiling, and ensuring kernels are warmed up. The profiling workflow involves starting with basic timing to identify slow kernels, using PyTorch profiler for an overview, NSight Systems for timeline analysis, and NSight Compute for a deep dive into kernel metrics. Profiling should be done before optimization to accurately identify bottlenecks. The documentation also covers comparative profiling, A/B testing optimizations, and automated performance testing to track kernel performance over time and detect regressions. Best practices emphasize the importance of warming up, using CUDA events, profiling multiple iterations, and annotating with NVTX. Avoid profiling debug builds, unsynchronized operations, and cold cache effects. The document provides a comprehensive guide to profiling CuTe DSL kernels, focusing on practical patterns, constraints, and actionable insights to optimize GPU kernel performance effectively."
+      "compressed_summary": "Profiling GPU kernels using the CuTe DSL involves several key techniques and tools to ensure optimal performance. Basic timing can be achieved using Python's time module or more accurately with CUDA events, which provide precise GPU timing. PyTorch's profiler can be integrated to capture both CPU and GPU activities, offering insights into memory usage and kernel execution times. NSight Systems is used for timeline analysis, highlighting CPU/GPU interactions, while NSight Compute provides detailed kernel metrics, such as memory throughput and compute utilization. Key metrics to monitor include execution time, throughput (TFLOPS/GOPS), bandwidth (GB/s), and occupancy rates. Profiling best practices emphasize warming up the GPU, using CUDA events for accuracy, annotating code with NVTX for better profiling insights, and ensuring high GPU utilization to avoid CPU bottlenecks. Constraints include profiling only release builds, synchronizing CUDA streams before timing, and avoiding cold cache profiling. The profiling workflow involves identifying slow kernels through basic timing, using PyTorch profiler for an overview, NSight Systems for timeline analysis, and NSight Compute for a deep dive into kernel performance. The ultimate goal is to identify and optimize bottlenecks, focusing efforts on the 10% of code where 90% of execution time is spent. Profiling should be done iteratively, measuring actual bottlenecks rather than assumed ones, to effectively enhance kernel performance."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/05-autotuning.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/05-autotuning.md",
       "category": "08-optimization",
       "title": "Autotuning CuTe DSL Kernels",
       "key_concepts": [
         "Parameter spaces",
-        "Search strategies",
+        "Search strategies (grid, random, bayesian)",
         "Performance measurement",
         "Caching tuned parameters",
         "Hardware-specific tuning",
@@ -182,51 +184,46 @@
       ],
       "critical_patterns": [
         "Use grid search for exhaustive exploration of parameter combinations",
-        "Random search is faster and often as effective for large parameter spaces",
-        "Bayesian optimization uses machine learning to guide the search efficiently",
+        "Random search offers faster exploration for large parameter spaces",
+        "Bayesian optimization intelligently selects configurations using machine learning",
         "Genetic algorithms evolve configurations over generations",
-        "Cache results to avoid redundant tuning",
+        "Cache tuned parameters for reuse to avoid redundant computations",
         "Tune parameters specific to problem sizes for optimal performance"
       ],
       "code_snippets": [
         "@cute.autotune(parameters={'TILE_M': [64, 128, 256], 'TILE_N': [64, 128, 256], 'TILE_K': [16, 32, 64], 'NUM_STAGES': [2, 3, 4], 'BLOCK_SIZE': [128, 256, 512]}, metric='time')",
-        "grid_search_autotune(kernel, param_space, test_args)",
-        "random_search_autotune(kernel, param_space, test_args, num_trials=50)",
+        "grid_search_autotune(kernel, param_space, test_args, num_iters=100)",
+        "random_search_autotune(kernel, param_space, test_args, num_trials=50, num_iters=100)",
         "bayesian_autotune(kernel, param_space, test_args, num_trials=30)",
-        "genetic_autotune(kernel, param_space, test_args)",
-        "cache.set(cache_key, result['params'], result['time'])"
+        "genetic_autotune(kernel, param_space, test_args, population_size=20, num_generations=10)",
+        "cache = AutotuneCache(); cache.set(key, params, time)"
       ],
       "constraints": [
-        "Ensure configurations respect hardware limits like thread count",
-        "Tune on the target hardware to ensure results are applicable",
-        "Avoid overtuning by stopping when improvements are marginal",
-        "Validate configurations to avoid invalid parameter combinations"
+        "Ensure parameter combinations do not exceed hardware limits",
+        "Tune on the target hardware for accurate results",
+        "Avoid overtuning with diminishing returns",
+        "Validate configurations to ensure they meet performance and correctness criteria"
       ],
-      "compressed_summary": "Autotuning in CuTe DSL involves automatically finding optimal kernel parameters by exploring different configurations and measuring performance. Key concepts include defining parameter spaces, employing search strategies like grid, random, Bayesian, and genetic algorithms, and measuring performance to identify the best configurations. Autotuning is critical for adapting to specific hardware and problem sizes, and caching results prevents redundant tuning. Practical patterns include starting with a coarse grid search, refining with more targeted searches, and using problem-size-specific tuning. Constraints include respecting hardware limits, tuning on the target hardware, and avoiding overtuning. Autotuning can significantly improve kernel performance, often finding configurations that are 2-5\u00d7 better than manual tuning. Best practices involve caching tuned parameters, validating correctness, and using the appropriate strategy for the problem size and hardware. Tools like Bayesian optimization libraries and frameworks like OpenTuner can aid in this process. Overall, autotuning is a powerful method to optimize GPU kernels efficiently, adapting to different hardware and problem sizes automatically."
+      "compressed_summary": "Autotuning in CuTe DSL involves automatically finding optimal kernel parameters through various search strategies such as grid search, random search, Bayesian optimization, and genetic algorithms. These methods explore parameter spaces to minimize execution time and adapt configurations to specific hardware and problem sizes. Key parameters to tune include tile sizes, pipeline depth, and block size. Autotuning can significantly outperform manual tuning, offering 2-5\u00d7 better configurations. Best practices include starting with a coarse grid search, refining with more targeted searches, caching results for reuse, and validating configurations for correctness. Constraints such as hardware limits and problem size specificity must be considered to ensure effective tuning. Tools like Bayesian optimization libraries and the OpenTuner framework can facilitate this process. The ultimate goal is to achieve optimal performance tailored to the specific hardware and problem characteristics, ensuring efficient execution across various scenarios."
     }
   ],
   "unified_concepts": [
-    "Tiling and hierarchical tiling for shared memory optimization",
-    "Pipelining to overlap data movement and computation",
-    "Thread layout for coalesced memory access and bank conflict avoidance",
-    "Performance optimization techniques including occupancy and memory bandwidth",
-    "Profiling for identifying bottlenecks and performance metrics",
-    "Autotuning for hardware-specific and problem-size-specific optimization"
+    "Tiling and pipelining for memory and compute optimization",
+    "Thread layout for efficient memory access",
+    "Performance profiling and autotuning for kernel optimization",
+    "Occupancy and resource management"
   ],
   "essential_patterns": [
-    "Use hierarchical tiling to map problems to memory hierarchies, optimizing shared memory usage",
-    "Implement producer-consumer patterns and async copy pipelining to hide memory latency",
-    "Organize threads for coalesced memory access and avoid bank conflicts with proper padding",
-    "Optimize occupancy and memory bandwidth by coalescing memory access and using vectorized loads",
-    "Profile using tools like NSight Systems and NSight Compute to identify and address bottlenecks",
-    "Employ autotuning with strategies like Bayesian optimization to find optimal kernel parameters"
+    "Hierarchical tiling maps computations to memory hierarchy, optimizing for shared memory and register usage.",
+    "Producer-consumer pipelining overlaps data movement with computation, using double or triple buffering for latency hiding.",
+    "Coalesced memory access and bank conflict avoidance through proper thread layouts enhance memory throughput.",
+    "Autotuning explores parameter spaces to optimize kernel configurations for specific hardware and problem sizes."
   ],
   "common_pitfalls": [
-    "Selecting inappropriate tile sizes leading to shared memory overflow",
-    "Over-pipelining causing resource contention and degraded performance",
-    "Ignoring coalesced access and causing bank conflicts",
-    "Neglecting profiling before optimization, leading to misidentified bottlenecks",
-    "Overtuning parameters that do not generalize across different hardware or problem sizes"
+    "Exceeding shared memory limits can cause performance bottlenecks.",
+    "Improper synchronization in pipelining can lead to race conditions.",
+    "Non-coalesced memory access and bank conflicts reduce performance.",
+    "Over-pipelining can decrease occupancy and efficiency."
   ],
-  "compressed_overview": "The 08-optimization category in CuTe DSL focuses on enhancing GPU kernel performance through several key strategies. Tiling is critical for optimizing shared memory usage by dividing problems into smaller, manageable tiles. Pipelining techniques, such as producer-consumer patterns and async copy pipelining, help overlap data movement and computation to hide memory latency. Proper thread layout ensures coalesced memory access and avoids bank conflicts, crucial for maximizing compute throughput. Performance optimization involves managing occupancy, memory bandwidth, and register pressure, often requiring profiling tools like NSight Systems and NSight Compute to identify bottlenecks. Autotuning explores parameter spaces to find optimal configurations tailored to specific hardware and problem sizes, often achieving significant performance gains. Developers must avoid common pitfalls such as inappropriate tile sizes, over-pipelining, and neglecting profiling, ensuring their kernels are both efficient and robust across various scenarios."
+  "compressed_overview": "In the CuTe DSL, optimization is centered around tiling, pipelining, and thread layout to maximize GPU kernel performance. Tiling breaks down large problems into smaller tiles, optimizing for shared memory and reducing global memory traffic. Pipelining overlaps data movement with computation, hiding memory latency through techniques like double and triple buffering. Thread layouts ensure efficient memory access, avoiding bank conflicts and ensuring coalesced access. Profiling tools like NSight Systems and Compute are crucial for identifying bottlenecks, while autotuning explores parameter spaces to tailor kernel configurations to specific hardware and problem sizes. Key constraints include managing shared memory limits, ensuring proper synchronization, and maintaining optimal occupancy. By focusing on these areas, developers can achieve significant performance improvements, often realizing speedups of 10-100x for memory-bound operations."
 }

@@ -3,9 +3,9 @@
   "category_path": "",
   "file_summaries": [
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/00-code_generation.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/00-code_generation.md",
       "category": "01-cute_fundamentals",
-      "title": "Code Generation Techniques in CuTe DSL",
+      "title": "CuTe DSL Code Generation for GPU Kernels",
       "key_concepts": [
         "AST Rewriting",
         "Tracing",
@@ -15,169 +15,170 @@
       ],
       "critical_patterns": [
         "Use preprocessor=True for functions with loops or conditionals",
-        "Tracing mode is suitable only for simple arithmetic operations",
-        "AST Rewriting preserves control flow for optimization",
-        "Tracing records executed operations only, losing untaken branches"
+        "Tracing-only mode is suitable for simple arithmetic operations without control flow",
+        "AST Rewriting captures entire program structure for optimization",
+        "Tracing records operations during execution with proxy arguments"
       ],
       "code_snippets": [
-        "@cute.jit(preprocessor=True) def kernel_function(...): ...",
-        "@cute.jit(preprocessor=False) def simple_arithmetic(...): ..."
+        "@cute.jit(preprocessor=True) def kernel_func(...): pass",
+        "@cute.jit(preprocessor=False) def simple_arithmetic(...): pass"
       ],
       "constraints": [
-        "Tracing mode cannot handle loops or conditionals correctly",
-        "Preprocessor mode requires adherence to CuTe DSL's supported syntax",
-        "Dynamic Python patterns are not supported in AST Rewriting",
-        "Loops in tracing mode flatten to observed iteration count"
+        "Preprocessor mode requires a well-defined subset of Python",
+        "Tracing mode loses untaken branches and unrolls loops to specific iteration counts",
+        "Preprocessor mode is the default and recommended for most use cases",
+        "Tracing mode is fragile and should be used with caution"
       ],
-      "compressed_summary": "CuTe DSL employs two primary techniques for converting Python code into GPU kernels: AST Rewriting and Tracing. AST Rewriting analyzes the Abstract Syntax Tree (AST) of a function before execution, preserving control flow structures like loops and conditionals, which allows for optimizations such as loop tiling and vectorization. This method ensures correctness across all valid inputs but requires adherence to a well-defined subset of Python syntax. Tracing, on the other hand, records operations during a single execution with proxy arguments, resulting in a flat sequence of operations. While this method offers near-zero compile latency and supports many Python features, it fails to capture untaken branches and loops, making it unsuitable for functions with control flow. CuTe DSL offers two modes: Tracing Only (preprocessor=False) for simple arithmetic operations and Preprocessor Mode (preprocessor=True) for functions with control flow, which is the default and recommended setting. Preprocessor Mode combines AST Rewriting and Tracing to generate optimized and correct kernels, while Tracing Only mode should be used sparingly due to its limitations. Debugging tools and environment variables are available to assist with code generation issues, such as enabling IR dumping and verbose logging. Overall, the default preprocessor=True mode is recommended for most use cases, ensuring robust and optimized kernel generation."
+      "compressed_summary": "CuTe DSL converts Python code into optimized GPU kernels using two main techniques: AST Rewriting and Tracing. AST Rewriting analyzes the Abstract Syntax Tree (AST) of a function before execution to capture control flow structures such as loops and conditionals, converting them into structured Intermediate Representation (IR). This method enables optimizations like loop tiling, vectorization, and correct handling of all valid inputs, but requires adherence to a supported subset of Python syntax. Tracing, on the other hand, records operations during a single execution with 'proxy' arguments, producing a flat sequence of operations. While this method offers near-zero compile latency and supports many Python features, it fails to preserve control flow structures, making it unsuitable for functions with loops or conditionals. CuTe DSL provides two modes: Tracing Only (preprocessor=False) and Preprocessor Mode (preprocessor=True). The default Preprocessor Mode combines AST Rewriting and Tracing, ensuring correct and optimized code generation for complex kernels. Tracing Only mode is limited to simple arithmetic operations without control flow and should be used only when absolute fastest compilation is needed. Common misconceptions include the belief that Tracing is always faster or that Preprocessor Mode limits Python usage. In reality, Preprocessor Mode provides robust correctness and optimization, essential for most GPU kernels. Debugging tools such as IR dumping and verbose logging can assist in resolving code generation issues. Overall, the recommendation is to use Preprocessor Mode for all but the simplest arithmetic-only functions."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/01-layouts.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/01-layouts.md",
       "category": "01-cute_fundamentals",
-      "title": "CuTe Layout Algebra for GPU Kernel Optimization",
+      "title": "CuTe Layout Algebra for GPU Kernel Development",
       "key_concepts": [
-        "Hierarchical layout algebra",
-        "Composable abstractions for memory addressing",
-        "Shape and stride define layouts",
-        "Compile-time optimization",
-        "Architecture portability"
+        "Hierarchical layout algebra for memory mapping",
+        "Composable abstractions for address calculation",
+        "Shape and stride define layout",
+        "Layouts enable compile-time optimization"
       ],
       "critical_patterns": [
         "Row-Major: Sequential row access, good for C/C++",
         "Column-Major: Sequential column access, good for Fortran/BLAS",
         "Swizzled Layout: Avoids bank conflicts in shared memory",
-        "Blocked/Tiled Layout: Enhances cache efficiency and maps to GPU thread blocks"
+        "Blocked/Tiled Layout: Enhances cache efficiency and GPU thread mapping"
       ],
       "code_snippets": [
-        "shape = cute.make_shape(64, 32)",
-        "stride = cute.make_stride(1, 64)",
-        "layout = cute.make_layout(cute.make_shape(64, 32), cute.make_stride(1, 64))",
+        "layout = cute.make_layout(cute.make_shape(M, N), cute.make_stride(N, 1))",
         "tensor = cute.make_tensor(ptr, layout)",
-        "tiled = cute.zipped_divide(global_layout, tile_shape)"
+        "tiled = cute.zipped_divide(global_layout, tile_shape)",
+        "tile = tiled[block_idx_m, block_idx_n]"
       ],
       "constraints": [
-        "Proper stride selection is critical to avoid bank conflicts",
-        "Layouts must match the memory order of the data source",
-        "Tensor cores require specific alignment",
-        "TMA and TMEM have specific layout requirements"
+        "Ensure proper stride to avoid bank conflicts",
+        "Match layout with memory order (e.g., PyTorch row-major)",
+        "Consider alignment requirements for tensor cores",
+        "Layouts must be architecture-specific for optimal performance"
       ],
-      "compressed_summary": "CuTe's layout algebra provides a powerful abstraction for managing memory addressing in GPU kernels, offering compile-time optimization and reducing manual errors. Layouts are defined by shape and stride, which describe the logical dimensions and memory traversal steps, respectively. Key layout patterns include row-major, column-major, swizzled, and blocked/tiled layouts, each suited for specific access patterns and performance optimizations. Proper stride selection is crucial to avoid shared memory bank conflicts and ensure memory coalescing, which is vital for maximizing bandwidth. CuTe's layout composition allows for complex memory patterns, such as tiled matrix layouts, enhancing cache efficiency and facilitating GPU thread block mapping. Practical usage involves creating tensors with layouts, partitioning layouts for thread blocks, and slicing/indexing for specific data access. Architecture-specific considerations, such as those for Ampere, Hopper, and Blackwell architectures, dictate specific layout requirements for optimal performance. Common pitfalls include mismatched layout and memory order, improper stride causing bank conflicts, and not considering alignment requirements for tensor cores. Advanced operations like composition, complement, logical division, and zipped division enable further layout manipulation. Overall, CuTe layouts provide a robust framework for automatic address calculation, bank conflict avoidance, and memory coalescing control, ensuring architecture portability and efficient GPU kernel execution."
+      "compressed_summary": "CuTe Layout Algebra provides a robust framework for defining how data maps to memory in GPU kernels. It abstracts address calculations through composable layouts, which consist of shapes (logical dimensions) and strides (memory traversal steps). This abstraction reduces bugs, enhances compile-time optimizations, and ensures architecture portability. Key patterns include row-major and column-major layouts, with swizzled and blocked layouts addressing specific performance needs like bank conflict avoidance and cache efficiency. Practical usage involves creating tensors with layouts, partitioning layouts for thread blocks, and ensuring alignment for tensor cores. Constraints include avoiding bank conflicts through proper stride selection, aligning layouts with memory order (e.g., PyTorch's row-major), and adhering to architecture-specific requirements. Advanced operations like layout composition and logical division enable complex memory patterns. Overall, CuTe's layout algebra is essential for efficient GPU kernel development, providing automatic address calculation, optimization opportunities, and control over memory coalescing."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/02-tensors.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/02-tensors.md",
       "category": "01-cute_fundamentals",
-      "title": "CuTe Tensors: Structure, Operations, and Best Practices",
+      "title": "CuTe Tensors: Structure and Operations in GPU Kernels",
       "key_concepts": [
         "Tensor = pointer + layout + metadata",
         "Memory spaces: GMEM, SMEM, RMEM, TMEM",
-        "Automatic bounds checking and type-safe operations",
-        "Composable transformations and compile-time optimization"
+        "Tensor operations: indexing, slicing, reshaping",
+        "Partitioning: thread-level and block-level",
+        "Data movement: copying between memory spaces"
       ],
       "critical_patterns": [
-        "Load \u2192 Compute \u2192 Store: Efficient data movement through memory hierarchy",
-        "Double Buffering: Use two shared memory buffers for pipelining",
-        "Reduction: Thread-local accumulation followed by block-level reduction"
+        "Load \u2192 Compute \u2192 Store: Efficient data handling through memory hierarchy",
+        "Double Buffering: Overlapping computation with data transfer",
+        "Reduction: Thread-local and block-level accumulation"
       ],
       "code_snippets": [
         "tensor = cute.make_tensor(ptr, layout)",
         "cute.copy(tma_atom, gmem_tensor, smem_tensor)",
         "reshaped = cute.reshape(tensor, new_shape)",
-        "fragment_A = tiled_mma.make_fragment_A(smem_layout_A)"
+        "tiled_copy = cute.make_tiled_copy(copy_atom, ...)"
       ],
       "constraints": [
         "Cannot allocate new tensors inside @cute.kernel functions",
-        "Shared memory requires careful layout design to avoid bank conflicts",
-        "Dynamic layouts may be slower due to runtime address calculation",
-        "Alignment is crucial for vectorized operations and tensor core usage"
+        "Alignment is crucial for performance and correctness",
+        "Dynamic layouts may incur runtime overhead",
+        "Avoid accessing tensors across thread blocks"
       ],
-      "compressed_summary": "CuTe DSL provides a structured approach to handling tensors on the GPU, where a tensor is defined as a combination of a pointer, layout, and metadata. This structure allows for automatic bounds checking, type-safe operations, and compile-time optimizations. Tensors can reside in different memory spaces, including global (GMEM), shared (SMEM), register (RMEM), and tensor memory (TMEM), each with unique characteristics. The DSL supports creating tensors from pointers and layouts or converting from framework tensors using DLPack, enabling zero-copy integration with libraries like PyTorch. Key operations include indexing, slicing, reshaping, and data movement between memory spaces using `cute.copy`. Partitioning tensors among threads or blocks is essential for efficient parallel computation, with common patterns like Load \u2192 Compute \u2192 Store, Double Buffering, and Reduction optimizing performance. Constraints include the inability to allocate tensors within GPU kernels, the need for careful shared memory layout design to avoid bank conflicts, and the importance of alignment for performance-critical operations. Best practices emphasize using DLPack for integration, minimizing global memory access, aligning tensors, and leveraging fragments for MMA operations. Debugging tools and custom tensor types extend the DSL's flexibility, while related documentation provides deeper insights into data types, memory hierarchy, and framework integration."
+      "compressed_summary": "CuTe DSL provides a structured approach to handling tensors on GPUs, where a tensor is defined by a pointer, layout, and metadata. Tensors in CuTe enable automatic bounds checking, compile-time address optimization, and type-safe operations. They can reside in various memory spaces: GMEM for large data, SMEM for fast block-shared access, RMEM for thread-private fast access, and TMEM for Blackwell-specific operations. Creating tensors involves specifying a data pointer and layout, and they can be converted from framework tensors using DLPack for zero-copy integration. Tensors support operations like indexing, slicing, reshaping, and partitioning, which are crucial for efficient GPU computations. Partitioning allows dividing tensors among threads or blocks, facilitating operations like GEMM. Data movement between memory spaces is managed through copy operations, with synchronization needed after shared memory writes. Common patterns include Load \u2192 Compute \u2192 Store, Double Buffering for pipelining, and Reduction for accumulation. Best practices emphasize using DLPack for integration, aligning tensors for performance, and minimizing global memory access. Avoid allocating tensors in kernels, ignoring alignment, or accessing tensors across thread blocks. Debugging involves printing tensor information and visualizing layouts. Advanced users can define custom tensor types for specialized use cases. Overall, CuTe tensors are composable, transformable, and optimized for GPU kernel development, with a focus on memory hierarchy and efficient data handling."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/03-data_types.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/03-data_types.md",
       "category": "01-cute_fundamentals",
-      "title": "CuTe DSL Data Types Overview",
+      "title": "CuTe DSL Data Types for GPU Kernels",
       "key_concepts": [
-        "Native GPU data types",
-        "Tensor core operations",
-        "Numerical precision trade-offs",
-        "Architecture compatibility"
+        "Native CuTe types map directly to hardware formats",
+        "Floating-point types: FP16, BF16, FP32, FP64",
+        "Low-precision types: Float8 (E4M3, E5M2)",
+        "Integer types: Int8, Int16, Int32, Int64",
+        "Type conversions and automatic promotion",
+        "Architecture-specific type support"
       ],
       "critical_patterns": [
         "Mixed-Precision GEMM: FP16 compute, FP32 accumulate",
-        "Quantization-Aware Operations: INT8 quantized inference",
-        "Dynamic Precision Selection: Compile-time flag for precision path"
+        "Quantization-Aware Operations: INT8 inference",
+        "Dynamic Precision Selection: Compile-time flag for FP16/FP32"
       ],
       "code_snippets": [
         "@cute.kernel\ndef fp32_example(a: cute.Tensor, b: cute.Tensor, c: cute.Tensor):\n  idx = cute.arch.thread_idx()[0]\n  c[idx] = a[idx] + b[idx]",
         "@cute.kernel\ndef mixed_precision_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):\n  pass",
         "@cute.kernel\ndef int8_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):\n  pass",
-        "@cute.jit\ndef typed_function(x: cutlass.Float32, y: cutlass.Int32, scale: cutlass.Float16):\n  result = x * scale + y\n  return result"
+        "@cute.jit\ndef adaptive_precision(data: cute.Tensor, use_fp16: cutlass.Constexpr):\n  if cutlass.const_expr(use_fp16):\n    result = process_fp16(data)\n  else:\n    result = process_fp32(data)\n  return result"
       ],
       "constraints": [
-        "Type mismatch in assignment can cause errors",
-        "Incompatible types in operations require explicit conversion",
-        "FP16 accumulators are too small for MMA operations, use FP32",
-        "Automatic promotion follows standard rules, e.g., FP16 + FP32 \u2192 FP32"
+        "FP16 has limited range and precision",
+        "BF16 has lower precision but same range as FP32",
+        "FP8 requires Hopper+ architecture",
+        "INT8 operations supported from Turing+",
+        "Type mismatch errors require explicit casting",
+        "FP64 is slower on consumer GPUs"
       ],
-      "compressed_summary": "CuTe DSL provides a range of native GPU data types optimized for tensor core operations, memory bandwidth, and numerical precision. Key types include various integer and floating-point formats such as Int8, Float16, BFloat16, and Float8, each with specific use cases and hardware support. Mixed-precision patterns, like computing in FP16 and accumulating in FP32, are common in deep learning. The DSL supports explicit type casting and automatic type promotion, with architecture-specific optimizations for Ampere, Hopper, and Blackwell GPUs. Developers should choose data types based on precision needs, hardware compatibility, and performance considerations, balancing memory bandwidth and compute throughput. Common patterns include mixed-precision GEMM and quantization-aware operations, while debugging focuses on resolving type mismatches and ensuring correct accumulator types. CuTe integrates with frameworks like PyTorch, facilitating type mapping and conversions. Performance is influenced by memory bandwidth and compute throughput, with lower precision types offering higher occupancy. The documentation emphasizes using the lowest precision that maintains task accuracy and aligning types with hardware capabilities for optimal performance."
+      "compressed_summary": "CuTe DSL provides a range of data types optimized for GPU operations, crucial for tensor core operations, memory bandwidth optimization, and numerical precision management. The primary floating-point types include FP16, BF16, FP32, and FP64, each with specific use cases and hardware support. FP16 is favored for deep learning due to its memory efficiency and native tensor core support, despite its limited precision. BF16 offers the same range as FP32 but with reduced precision, making it suitable for large model training. The introduction of Float8 types (E4M3 and E5M2) on Hopper+ architectures allows for extreme performance gains, particularly in large language models. Integer types, such as Int8 and Int4, support quantized neural networks, with tensor core operations providing significant throughput improvements. Type conversions and promotions follow standard rules, with explicit casting necessary to avoid type mismatch errors. Mixed-precision patterns, such as computing in lower precision and accumulating in higher precision, are common in deep learning. Architecture-specific support varies, with Ampere and Hopper architectures offering enhanced performance for various data types. The decision tree for type selection prioritizes correctness, hardware support, performance, and memory footprint, ensuring optimal use of resources. Debugging type issues involves careful attention to type assignments and conversions, with tools available for runtime type checking. CuTe DSL's interoperability with frameworks like PyTorch is facilitated through type mapping and DLPack conversion, ensuring seamless integration. Performance considerations highlight the importance of choosing the lowest precision that maintains accuracy, balancing memory bandwidth and compute throughput. Overall, CuTe DSL's data types and patterns enable efficient and precise GPU kernel development, aligning with modern hardware capabilities and performance demands."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/04-calling_conventions.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/04-calling_conventions.md",
       "category": "01-cute_fundamentals",
-      "title": "CuTe DSL Calling Conventions for GPU Kernel Development",
+      "title": "CuTe DSL Calling Conventions Overview",
       "key_concepts": [
-        "Compile-time vs runtime function calls",
-        "Execution contexts: Python, Host JIT, Device Kernel",
+        "Compile-time vs runtime calls",
+        "Execution contexts: Python, Host JIT, Device",
         "Calling convention rules",
         "Argument passing: static vs dynamic",
-        "Tensor passing by reference"
+        "Tensor reference passing"
       ],
       "critical_patterns": [
-        "Python \u2192 @cute.jit: Entry point for calling JIT functions from Python",
-        "Python \u2192 @cute.kernel: Forbidden, must use .launch() from @cute.jit",
-        "@cute.jit \u2192 @cute.jit: Inlined calls for zero overhead",
-        "@cute.jit \u2192 @cute.kernel: GPU launch with runtime dispatch",
-        "@cute.kernel \u2192 @cute.jit: Inlined helper function calls",
-        "Multi-Kernel Pipeline: Sequential execution of multiple kernels",
-        "Conditional Kernel Selection: Choosing kernels based on input size",
-        "Iterative Kernel Calls: Looping within a single kernel launch"
+        "Python \u2192 @cute.jit: Entry point for JIT-compiled functions",
+        "Python \u2192 @cute.kernel: Forbidden, use .launch() from @cute.jit",
+        "@cute.jit \u2192 @cute.jit: Inlined calls for optimization",
+        "@cute.jit \u2192 @cute.kernel: GPU kernel launch",
+        "@cute.kernel \u2192 @cute.jit: Inlined helper functions"
       ],
       "code_snippets": [
-        "@cute.jit\ndef host_function(x, y):\n    return x + y\n\nresult = host_function(from_dlpack(x), from_dlpack(y))",
-        "@cute.kernel\ndef my_kernel(data):\n    idx = cute.arch.thread_idx()[0]\n    data[idx] *= 2\n\n@cute.jit\ndef wrapper(data):\n    my_kernel.launch(grid=[1, 1, 1], block=[256, 1, 1])(data)",
-        "@cute.jit\ndef helper_function(x, y):\n    return x * y + 1\n\n@cute.jit\ndef main_function(a, b, c):\n    temp = helper_function(a, b)\n    return temp + c",
-        "@cute.kernel\ndef gpu_kernel(input, output):\n    idx = cute.arch.thread_idx()[0]\n    output[idx] = input[idx] * 2\n\n@cute.jit\ndef orchestrator(data):\n    gpu_kernel.launch(grid=[num_blocks, 1, 1], block=[threads_per_block, 1, 1])(data, output)"
+        "@cute.jit\ndef host_function(x: cute.Tensor, y: cute.Tensor):\n    result = x + y\n    return result",
+        "@cute.kernel\ndef my_kernel(data: cute.Tensor):\n    idx = cute.arch.thread_idx()[0]\n    data[idx] = data[idx] * 2",
+        "@cute.jit\ndef orchestrator(data: cute.Tensor):\n    gpu_kernel.launch(grid=[num_blocks, 1, 1], block=[threads_per_block, 1, 1])(data, output)",
+        "@cute.jit\ndef modify_tensor(tensor: cute.Tensor):\n    tensor[0] = 42",
+        "@cute.jit\ndef sequential_kernels(data):\n    kernel_a.launch(...)(data)\n    kernel_b.launch(...)(data)"
       ],
       "constraints": [
         "Python cannot directly call @cute.kernel",
-        "@cute.kernel cannot dynamically call other @cute.kernel functions",
+        "@cute.kernel cannot call other @cute.kernel functions",
         "Static arguments must be known at compile time",
         "Dynamic arguments are passed at runtime",
-        "Tensors are passed by reference, no copying"
+        "Tensors are passed by reference, not copied"
       ],
-      "compressed_summary": "CuTe DSL provides a structured approach to writing GPU kernels with specific calling conventions that dictate whether function calls occur at compile time or runtime. The DSL operates within three execution contexts: Python, Host JIT, and Device Kernel. Python can call @cute.jit functions directly but must use a .launch() method from a @cute.jit function to invoke @cute.kernel functions due to the need for specifying grid and block configurations. JIT functions can call other JIT functions and Python functions, with these calls being inlined at compile time, resulting in zero overhead. Kernels can call JIT functions, also inlined, but cannot call other kernels dynamically, as CuTe DSL does not support CUDA Dynamic Parallelism. Arguments passed to kernels can be static, known at compile time, or dynamic, determined at runtime, affecting optimization opportunities. Tensors are always passed by reference, ensuring no copying occurs. Common patterns include multi-kernel pipelines, conditional kernel selection based on input size, and iterative kernel calls. Performance considerations emphasize the trade-offs between inlined calls and separate kernel launches, with a focus on minimizing launch overhead. Debugging tools include call tracing and print statements for both compile-time and runtime diagnostics. The document concludes with a decision tree for selecting the appropriate calling pattern based on specific needs and links to further resources on JIT caching, control flow, and real-world examples."
+      "compressed_summary": "CuTe DSL's calling conventions are essential for building efficient GPU programs. The key principle is distinguishing between compile-time (inlined) and runtime (dynamic GPU launch) calls. There are three execution contexts: Python (CPU, dynamic), Host JIT (@cute.jit, CPU, orchestrates GPU work), and Device (@cute.kernel, GPU, parallel execution). Python can call @cute.jit functions directly but must use .launch() from @cute.jit to invoke @cute.kernel functions. JIT functions can call other JIT functions and Python functions, with the former being inlined for optimization. Kernels cannot dynamically call other kernels due to the lack of support for CUDA Dynamic Parallelism. Argument passing is divided into static (compile-time known) and dynamic (runtime known), with static arguments enabling optimizations like loop unrolling. Tensors are always passed by reference, ensuring no copying overhead. Synchronization between kernel launches is implicit within the same stream, but explicit control can be achieved using CUDA streams. Common patterns include multi-kernel pipelines, conditional kernel selection, and iterative kernel calls. Performance considerations highlight the benefits of inlining for zero overhead and the importance of minimizing launch overhead by consolidating kernel operations. Debugging tools include call tracing and compile-time print statements. For further exploration, topics like JIT caching and control flow in different contexts are recommended."
     }
   ],
   "unified_concepts": [
-    "AST Rewriting and Tracing for code generation",
-    "Hierarchical layout algebra for memory optimization",
-    "Tensor structure: pointer, layout, metadata",
-    "Native GPU data types and precision trade-offs",
-    "Compile-time vs runtime function calls"
+    "AST Rewriting and Tracing for GPU kernel code generation",
+    "Hierarchical layout algebra for memory mapping",
+    "Structured tensor operations and memory spaces",
+    "Optimized data types for GPU operations",
+    "Calling conventions for efficient GPU program execution"
   ],
   "essential_patterns": [
-    "AST Rewriting preserves control flow and optimizes loops, recommended for functions with complex control structures",
-    "Tracing captures operations during execution, suitable for simple arithmetic without control flow",
-    "Layouts defined by shape and stride enhance memory coalescing and avoid bank conflicts",
-    "Mixed-precision operations balance memory bandwidth and compute throughput",
-    "JIT functions inlined at compile time for zero overhead, kernels require explicit launch configurations"
+    "Use Preprocessor Mode for robust correctness and optimization in complex GPU kernels",
+    "Leverage CuTe Layout Algebra for efficient memory mapping and architecture portability",
+    "Utilize tensor operations like indexing, slicing, and reshaping for efficient GPU computations",
+    "Select appropriate data types (e.g., FP16, BF16, Float8) for performance and precision balance",
+    "Apply compile-time inlining and static argument passing to optimize GPU kernel calls"
   ],
   "common_pitfalls": [
-    "Tracing mode fails with untaken branches and loops",
-    "Improper stride selection leads to shared memory bank conflicts",
-    "Mismatched layout and memory order",
-    "Incorrect data type selection affects performance and precision",
-    "Dynamic kernel calls not supported, limiting CUDA Dynamic Parallelism"
+    "Misunderstanding Tracing as always faster than Preprocessor Mode",
+    "Ignoring layout alignment leading to bank conflicts",
+    "Allocating tensors within kernels, causing performance issues",
+    "Improper type conversions leading to numerical errors",
+    "Overlooking the need for explicit synchronization between kernel launches"
   ],
-  "compressed_overview": "CuTe DSL provides a comprehensive framework for GPU kernel development, focusing on efficient code generation and memory management. It employs AST Rewriting and Tracing to convert Python code into optimized GPU kernels, with AST Rewriting recommended for functions with control flow. CuTe's hierarchical layout algebra allows for compile-time memory optimization, crucial for avoiding bank conflicts and ensuring memory coalescing. Tensors in CuTe are defined by a combination of pointer, layout, and metadata, supporting operations across various memory spaces with automatic bounds checking and type safety. The DSL offers a range of native GPU data types, facilitating mixed-precision operations that optimize memory bandwidth and compute throughput. CuTe's calling conventions distinguish between compile-time and runtime function calls, with JIT functions inlined for efficiency and kernels requiring explicit launch configurations. Developers must navigate common pitfalls such as improper stride selection and data type mismatches, while leveraging debugging tools for diagnostics. Overall, CuTe DSL emphasizes architecture portability and performance optimization, providing a robust environment for GPU kernel development."
+  "compressed_overview": "CuTe DSL is a powerful tool for developing optimized GPU kernels, offering a range of features that streamline code generation, memory management, and execution efficiency. The DSL employs AST Rewriting and Tracing to convert Python code into GPU kernels, with Preprocessor Mode recommended for complex functions due to its robust optimization capabilities. CuTe's Layout Algebra provides a framework for efficient memory mapping, essential for performance and portability across architectures. Tensors in CuTe are defined by a pointer, layout, and metadata, supporting operations like indexing and reshaping, crucial for GPU computations. The DSL offers various data types optimized for GPU operations, with a focus on balancing performance and precision. CuTe's calling conventions distinguish between compile-time and runtime calls, with inlining and static argument passing enhancing efficiency. Developers should be aware of common pitfalls such as layout misalignment and improper type conversions, which can impact performance and correctness. Overall, CuTe DSL equips developers with the tools needed to harness the full potential of modern GPU hardware for high-performance computing tasks."
 }

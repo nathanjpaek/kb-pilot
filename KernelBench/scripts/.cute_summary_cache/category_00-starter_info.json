@@ -3,95 +3,94 @@
   "category_path": "",
   "file_summaries": [
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/00_overview.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/00_overview.md",
       "category": "00-starter_info",
       "title": "CuTe DSL: High-Performance GPU Kernel Development in Python",
       "key_concepts": [
         "Python-based DSL for GPU kernel development",
         "JIT compilation for optimized GPU code",
-        "DLPack protocol for framework integration",
-        "Compatibility with CuTe C++",
-        "Type inference and native type support"
+        "DLPack protocol for seamless ML framework integration",
+        "Compatibility with CuTe C++ abstractions",
+        "Automatic type inference and native type support"
       ],
       "critical_patterns": [
-        "JIT Compilation: Both host and device code are compiled just-in-time for performance optimization.",
-        "DLPack Integration: Enables zero-copy tensor conversion with major ML frameworks.",
-        "Intelligent Caching: Automatically caches JIT-compiled kernels to avoid recompilation.",
-        "Optional Lower-Level Control: Provides access to GPU-specific features for fine-grained control."
+        "Express GPU kernels using familiar Python syntax while maintaining control over hardware",
+        "Utilize JIT compilation to optimize both host and device code dynamically",
+        "Leverage DLPack for zero-copy tensor conversion with PyTorch, JAX",
+        "Implement intelligent caching to reuse compiled kernels and reduce overhead",
+        "Access lower-level GPU features for fine-grained control when necessary"
       ],
       "code_snippets": [
-        "from cute import kernel, jit\n@kernel\ndef my_kernel(...):\n    # Kernel code here",
-        "tensor = jit(my_kernel)(input_tensor)"
+        "from cute import kernel, jit\n@jit\ndef my_kernel(tensor):\n    # kernel logic here",
+        "layout = cute.Layout(...) # Define tensor layout\nkernel = cute.kernel(layout)"
       ],
       "constraints": [
-        "Less ideal for simple element-wise operations.",
-        "Not suitable for operations already optimized in cuBLAS/cuDNN.",
-        "Primarily supports NVIDIA architectures: Ampere, Hopper, Blackwell."
+        "Not ideal for simple element-wise operations",
+        "Less suited for operations already optimized in cuBLAS/cuDNN",
+        "Requires modern NVIDIA GPU architectures (Ampere, Hopper, Blackwell)"
       ],
-      "compressed_summary": "CuTe DSL is a Python-based domain-specific language tailored for writing high-performance GPU kernels, offering a Pythonic interface while retaining the control of CUDA programming. It emphasizes ease of use, JIT compilation, and seamless integration with major machine learning frameworks via the DLPack protocol. CuTe DSL is consistent with CuTe C++ abstractions, facilitating a smooth transition for users familiar with CuTe C++. Key features include intelligent caching of JIT-compiled kernels, native type support with automatic inference, and optional access to low-level GPU features for advanced control. It is particularly suited for custom GPU kernels in machine learning, high-performance numeric computations, and rapid prototyping of GPU algorithms. However, it is less ideal for simple operations or tasks already optimized by existing libraries like cuBLAS or cuDNN. CuTe DSL supports modern NVIDIA architectures, offering advanced features like Tensor Cores and TMA. Compared to alternatives like Triton and raw CUDA, CuTe DSL provides a balance of control and ease of use, with excellent framework integration and debugging support. Users are encouraged to explore decorators and quick start guides to begin utilizing CuTe DSL effectively."
+      "compressed_summary": "CuTe DSL is a Python-based domain-specific language designed for dynamic compilation of high-performance GPU kernels. It bridges the gap between Python's user-friendliness and the performance demands of GPU programming by offering a high-level interface that maintains the power and control of CUDA. Key features include JIT compilation for both host and device code, seamless integration with major ML frameworks via DLPack, and intelligent caching to optimize repeated kernel executions. CuTe DSL is consistent with CuTe C++ abstractions, allowing users to leverage existing knowledge and patterns. It supports modern NVIDIA GPU architectures, including Ampere, Hopper, and Blackwell, each offering advanced features like Tensor Cores and TMA. The DSL is particularly suited for custom GPU kernels in ML operations, high-performance numeric computation, and rapid prototyping of GPU algorithms. However, it is less ideal for simple operations or those already optimized in libraries like cuBLAS. CuTe DSL offers a medium learning curve for Python users, providing high control over GPU resources while avoiding the steep learning curve of raw CUDA. It is a powerful tool for Python developers and CUDA experts alike, enabling the development of efficient and optimized GPU kernels without the need to delve into CUDA C++."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/01_decorators.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/01_decorators.md",
       "category": "00-starter_info",
       "title": "CuTe DSL Decorators Overview",
       "key_concepts": [
-        "@cute.jit for host-side JIT-compiled functions",
+        "@cute.jit for host-side JIT compilation",
         "@cute.kernel for GPU kernel functions",
-        "preprocessor parameter for control flow handling",
-        "JIT caching with no_cache parameter",
-        "Kernel launch with grid and block configuration"
+        "Dynamic compilation and optimization",
+        "Control flow handling with preprocessor"
       ],
       "critical_patterns": [
-        "Use @cute.jit for orchestrating GPU work from the CPU",
-        "Use @cute.kernel for writing GPU computations",
-        "Common pattern: @cute.kernel for computation, @cute.jit for orchestration",
-        "Use preprocessor=True for functions with control flow",
-        "Launch kernels with .launch() method"
+        "Use @cute.jit to orchestrate GPU work from the CPU",
+        "Use @cute.kernel for writing GPU computation with explicit thread/block control",
+        "Common pattern: @cute.jit hosts function orchestrates @cute.kernel launch",
+        "Nesting @jit functions to launch multiple kernels for complex pipelines"
       ],
       "code_snippets": [
-        "@cute.jit\ndef host_function():\n    # Host-side logic",
-        "@cute.kernel\ndef gpu_kernel():\n    # GPU computation logic",
+        "@cute.jit(preprocessor=True)\ndef host_function():\n    # Host-side logic",
+        "@cute.kernel(preprocessor=True)\ndef gpu_kernel():\n    # GPU computation logic",
         "kernel_function.launch(grid=[1, 1, 1], block=[256, 1, 1])"
       ],
       "constraints": [
         "Python functions cannot directly call @kernel functions",
         "@kernel functions cannot call other @kernel functions",
-        "preprocessor=False requires straight-line code",
-        "Must use .launch() for kernel execution"
+        "Control flow may not work with preprocessor=False",
+        "Must use .launch() to execute @kernel functions"
       ],
-      "compressed_summary": "CuTe DSL provides two primary decorators: @cute.jit for host-side JIT-compiled functions and @cute.kernel for GPU kernel functions. The @cute.jit decorator is used for functions that run on the CPU and manage GPU execution, while @cute.kernel is used for defining GPU computations with explicit grid and block configurations. The preprocessor parameter in both decorators controls how loops and conditionals are handled, with the default setting (preprocessor=True) recommended for functions with control flow. JIT caching can be managed with the no_cache parameter, allowing for recompilation when needed. Kernel functions must be launched using the .launch() method, specifying grid and block dimensions. Python functions can call @jit functions directly but cannot call @kernel functions without using .launch(). @jit functions can launch @kernel functions, but @kernel functions cannot call other @kernel functions. A typical pattern involves using @cute.kernel for GPU computation and @cute.jit for orchestrating kernel launches and managing memory. Common pitfalls include forgetting to use .launch() for kernel execution and using @kernel for host-side code. The documentation provides guidance on choosing between the decorators based on the task, with @cute.jit suitable for orchestrating GPU work and @cute.kernel for implementing GPU computations."
+      "compressed_summary": "CuTe DSL provides two main decorators, @cute.jit and @cute.kernel, for generating optimized code through dynamic compilation. @cute.jit is used for host-side JIT-compiled functions that typically run on the CPU and manage GPU execution, while @cute.kernel is used for defining GPU kernel functions that require explicit grid and block configuration. The preprocessor parameter in both decorators controls the handling of loops and conditionals, with preprocessor=True automatically converting control flow to intermediate representation, which is recommended for most use cases. The no_cache parameter in @cute.jit controls JIT caching behavior, useful for debugging and testing. Kernel functions are launched using the .launch() method, specifying grid and block dimensions, and optionally, cluster dimensions, shared memory size, and CUDA stream. Python functions can call @jit functions directly but cannot call @kernel functions directly; instead, @jit functions can launch @kernel functions. A typical pattern involves using @cute.jit to orchestrate GPU work and @cute.kernel for the actual computation. Common pitfalls include forgetting to use .launch() for kernels, using @kernel for host code, and incorrect control flow handling with preprocessor=False. The documentation encourages using @cute.jit for orchestrating GPU work and preparing data, and @cute.kernel for parallel computation and explicit control over threads and blocks. Advanced usage includes nesting @jit functions to create complex pipelines. Related topics include quick start guides, code generation, and control flow handling."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/02-quick_start.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/02-quick_start.md",
       "category": "00-starter_info",
       "title": "CuTe DSL Quick Start Guide",
       "key_concepts": [
-        "Vector Addition Kernel",
-        "Matrix Transpose",
-        "Element-wise Operations with Dynamic Arguments",
-        "Compile-Time Constants with cutlass.Constexpr"
+        "Vector addition kernel",
+        "Matrix transpose with 2D indexing",
+        "Element-wise operations with dynamic arguments",
+        "Compile-time constants for specialization"
       ],
       "critical_patterns": [
-        "Bounds Checking: Ensure thread index is within array bounds before accessing memory.",
-        "Grid-Stride Loop: Use for processing arrays larger than grid size.",
-        "2D/3D Indexing: Calculate row and column indices from 2D block and thread indices."
+        "Bounds Checking: Ensure thread index is within array bounds before accessing memory",
+        "Grid-Stride Loop: Use for processing arrays larger than grid size",
+        "2D/3D Indexing: Calculate indices from 2D block and thread indices"
       ],
       "code_snippets": [
         "import torch\nimport cutlass\nimport cutlass.cute as cute\nfrom cutlass.cute.runtime import from_dlpack",
-        "Define a GPU kernel for element-wise vector addition using thread and block indices.",
-        "Create a host function to calculate grid dimensions and launch the kernel.",
-        "Use DLPack for zero-copy conversion of PyTorch tensors to CuTe tensors."
+        "Define a GPU kernel for vector addition using thread and block indices",
+        "Host function to calculate grid dimensions and launch kernel",
+        "PyTorch tensor conversion to CuTe tensors using DLPack"
       ],
       "constraints": [
-        "Requires NVIDIA GPU (Ampere/Hopper/Blackwell recommended) and CUDA 11.8+.",
-        "Python 3.8+ is necessary.",
-        "Use PyTorch or JAX for framework integration.",
-        "Ensure grid/block dimensions are valid to avoid kernel launch failures."
+        "Requires NVIDIA GPU (Ampere/Hopper/Blackwell recommended)",
+        "CUDA 11.8+ and Python 3.8+",
+        "Ensure grid/block dimensions are valid",
+        "Avoid reassigning variables to different types in kernels"
       ],
-      "compressed_summary": "The CuTe DSL Quick Start Guide provides a foundational overview for developers looking to write GPU kernels using the CuTe DSL. It begins with prerequisites, including the installation of CUTLASS Python and system requirements such as an NVIDIA GPU and CUDA 11.8+. The guide walks through a 'Hello World' example of vector addition, detailing the steps from importing libraries to defining and running a kernel. It emphasizes the importance of creating a host wrapper for kernel execution and using DLPack for efficient tensor conversion. Additional examples include matrix transposition using 2D indexing and element-wise operations with dynamic arguments, showcasing the flexibility of CuTe DSL in handling runtime parameters. The guide also highlights the use of compile-time constants to specialize kernels, demonstrating how cutlass.Constexpr can optimize performance by eliminating unused code branches. Common patterns such as bounds checking, grid-stride loops, and multi-dimensional indexing are discussed, providing practical strategies for efficient kernel development. Debugging tips include enabling logging, using cute.printf() for runtime debugging, and verifying results with PyTorch. Performance tips suggest choosing appropriate block sizes, minimizing divergence, coalescing memory access, and profiling with tools like nsys or ncu. The guide concludes with next steps for further learning and common errors with solutions, ensuring developers are well-equipped to tackle more complex CuTe DSL projects."
+      "compressed_summary": "The CuTe DSL Quick Start Guide provides a foundational overview for developers looking to write GPU kernels using the CuTe DSL within the CUTLASS Python library. Key prerequisites include an NVIDIA GPU, CUDA 11.8+, and Python 3.8+. The guide walks through creating a simple vector addition kernel, emphasizing the use of thread and block indices for element-wise operations. It also covers more complex examples like matrix transposition using 2D indexing and element-wise operations with dynamic arguments, showcasing how to pass runtime parameters to kernels. The guide introduces compile-time constants for kernel specialization, allowing developers to optimize performance by eliminating unused code branches. Common patterns such as bounds checking, grid-stride loops, and multi-dimensional indexing are highlighted to ensure efficient and error-free kernel execution. Debugging tips include enabling logging, using cute.printf() for runtime debugging, and verifying results with PyTorch's assert_close(). Performance tips suggest choosing appropriate block sizes, minimizing divergence, coalescing memory access, and using shared memory for data reuse. The guide also outlines common errors and solutions, such as converting PyTorch tensors with from_dlpack() and ensuring valid grid/block configurations. Finally, it encourages further learning through topics like layouts, control flow, real-world examples, and optimization strategies."
     },
     {
-      "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/03-limitations.md",
+      "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/03-limitations.md",
       "category": "00-starter_info",
       "title": "CuTe DSL Limitations Overview",
       "key_concepts": [
@@ -108,63 +107,63 @@
       ],
       "critical_patterns": [
         "Use conditional logic instead of early exits in loops",
-        "Define variables before entering control flow blocks",
-        "Maintain type stability within control flow",
-        "Allocate memory in host code, pass to kernel",
-        "Use range_constexpr() for compile-time values",
+        "Define variables before control flow blocks to access them outside",
+        "Maintain type stability; use different variables for different types",
+        "Use assertions instead of exceptions in dynamic control flow",
+        "Use range() for runtime values and range_constexpr() for compile-time constants",
+        "Allocate memory in host code and pass to kernels",
         "Manually handle broadcasting in kernel logic",
-        "Use cute.printf() for debugging within kernels",
-        "Use preprocessor=True for full feature support"
+        "Use preprocessor=True for full functionality"
       ],
       "code_snippets": [
-        "// Example of defining variables before control flow\nint x = 0;\nif (condition) {\n  x = 5;\n}\n// x is available here",
-        "// Example of using range_constexpr()\nfor (int i : range_constexpr(0, 10)) {\n  // compile-time loop\n}",
-        "// Example of manual broadcasting\nfor (int i = 0; i < N; ++i) {\n  C[i] = A[i] + B[i];\n}"
+        "def kernel_example():\n  for i in range(n):\n    if condition:\n      # Use logic instead of break\n      pass",
+        "def allocate_memory():\n  tensor = cute.tensor(shape)\n  kernel<<<blocks, threads>>>(tensor)"
       ],
       "constraints": [
-        "No early exit from loops (break, continue, return, pass)",
+        "No early exit from loops (break, continue, return)",
         "Variables defined in control flow are not available outside",
         "Cannot change variable types in control flow",
         "No exceptions in dynamic control flow",
         "Cannot mix compile-time and runtime values",
         "Limited Python object support in kernels",
         "No dynamic memory allocation in kernels",
-        "Limited type inference in some cases",
+        "Limited type inference; explicit annotation may be needed",
         "No automatic broadcasting like NumPy",
-        "Severe limitations in preprocessor=False (Tracing Mode)",
-        "Architecture-specific tensor core requirements",
+        "Preprocessor=False has severe limitations",
+        "Architecture-specific requirements for tensor cores",
         "Shared memory limits per block vary by architecture",
-        "Maximum threads per block is architecture dependent",
-        "Limited Python debugging tools inside kernels",
+        "Maximum threads per block and grid dimensions are architecture dependent",
+        "Limited Python debugging tools in kernels",
         "JIT compilation overhead on first call",
         "Dynamic shapes may be slower",
-        "Not supported in kernels: Classes, OOP, async/await, etc."
+        "Not supported in kernels: classes, OOP, generators, async/await, context managers, decorators, lambda functions, list/dict comprehensions"
       ],
-      "compressed_summary": "CuTe DSL is a powerful tool for writing GPU kernels but comes with several limitations designed to ensure safety, predictability, and performance. Key limitations include restrictions on dynamic control flow, such as the prohibition of early exits like break, continue, and return within loops. Variables defined within control flow blocks are not accessible outside, and type changes within control flow are not allowed to maintain type stability. Compile-time and runtime values cannot be mixed, necessitating the use of range_constexpr() for compile-time loops. Memory allocation must be handled in host code, as dynamic allocation is not supported within kernels. The type system requires explicit annotations in some cases, and automatic broadcasting is not available, requiring manual handling of operations. Preprocessor mode limitations suggest using preprocessor=True for full feature support, as tracing mode has severe limitations like branch collapse and loop unrolling. Architecture-specific constraints include tensor core requirements and shared memory limits, which vary across GPU architectures. Debugging is limited, with standard Python tools unavailable inside kernels, necessitating the use of cute.printf() for debugging. Performance considerations include JIT compilation overhead on the first call and potential slowdowns with dynamic shapes. Language features not supported in kernels include classes, OOP features, async/await, and others. Best practices involve starting simple, using default settings, validating early, and profiling before optimizing. When encountering limitations, consult documentation, simplify code, seek help, or consider alternative tools like raw CUDA or Triton."
+      "compressed_summary": "CuTe DSL is designed with specific limitations to ensure safety, predictability, and performance. Understanding these constraints is crucial for writing effective GPU kernels. Dynamic control flow limitations include no early exits from loops and the isolation of variables defined within control blocks. Compile-time and runtime values must not be mixed, and dynamic memory allocation is not supported within kernels. The type system requires stability, with no automatic broadcasting of operations. Preprocessor mode, when set to False, introduces severe limitations such as branch collapse and loop unrolling. Architecture-specific constraints include shared memory limits and tensor core requirements. Threading and synchronization are subject to architecture-dependent limits on block and grid sizes. Debugging within kernels is limited, with standard Python tools being ineffective; instead, use cute.printf() and logging. Performance considerations include JIT compilation overhead and potential slowdowns with dynamic shapes. Language features such as classes, OOP, and async/await are not supported within kernels. Best practices involve starting simple, using default settings, validating early, profiling before optimization, and carefully reading error messages. When encountering limitations, consult documentation, simplify code, seek help, or consider alternative approaches like raw CUDA or Triton."
     }
   ],
   "unified_concepts": [
-    "Python-based DSL for GPU kernel development",
-    "JIT compilation for optimized GPU code",
-    "DLPack protocol for framework integration",
-    "Compatibility with CuTe C++",
-    "Decorators for function management",
-    "Compile-time constants and dynamic arguments",
-    "Limitations in dynamic control flow and memory management"
+    "Python-based DSL for high-performance GPU kernel development",
+    "JIT compilation for optimized host and device code",
+    "Integration with ML frameworks via DLPack protocol",
+    "Compatibility with CuTe C++ abstractions",
+    "Automatic type inference and native type support",
+    "Decorators for dynamic compilation and optimization",
+    "Compile-time constants for kernel specialization",
+    "Architecture-specific limitations and optimizations"
   ],
   "essential_patterns": [
-    "Use @cute.jit for orchestrating GPU work and @cute.kernel for implementing GPU computations",
-    "Kernel functions must be launched with .launch() specifying grid and block dimensions",
-    "Employ DLPack for efficient tensor conversion and integration with machine learning frameworks",
-    "Utilize cutlass.Constexpr for compile-time constants to optimize performance",
-    "Implement bounds checking, grid-stride loops, and multi-dimensional indexing for efficient kernel development"
+    "Use @cute.jit for host-side orchestration and @cute.kernel for GPU computation",
+    "Launch kernels with .launch() specifying grid and block dimensions",
+    "Employ compile-time constants to optimize performance by eliminating unused code branches",
+    "Utilize grid-stride loops and multi-dimensional indexing for efficient kernel execution",
+    "Debug using cute.printf() and logging, as standard Python tools are ineffective within kernels"
   ],
   "common_pitfalls": [
-    "Forgetting to use .launch() for kernel execution",
-    "Using @cute.kernel for host-side code",
-    "Mismanaging JIT caching leading to unnecessary recompilations",
-    "Mixing compile-time and runtime values without range_constexpr()",
-    "Overlooking architecture-specific constraints like tensor core requirements"
+    "Forgetting to use .launch() for kernels",
+    "Using @kernel for host code",
+    "Incorrect control flow handling with preprocessor=False",
+    "Mixing compile-time and runtime values",
+    "Not considering architecture-specific constraints like shared memory limits"
   ],
-  "compressed_overview": "CuTe DSL is a Python-based domain-specific language designed for high-performance GPU kernel development, offering a balance between ease of use and control similar to CUDA programming. Key features include JIT compilation for optimized code execution, seamless integration with machine learning frameworks via the DLPack protocol, and compatibility with CuTe C++ for a smooth transition. Developers can leverage decorators like @cute.jit and @cute.kernel to manage host-side and GPU computations, respectively. The DSL supports advanced features such as compile-time constants and dynamic arguments, enhancing flexibility and performance. However, it imposes limitations on dynamic control flow, memory management, and type system to ensure stability and predictability. Developers must be mindful of these constraints, particularly when dealing with architecture-specific features and debugging within kernels. CuTe DSL is ideal for custom GPU kernels in machine learning and numeric computations but less suited for tasks already optimized by existing libraries. Best practices involve starting with simple implementations, using default settings, and validating early to navigate the DSL's limitations effectively."
+  "compressed_overview": "CuTe DSL is a Python-based domain-specific language designed for developing high-performance GPU kernels, offering a balance between Python's ease of use and the power of CUDA. It supports JIT compilation for both host and device code, ensuring seamless integration with major machine learning frameworks via the DLPack protocol. The DSL is compatible with CuTe C++ abstractions, allowing developers to leverage existing knowledge. Key features include decorators like @cute.jit and @cute.kernel for dynamic compilation, compile-time constants for kernel specialization, and intelligent caching for optimized execution. Developers must be aware of limitations such as dynamic control flow restrictions, memory and type system constraints, and architecture-specific considerations. Essential patterns involve using @cute.jit for orchestrating GPU tasks and @cute.kernel for computation, with careful attention to grid and block configurations. Debugging requires specialized tools like cute.printf(), and performance can be optimized by adhering to best practices such as minimizing divergence and coalescing memory access. While CuTe DSL provides significant control and efficiency, developers should start simple, validate early, and consult documentation when encountering limitations."
 }

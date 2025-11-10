@@ -8,8 +8,34 @@ Supported DSLs: TileLang, ThunderKittens, CuTe
 Optimized for use with OpenAI O3 and resource-unconstrained environments.
 """
 
-import pydra
-from pydra import REQUIRED, Config
+try:
+    import pydra
+    from pydra import REQUIRED, Config
+except (ImportError, AttributeError):
+    REQUIRED = object()
+
+    class Config:
+        """Minimal stand-in for pydra.Config when pydra is unavailable."""
+
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    class _PydraStub:
+        def main(self, *args, **kwargs):
+            def decorator(func):
+                return func
+
+            return decorator
+
+        def validate(self, *args, **kwargs):
+            def decorator(func):
+                return func
+
+            return decorator
+
+    pydra = _PydraStub()
+
 import os, sys
 import torch
 import json
@@ -114,47 +140,70 @@ flavor = "devel"
 operating_sys = "ubuntu22.04"
 tag = f"{cuda_version}-{flavor}-{operating_sys}"
 
-image = (
-    modal.Image.from_registry(f"nvidia/cuda:{tag}", add_python="3.10")
-    .apt_install("git",
-                "gcc-10",
-                "g++-10",
-                "clang"
-                )
-    .pip_install(
-        "anthropic",
-        "numpy",
-        "openai",
-        "packaging",
-        "pydra_config",
-        "torch==2.5.0",
-        "tqdm",
-        "datasets",
-        "transformers",
-        "google-generativeai",
-        "together",
-        "pytest",
-        "pyutils",
-        "ninja",
-        "utils",
-        "pybind11",
-        "python-dotenv",
-        "tilelang",
-        "apache-tvm",
-        "dspy-ai",
-        "nvidia-cutlass-dsl"
-    )
-    .env({"THUNDERKITTENS_ROOT": "/root/ThunderKittens"})
-    .add_local_python_source("scripts", "src")
-    .add_local_dir("KernelBench", "/root/KernelBench")
-    .add_local_dir("correct_tk", "/root/correct_tk")
-    .add_local_dir("ThunderKittens", "/root/ThunderKittens")
+image = modal.Image.from_registry(f"nvidia/cuda:{tag}", add_python="3.10").apt_install(
+    "git",
+    "gcc-10",
+    "g++-10",
+    "clang",
+).pip_install(
+    "anthropic",
+    "numpy",
+    "openai",
+    "packaging",
+    "pydra_config",
+    "torch==2.5.0",
+    "tqdm",
+    "datasets",
+    "transformers",
+    "google-generativeai",
+    "together",
+    "pytest",
+    "pyutils",
+    "ninja",
+    "utils",
+    "pybind11",
+    "python-dotenv",
+    "tilelang",
+    "apache-tvm",
+    "dspy-ai",
+    "nvidia-cutlass-dsl",
 )
+
+image = image.env({"THUNDERKITTENS_ROOT": "/root/ThunderKittens"})
+image = image.add_local_python_source("scripts", "src")
+image = image.add_local_dir("KernelBench", "/root/KernelBench")
+
+correct_tk_local = os.path.join(REPO_TOP_DIR, "correct_tk")
+if os.path.isdir(correct_tk_local):
+    image = image.add_local_dir(correct_tk_local, "/root/correct_tk")
+else:
+    print(f"⚠️ Skipping mount; directory not found: {correct_tk_local}")
+
+thunder_local = os.path.join(REPO_TOP_DIR, "ThunderKittens")
+if os.path.isdir(thunder_local):
+    image = image.add_local_dir(thunder_local, "/root/ThunderKittens")
+else:
+    print(f"⚠️ Skipping mount; directory not found: {thunder_local}")
 
 @app.cls(image=image)
 class EvalFunc:
     @modal.method()
-    def eval_single_sample_modal(self, ref_arch_src, custom_cuda, verbose, gpu_arch, language, entry_point=None, cu_code: str | None = None, problem_id: int = None, level: int = None, return_logs_on_failure: bool = False):
+    def eval_single_sample_modal(
+        self,
+        ref_arch_src,
+        custom_cuda,
+        verbose,
+        gpu_arch,
+        language,
+        entry_point=None,
+        cu_code: str | None = None,
+        problem_id: int = None,
+        level: int = None,
+        return_logs_on_failure: bool = False,
+        measure_performance: bool = True,
+        num_correct_trials: int = 5,
+        num_perf_trials: int = 100,
+    ):
         # SET DEFAULT DTYPE TO FLOAT16 ONLY FOR TILELANG
         if language == "tilelang":
             torch.set_default_dtype(torch.float16)
@@ -206,8 +255,14 @@ class EvalFunc:
         if isinstance(custom_cuda, str):
             custom_cuda = textwrap.dedent(custom_cuda).lstrip()
         return eval_kernel_against_ref(
-            ref_arch_src, custom_cuda, verbose=verbose, measure_performance=True, 
-            num_correct_trials=5, num_perf_trials=100, language=language, entry_point=entry_point
+            ref_arch_src,
+            custom_cuda,
+            verbose=verbose,
+            measure_performance=measure_performance,
+            num_correct_trials=num_correct_trials,
+            num_perf_trials=num_perf_trials,
+            language=language,
+            entry_point=entry_point,
         )
 
 

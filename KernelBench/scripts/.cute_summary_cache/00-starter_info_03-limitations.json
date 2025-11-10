@@ -1,5 +1,5 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/03-limitations.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/00-starter_info/03-limitations.md",
   "category": "00-starter_info",
   "title": "CuTe DSL Limitations Overview",
   "key_concepts": [
@@ -16,37 +16,36 @@
   ],
   "critical_patterns": [
     "Use conditional logic instead of early exits in loops",
-    "Define variables before entering control flow blocks",
-    "Maintain type stability within control flow",
-    "Allocate memory in host code, pass to kernel",
-    "Use range_constexpr() for compile-time values",
+    "Define variables before control flow blocks to access them outside",
+    "Maintain type stability; use different variables for different types",
+    "Use assertions instead of exceptions in dynamic control flow",
+    "Use range() for runtime values and range_constexpr() for compile-time constants",
+    "Allocate memory in host code and pass to kernels",
     "Manually handle broadcasting in kernel logic",
-    "Use cute.printf() for debugging within kernels",
-    "Use preprocessor=True for full feature support"
+    "Use preprocessor=True for full functionality"
   ],
   "code_snippets": [
-    "// Example of defining variables before control flow\nint x = 0;\nif (condition) {\n  x = 5;\n}\n// x is available here",
-    "// Example of using range_constexpr()\nfor (int i : range_constexpr(0, 10)) {\n  // compile-time loop\n}",
-    "// Example of manual broadcasting\nfor (int i = 0; i < N; ++i) {\n  C[i] = A[i] + B[i];\n}"
+    "def kernel_example():\n  for i in range(n):\n    if condition:\n      # Use logic instead of break\n      pass",
+    "def allocate_memory():\n  tensor = cute.tensor(shape)\n  kernel<<<blocks, threads>>>(tensor)"
   ],
   "constraints": [
-    "No early exit from loops (break, continue, return, pass)",
+    "No early exit from loops (break, continue, return)",
     "Variables defined in control flow are not available outside",
     "Cannot change variable types in control flow",
     "No exceptions in dynamic control flow",
     "Cannot mix compile-time and runtime values",
     "Limited Python object support in kernels",
     "No dynamic memory allocation in kernels",
-    "Limited type inference in some cases",
+    "Limited type inference; explicit annotation may be needed",
     "No automatic broadcasting like NumPy",
-    "Severe limitations in preprocessor=False (Tracing Mode)",
-    "Architecture-specific tensor core requirements",
+    "Preprocessor=False has severe limitations",
+    "Architecture-specific requirements for tensor cores",
     "Shared memory limits per block vary by architecture",
-    "Maximum threads per block is architecture dependent",
-    "Limited Python debugging tools inside kernels",
+    "Maximum threads per block and grid dimensions are architecture dependent",
+    "Limited Python debugging tools in kernels",
     "JIT compilation overhead on first call",
     "Dynamic shapes may be slower",
-    "Not supported in kernels: Classes, OOP, async/await, etc."
+    "Not supported in kernels: classes, OOP, generators, async/await, context managers, decorators, lambda functions, list/dict comprehensions"
   ],
-  "compressed_summary": "CuTe DSL is a powerful tool for writing GPU kernels but comes with several limitations designed to ensure safety, predictability, and performance. Key limitations include restrictions on dynamic control flow, such as the prohibition of early exits like break, continue, and return within loops. Variables defined within control flow blocks are not accessible outside, and type changes within control flow are not allowed to maintain type stability. Compile-time and runtime values cannot be mixed, necessitating the use of range_constexpr() for compile-time loops. Memory allocation must be handled in host code, as dynamic allocation is not supported within kernels. The type system requires explicit annotations in some cases, and automatic broadcasting is not available, requiring manual handling of operations. Preprocessor mode limitations suggest using preprocessor=True for full feature support, as tracing mode has severe limitations like branch collapse and loop unrolling. Architecture-specific constraints include tensor core requirements and shared memory limits, which vary across GPU architectures. Debugging is limited, with standard Python tools unavailable inside kernels, necessitating the use of cute.printf() for debugging. Performance considerations include JIT compilation overhead on the first call and potential slowdowns with dynamic shapes. Language features not supported in kernels include classes, OOP features, async/await, and others. Best practices involve starting simple, using default settings, validating early, and profiling before optimizing. When encountering limitations, consult documentation, simplify code, seek help, or consider alternative tools like raw CUDA or Triton."
+  "compressed_summary": "CuTe DSL is designed with specific limitations to ensure safety, predictability, and performance. Understanding these constraints is crucial for writing effective GPU kernels. Dynamic control flow limitations include no early exits from loops and the isolation of variables defined within control blocks. Compile-time and runtime values must not be mixed, and dynamic memory allocation is not supported within kernels. The type system requires stability, with no automatic broadcasting of operations. Preprocessor mode, when set to False, introduces severe limitations such as branch collapse and loop unrolling. Architecture-specific constraints include shared memory limits and tensor core requirements. Threading and synchronization are subject to architecture-dependent limits on block and grid sizes. Debugging within kernels is limited, with standard Python tools being ineffective; instead, use cute.printf() and logging. Performance considerations include JIT compilation overhead and potential slowdowns with dynamic shapes. Language features such as classes, OOP, and async/await are not supported within kernels. Best practices involve starting simple, using default settings, validating early, profiling before optimization, and carefully reading error messages. When encountering limitations, consult documentation, simplify code, seek help, or consider alternative approaches like raw CUDA or Triton."
 }

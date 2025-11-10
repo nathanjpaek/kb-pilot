@@ -1,7 +1,7 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/01-pipelining_patterns.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/01-pipelining_patterns.md",
   "category": "08-optimization",
-  "title": "Pipelining Patterns in CuTe DSL",
+  "title": "Advanced Pipelining Patterns in CuTe DSL",
   "key_concepts": [
     "Producer-consumer patterns",
     "Multi-stage pipelines",
@@ -11,24 +11,25 @@
     "Performance tuning"
   ],
   "critical_patterns": [
-    "Double buffering: Alternate between two buffers to load and compute simultaneously.",
-    "Triple buffering: Utilize three buffers for deeper pipeline overlap.",
-    "Warp specialization: Separate warps for loading and computing to enhance parallelism.",
-    "cp.async Pipeline: Use hardware-accelerated async copy for efficient data movement.",
-    "TMA Pipeline (Hopper): Use transaction-based pipelining with hardware-managed synchronization."
+    "Double Buffering: Alternate between two buffers to load and compute simultaneously.",
+    "Triple Buffering: Use three or more buffers for maximum overlap.",
+    "Warp-Specialized Pipeline: Dedicate warps to loading and computing separately.",
+    "Async Copy Patterns: Use hardware-accelerated async copy for efficient data transfer.",
+    "TMA Pipeline: Use Hopper's Tensor Memory Accelerator with transaction-based pipelining."
   ],
   "code_snippets": [
-    "@cute.kernel\ndef basic_pipeline(gmem: cute.Tensor, num_tiles: cutlass.Int32):",
-    "@cute.kernel\ndef double_buffer_pipeline(gmem: cute.Tensor, num_tiles: cutlass.Int32):",
-    "@cute.kernel\ndef triple_buffer_pipeline(gmem_A: cute.Tensor, gmem_B: cute.Tensor, result: cute.Tensor, num_k_tiles: cutlass.Int32):",
-    "@cute.kernel\ndef warp_specialized_pipeline(gmem_A: cute.Tensor, gmem_B: cute.Tensor, result: cute.Tensor, num_k_tiles: cutlass.Int32):",
-    "@cute.kernel\ndef cp_async_pipeline(gmem: cute.Tensor, result: cute.Tensor, num_tiles: cutlass.Int32):"
+    "@cute.kernel\ndef basic_pipeline(gmem: cute.Tensor, num_tiles: cutlass.Int32): ...",
+    "@cute.kernel\ndef double_buffer_pipeline(gmem: cute.Tensor, num_tiles: cutlass.Int32): ...",
+    "@cute.kernel\ndef triple_buffer_pipeline(gmem_A: cute.Tensor, gmem_B: cute.Tensor, result: cute.Tensor, num_k_tiles: cutlass.Int32): ...",
+    "@cute.kernel\ndef warp_specialized_pipeline(gmem_A: cute.Tensor, gmem_B: cute.Tensor, result: cute.Tensor, num_k_tiles: cutlass.Int32): ...",
+    "@cute.kernel\ndef cp_async_pipeline(gmem: cute.Tensor, result: cute.Tensor, num_tiles: cutlass.Int32): ..."
   ],
   "constraints": [
     "Use 3-4 stages for most cases to balance resource usage and performance.",
-    "Ensure shared memory usage does not exceed available limits.",
-    "Correctly synchronize to avoid race conditions and ensure data readiness.",
-    "Avoid over-pipelining as it can lead to reduced occupancy and performance."
+    "Ensure NUM_STAGES * stage_size is less than maximum shared memory.",
+    "Avoid over-pipelining as it can lead to reduced occupancy and performance.",
+    "Synchronize correctly to avoid race conditions and ensure data readiness.",
+    "Pipeline only memory-bound kernels; compute-bound kernels may not benefit."
   ],
-  "compressed_summary": "Pipelining in CuTe DSL involves overlapping data movement and computation to hide memory latency and optimize performance. Key concepts include producer-consumer patterns, multi-stage pipelines, warp specialization, async copy pipelining, and TMA pipelining. Critical patterns such as double buffering and triple buffering allow simultaneous loading and computing, enhancing throughput. Warp specialization dedicates specific warps to loading and computing tasks, improving instruction-level parallelism. The cp.async pipeline leverages hardware-accelerated async copy for efficient data transfer, while the TMA pipeline in Hopper uses transaction-based synchronization for better efficiency. Constraints include using an optimal number of stages (typically 3-4) to balance performance and resource usage, ensuring shared memory limits are not exceeded, and correctly synchronizing operations to prevent race conditions. Common pitfalls include over-pipelining, incorrect wait points, and missing synchronization, which can degrade performance. Best practices involve profiling to determine the optimal pipeline depth, using warp specialization on Hopper, and ensuring proper synchronization. Pipelining can lead to significant performance improvements, especially for memory-bound kernels, by keeping the GPU busy and hiding latency effectively."
+  "compressed_summary": "Pipelining in CuTe DSL involves overlapping data movement with computation to hide memory latency, enhancing performance. Key patterns include double buffering, which uses two buffers to load and compute simultaneously, and triple buffering, which employs three or more buffers for deeper pipelining. Warp specialization separates loading and computing tasks across different warps, improving parallelism. Async copy patterns leverage hardware-accelerated operations for efficient data transfer, while TMA pipelining on Hopper utilizes transaction-based synchronization for optimal performance. Effective pipelining requires careful stage management, typically using 3-4 stages to balance latency hiding and resource constraints. Over-pipelining can lead to reduced occupancy, so it's crucial to measure and tune pipeline depth based on specific kernel characteristics. Synchronization points must be correctly placed to prevent race conditions. Pipelining is particularly beneficial for memory-bound kernels, offering 1.5-3\u00d7 speedup by keeping the GPU busy and minimizing idle time. The document emphasizes the importance of profiling to determine the optimal pipeline configuration and warns against exceeding shared memory limits or improperly synchronizing stages. For further optimization, related topics such as tiling strategies and thread layouts are recommended."
 }

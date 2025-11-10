@@ -1,18 +1,18 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/05-architecture_specific/03-choosing_atoms.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/05-architecture_specific/03-choosing_atoms.md",
   "category": "05-architecture_specific",
-  "title": "Choosing the Right Atoms for GPU Kernel Optimization with CuTe DSL",
+  "title": "Choosing the Right Atoms for GPU Kernel Development with CuTe DSL",
   "key_concepts": [
     "GPU architecture-specific atom selection",
-    "Precision and performance trade-offs",
-    "Memory bandwidth and register pressure considerations",
-    "MMA and copy atom usage"
+    "Precision and data type considerations",
+    "Performance vs accuracy trade-offs",
+    "Copy and MMA atom usage"
   ],
   "critical_patterns": [
-    "Use FP16 inputs with FP32 accumulators for training on all architectures",
-    "Use FP8 for inference on Hopper and Blackwell for speed",
-    "Use cp.async for memory transfers on Ampere",
-    "Use TMA for memory transfers on Hopper and Blackwell"
+    "For MMA atoms, choose based on GPU architecture and precision needs.",
+    "Use cp.async for Ampere, TMA for Hopper, and TMA with TMEM for Blackwell for copy operations.",
+    "FP16 with FP32 accumulator is standard for training; FP8 is optimal for inference on Hopper and Blackwell.",
+    "BF16 is preferred for large models due to better range and similar speed to FP16."
   ],
   "code_snippets": [
     "mma = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F32F32_TN)",
@@ -20,10 +20,10 @@
     "tma_desc = cute.make_tma_descriptor(tensor=gmem, tile_shape=cute.make_shape(128, 64), element_type=cutlass.Float16)"
   ],
   "constraints": [
-    "FP32 accumulators are recommended for long accumulation chains",
-    "Use TMA for large tile transfers on Hopper and Blackwell",
-    "FP8 and lower precisions require careful accuracy validation",
-    "Always validate kernel correctness and performance"
+    "Ensure architecture-specific atoms are used for optimal performance.",
+    "FP32 accumulators are recommended for long accumulation chains.",
+    "Validation is crucial to ensure accuracy and performance meet requirements.",
+    "Use lower precision only when accuracy loss is acceptable."
   ],
-  "compressed_summary": "This document provides guidance on selecting the appropriate MMA and copy atoms for GPU kernel optimization using the CuTe DSL, focusing on different GPU architectures (Ampere, Hopper, Blackwell) and data types (FP16, BF16, FP8, etc.). Key factors in atom selection include the target GPU architecture, data type precision requirements, performance vs accuracy trade-offs, memory bandwidth, and register pressure. For MMA atoms, FP16 inputs with FP32 accumulators are recommended for training across all architectures due to their balance of speed and precision. For inference, FP8 is preferred on Hopper and Blackwell for its speed advantage. Copy atoms selection varies by architecture: cp.async is used on Ampere for asynchronous memory transfers, while TMA is used on Hopper and Blackwell for efficient large tile transfers. The document emphasizes the importance of validating kernel correctness, performance, and accuracy, with specific recommendations for different scenarios such as LLM training and inference, vision model training, and quantized inference. It also outlines the precision hierarchy from FP64 to FP4, highlighting the trade-offs between speed and accuracy. The document concludes with architecture-specific recommendations and a decision matrix to aid in atom selection based on workload and GPU architecture."
+  "compressed_summary": "This document provides guidance on selecting the appropriate atoms for GPU kernel development using the CuTe DSL, focusing on different GPU architectures (Ampere, Hopper, Blackwell) and data types (FP16, BF16, FP8, etc.). Key factors in atom selection include the target GPU architecture, precision requirements, performance vs accuracy trade-offs, and memory bandwidth constraints. For MMA atoms, the choice depends on the GPU architecture and the precision needed, with FP16 inputs and FP32 accumulators being the industry standard for training due to their balance of speed and precision. For inference, FP8 is recommended on Hopper and Blackwell GPUs for its speed advantage, while FP6 and FP4 are options for extreme quantization on Blackwell. Copy operations should utilize cp.async on Ampere, TMA on Hopper, and TMA with TMEM on Blackwell for efficient data movement. The document emphasizes the importance of validating kernel performance and accuracy, providing a decision matrix and validation checklist to guide users. It also outlines architecture-specific recommendations and common scenarios, such as LLM training and inference, vision model training, and quantized inference, offering practical examples and best practices for each case. The document concludes with a summary of decision factors and golden rules for atom selection, highlighting the importance of balancing speed and accuracy while ensuring thorough validation."
 }

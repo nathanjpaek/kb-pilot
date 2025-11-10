@@ -1,27 +1,28 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/04-operations/01-mma_atoms.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/04-operations/01-mma_atoms.md",
   "category": "04-operations",
   "title": "MMA Atoms and Tensor Core Operations in CuTe DSL",
   "key_concepts": [
-    "MMA atoms are essential for tensor core operations",
-    "Architecture-specific instructions for performance",
-    "Tile size, data types, and thread layout are crucial"
+    "MMA atoms for tensor core operations",
+    "Architecture-specific instructions",
+    "Matrix Multiply-Accumulate (MMA) operations",
+    "Data type and layout specifications"
   ],
   "critical_patterns": [
-    "Accumulation Loop: Efficiently accumulate results over K dimension",
-    "Mixed Precision Pipeline: Use FP16 for compute, FP32 for accumulation",
-    "Split-K: Parallel K reduction for distributed workloads"
+    "Accumulation Loop: Efficiently accumulate results over multiple K tiles.",
+    "Mixed Precision Pipeline: Use FP16 for compute and FP32 for accumulation.",
+    "Split-K: Parallelize K dimension reduction across threads."
   ],
   "code_snippets": [
     "@cute.kernel\ndef simple_mma_example():\n    mma_atom = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F16F16_TN)\n    frag_A = cute.make_rmem_tensor(cute.make_shape(16, 16), cutlass.Float16)\n    frag_B = cute.make_rmem_tensor(cute.make_shape(16, 8), cutlass.Float16)\n    frag_C = cute.make_rmem_tensor(cute.make_shape(16, 8), cutlass.Float16)\n    frag_C.store(0.0)\n    cute.gemm(mma_atom, frag_C, frag_A, frag_B, frag_C)",
-    "@cute.kernel\ndef ampere_fp16_mma():\n    mma = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F16F16_TN)\n    # Inputs: FP16, Output: FP16",
-    "@cute.kernel\ndef aligned_mma(A: cute.Tensor, B: cute.Tensor):\n    aligned_A = cute.assume(A, align=128)\n    aligned_B = cute.assume(B, align=128)\n    mma = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F32F32_TN)"
+    "@cute.kernel\ndef ampere_fp16_mma():\n    mma = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F16F16_TN)",
+    "@cute.kernel\ndef fp16_fp32_mma():\n    mma = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F32F32_TN)\n    frag_A = cute.make_rmem_tensor(..., cutlass.Float16)\n    frag_B = cute.make_rmem_tensor(..., cutlass.Float16)\n    frag_C = cute.make_rmem_tensor(..., cutlass.Float32)\n    cute.gemm(mma, frag_C, frag_A, frag_B, frag_C)"
   ],
   "constraints": [
-    "Ensure memory alignment for optimal performance",
-    "Use FP32 accumulation to prevent precision loss",
-    "Match MMA atom to data types to avoid mismatches",
-    "Initialize accumulators to zero before use"
+    "Ensure memory alignment for optimal performance.",
+    "Use FP32 accumulation to prevent precision loss.",
+    "Match MMA atom to data types to avoid mismatches.",
+    "Larger tiles improve efficiency but may reduce occupancy due to register usage."
   ],
-  "compressed_summary": "MMA (Matrix Multiply-Accumulate) atoms are the core components for utilizing tensor cores in CuTe DSL, offering significant speedups over traditional CUDA cores. These atoms encapsulate matrix dimensions, data types, tensor core instructions, and thread layouts to perform operations like `D = A \u00d7 B + C` efficiently. The naming convention for MMA atoms includes architecture, tile dimensions, data types, and layout, such as `SM80_16x8x16_F16F16F16F16_TN`. Architecture-specific atoms exist for Ampere (SM80), Hopper (SM90), and Blackwell (SM100), each with unique capabilities and performance characteristics. For instance, Ampere supports FP16 and BF16 with FP32 accumulation, while Hopper introduces FP8 for maximum throughput. Key patterns include accumulation loops for efficient K-dimension processing, mixed precision pipelines for balancing speed and accuracy, and Split-K for parallel reductions. Best practices emphasize using FP32 for accumulation, initializing accumulators, matching MMA atoms to data types, and verifying results against references. Performance varies by data type, with FP16 and FP8 offering substantial speedups. Larger tiles improve efficiency but may impact register usage. Debugging involves checking fragment shapes and verifying results. Aligning memory and adhering to layout requirements are crucial for optimal performance. The document provides a comprehensive guide to implementing and optimizing MMA operations in CuTe DSL, with links to further reading on CUDA and specific GPU architectures."
+  "compressed_summary": "MMA atoms in CuTe DSL are essential for leveraging tensor core operations, providing significant performance improvements over traditional CUDA cores. They encapsulate matrix dimensions, data types, and thread layouts, directly mapping to architecture-specific instructions. The primary operation format is `D = A \u00d7 B + C`, where matrices A and B are inputs, C is the accumulator, and D is the output. Naming conventions for MMA atoms reflect architecture, tile dimensions, data types, and layout, such as `SM80_16x8x16_F16F16F32F32_TN`. Key patterns include accumulation loops for efficient K-dimension processing, mixed precision pipelines for balancing speed and accuracy, and split-K techniques for parallel reduction. Code snippets demonstrate basic MMA operations, emphasizing the importance of initializing accumulators and aligning memory. Performance varies by data type, with FP16 and FP8 offering substantial speedups on Ampere and Hopper architectures, respectively. Best practices involve using FP32 for accumulation, matching data types to MMA atoms, and verifying results against reference computations. Constraints include ensuring memory alignment and selecting appropriate tile sizes to balance efficiency and resource usage. The document also highlights the importance of architecture-specific optimizations and provides guidance on debugging and verifying MMA operations."
 }

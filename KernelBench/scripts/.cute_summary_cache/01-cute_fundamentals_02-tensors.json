@@ -1,29 +1,30 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/02-tensors.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/01-cute_fundamentals/02-tensors.md",
   "category": "01-cute_fundamentals",
-  "title": "CuTe Tensors: Structure, Operations, and Best Practices",
+  "title": "CuTe Tensors: Structure and Operations in GPU Kernels",
   "key_concepts": [
     "Tensor = pointer + layout + metadata",
     "Memory spaces: GMEM, SMEM, RMEM, TMEM",
-    "Automatic bounds checking and type-safe operations",
-    "Composable transformations and compile-time optimization"
+    "Tensor operations: indexing, slicing, reshaping",
+    "Partitioning: thread-level and block-level",
+    "Data movement: copying between memory spaces"
   ],
   "critical_patterns": [
-    "Load \u2192 Compute \u2192 Store: Efficient data movement through memory hierarchy",
-    "Double Buffering: Use two shared memory buffers for pipelining",
-    "Reduction: Thread-local accumulation followed by block-level reduction"
+    "Load \u2192 Compute \u2192 Store: Efficient data handling through memory hierarchy",
+    "Double Buffering: Overlapping computation with data transfer",
+    "Reduction: Thread-local and block-level accumulation"
   ],
   "code_snippets": [
     "tensor = cute.make_tensor(ptr, layout)",
     "cute.copy(tma_atom, gmem_tensor, smem_tensor)",
     "reshaped = cute.reshape(tensor, new_shape)",
-    "fragment_A = tiled_mma.make_fragment_A(smem_layout_A)"
+    "tiled_copy = cute.make_tiled_copy(copy_atom, ...)"
   ],
   "constraints": [
     "Cannot allocate new tensors inside @cute.kernel functions",
-    "Shared memory requires careful layout design to avoid bank conflicts",
-    "Dynamic layouts may be slower due to runtime address calculation",
-    "Alignment is crucial for vectorized operations and tensor core usage"
+    "Alignment is crucial for performance and correctness",
+    "Dynamic layouts may incur runtime overhead",
+    "Avoid accessing tensors across thread blocks"
   ],
-  "compressed_summary": "CuTe DSL provides a structured approach to handling tensors on the GPU, where a tensor is defined as a combination of a pointer, layout, and metadata. This structure allows for automatic bounds checking, type-safe operations, and compile-time optimizations. Tensors can reside in different memory spaces, including global (GMEM), shared (SMEM), register (RMEM), and tensor memory (TMEM), each with unique characteristics. The DSL supports creating tensors from pointers and layouts or converting from framework tensors using DLPack, enabling zero-copy integration with libraries like PyTorch. Key operations include indexing, slicing, reshaping, and data movement between memory spaces using `cute.copy`. Partitioning tensors among threads or blocks is essential for efficient parallel computation, with common patterns like Load \u2192 Compute \u2192 Store, Double Buffering, and Reduction optimizing performance. Constraints include the inability to allocate tensors within GPU kernels, the need for careful shared memory layout design to avoid bank conflicts, and the importance of alignment for performance-critical operations. Best practices emphasize using DLPack for integration, minimizing global memory access, aligning tensors, and leveraging fragments for MMA operations. Debugging tools and custom tensor types extend the DSL's flexibility, while related documentation provides deeper insights into data types, memory hierarchy, and framework integration."
+  "compressed_summary": "CuTe DSL provides a structured approach to handling tensors on GPUs, where a tensor is defined by a pointer, layout, and metadata. Tensors in CuTe enable automatic bounds checking, compile-time address optimization, and type-safe operations. They can reside in various memory spaces: GMEM for large data, SMEM for fast block-shared access, RMEM for thread-private fast access, and TMEM for Blackwell-specific operations. Creating tensors involves specifying a data pointer and layout, and they can be converted from framework tensors using DLPack for zero-copy integration. Tensors support operations like indexing, slicing, reshaping, and partitioning, which are crucial for efficient GPU computations. Partitioning allows dividing tensors among threads or blocks, facilitating operations like GEMM. Data movement between memory spaces is managed through copy operations, with synchronization needed after shared memory writes. Common patterns include Load \u2192 Compute \u2192 Store, Double Buffering for pipelining, and Reduction for accumulation. Best practices emphasize using DLPack for integration, aligning tensors for performance, and minimizing global memory access. Avoid allocating tensors in kernels, ignoring alignment, or accessing tensors across thread blocks. Debugging involves printing tensor information and visualizing layouts. Advanced users can define custom tensor types for specialized use cases. Overall, CuTe tensors are composable, transformable, and optimized for GPU kernel development, with a focus on memory hierarchy and efficient data handling."
 }

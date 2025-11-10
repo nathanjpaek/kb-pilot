@@ -1,5 +1,5 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/06-compilation/01-jit-caching.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/06-compilation/01-jit-caching.md",
   "category": "06-compilation",
   "title": "JIT Caching in CuTe DSL",
   "key_concepts": [
@@ -11,22 +11,23 @@
     "Cache management in production"
   ],
   "critical_patterns": [
-    "First kernel execution compiles and caches the kernel",
-    "Subsequent executions use the cached kernel for speed",
-    "Cache key is determined by function source, parameter types, constexpr values, compilation options, and target architecture",
-    "Precompile kernels using cute.compile() to avoid runtime compilation delays",
-    "Clear cache when changing CuTe DSL versions to avoid compatibility issues"
+    "First kernel run compiles and caches",
+    "Subsequent runs use cache for speedup",
+    "Cache key depends on function source, parameter types, and compilation options",
+    "Precompile kernels with cute.compile() for faster execution later",
+    "Clear cache manually or set automatic cleanup policies"
   ],
   "code_snippets": [
-    "@cute.kernel\ndef my_kernel(data: cute.Tensor, n: cutlass.Int32):\n    tid = cute.arch.thread_idx()[0]\n    if tid < n:\n        data[tid] = 0.0\n\nmy_kernel.launch(grid=[4,1,1], block=[256,1,1])(data, n=1000)",
-    "my_kernel.compile(data=cute.Tensor, tile_size=128)",
-    "import shutil\nimport os\ncache_dir = os.path.expanduser('~/.cache/cutlass')\nshutil.rmtree(cache_dir)\nprint('Cache cleared')"
+    "@cute.kernel\ndef my_kernel(data: cute.Tensor, n: cutlass.Int32):\n    tid = cute.arch.thread_idx()[0]\n    if tid < n:\n        data[tid] = 0.0",
+    "my_kernel.launch(grid=[4,1,1], block=[256,1,1])(data, n=1000)",
+    "os.environ['CUTLASS_DISABLE_CACHE'] = '1'",
+    "my_kernel.compile(data=cute.Tensor, tile_size=128)"
   ],
   "constraints": [
-    "Cache key does not depend on runtime parameter values or launch configuration",
-    "Cache persists across Python sessions and system reboots",
-    "Different GPUs may require separate caches if architectures differ",
-    "Cache may be invalidated by updates to CuTe DSL"
+    "Cache key is affected by function source code, parameter types, constexpr values, compilation options, and target architecture",
+    "Cache does not persist across CuTe DSL updates if format changes",
+    "Different GPUs with different architectures require separate caches",
+    "Cache should not be shared across users"
   ],
-  "compressed_summary": "CuTe DSL employs JIT caching to store compiled GPU kernels, significantly reducing execution time for subsequent calls by avoiding recompilation. The cache is stored in a default directory, typically under ~/.cache/cutlass/, and includes compiled binaries, CUDA C++ code, PTX assembly, and metadata. Cache keys are determined by the function's source code, parameter types, constexpr values, compilation options, and target architecture, but not by runtime parameter values or launch configurations. Recompilation is triggered by changes in these key factors or by a Python session restart. Precompilation can be achieved using cute.compile(), allowing kernels to be compiled without execution, which is beneficial for production environments where startup time is critical. Cache management involves clearing the cache when necessary, such as after DSL updates, and monitoring its size to ensure efficient use of storage. Best practices include warming the cache at application startup, using cached kernels in benchmarks, and avoiding cache inclusion in version control. Performance improvements from caching are substantial, with cached calls executing in milliseconds compared to seconds for initial compilations. Developers should disable caching during development to ensure changes are reflected immediately and re-enable it in production for optimal performance."
+  "compressed_summary": "CuTe DSL employs a JIT caching mechanism to store compiled GPU kernels, significantly reducing execution time on subsequent runs by avoiding recompilation. The cache is stored in the user's home directory under ~/.cache/cutlass/ and persists across Python sessions and system reboots, but may be invalidated by updates to the CuTe DSL. Cache keys are generated based on the function's source code, parameter types, constexpr values, compilation options, and target architecture, but not by runtime parameter values or tensor data. Developers can precompile kernels using cute.compile() to warm up the cache and ensure fast execution in production. Cache management includes clearing the cache manually or setting environment variables for automatic cleanup. During development, caching can be disabled to ensure recompilation for debugging purposes. Best practices involve warming the cache at application startup, monitoring cache size, and clearing the cache after DSL updates. Performance gains from caching are substantial, with cached calls executing in milliseconds compared to seconds for the initial compilation. Developers should avoid disabling the cache in production and ensure that cache directories are not included in version control."
 }

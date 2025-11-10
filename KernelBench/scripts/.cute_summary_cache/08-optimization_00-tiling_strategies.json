@@ -1,30 +1,31 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/00-tiling_strategies.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/00-tiling_strategies.md",
   "category": "08-optimization",
-  "title": "Tiling Strategies in CuTe DSL for Optimized GPU Kernels",
+  "title": "Tiling Strategies in CuTe DSL",
   "key_concepts": [
     "Tiling divides large problems into smaller tiles for shared memory",
-    "Tile size selection is crucial for performance",
-    "Hierarchical tiling leverages memory hierarchy",
-    "Tiling patterns optimize different operations"
+    "Tile size selection affects performance and resource usage",
+    "Hierarchical tiling maps computations to memory hierarchy",
+    "Common tiling patterns optimize for different matrix shapes"
   ],
   "critical_patterns": [
     "Square Tiles: Good for square matrices, balanced memory access",
     "Rectangular Tiles: Match matrix aspect ratio for non-square matrices",
-    "K-Slicing: Small K dimension for better pipelining",
+    "K-Slicing: Small K for pipelining, large K for fewer iterations",
     "Register Blocking: Tile within registers for efficient computation"
   ],
   "code_snippets": [
-    "@cute.kernel\ndef naive_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor): ...",
-    "@cute.kernel\ndef tiled_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor): ...",
-    "def calculate_smem_usage(tile_m: int, tile_n: int, tile_k: int, dtype_size: int = 2) -> int: ...",
-    "def choose_tile_size(M: int, N: int, K: int, architecture: str, memory_bound: bool): ..."
+    "@cute.kernel\ndef naive_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):",
+    "@cute.kernel\ndef tiled_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):",
+    "def calculate_smem_usage(tile_m: int, tile_n: int, tile_k: int, dtype_size: int = 2) -> int:",
+    "@cute.kernel\ndef hierarchical_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor):",
+    "def design_tile_hierarchy(block_tile_m: int, block_tile_n: int, thread_tile_m: int, thread_tile_n: int):"
   ],
   "constraints": [
-    "Shared memory capacity limits tile size",
-    "Register pressure affects occupancy",
-    "Tile sizes must align with warp size",
-    "Avoid exceeding shared memory limits"
+    "Tile sizes must fit within shared memory limits",
+    "Register pressure increases with larger tiles, affecting occupancy",
+    "Thread count should be a multiple of warp size (32)",
+    "Avoid exceeding shared memory capacity with large tiles"
   ],
-  "compressed_summary": "Tiling is a fundamental optimization in GPU computing, dividing problems into smaller tiles that fit in shared memory to enable data reuse and reduce global memory traffic. Selecting the right tile size is crucial, balancing shared memory capacity, register pressure, and occupancy. Common tile sizes for GEMM operations include 128x128x32, with variations for different architectures and memory constraints. Hierarchical tiling involves multiple levels: grid, block, warp, and thread, each mapping to different memory hierarchies. Key tiling patterns include square and rectangular tiles, K-slicing for pipelining, and register blocking for efficient computation. Constraints include shared memory limits, register pressure, and ensuring tile sizes align with warp sizes. Practical implementation involves calculating shared memory usage, choosing appropriate tile sizes based on architecture and workload, and using hierarchical tiling to maximize performance. Tiling can lead to 10-100x speedup for memory-bound operations, making it the most important optimization for GPU kernels. Advanced techniques like swizzled and multi-buffered tiling further enhance performance by reducing bank conflicts and overlapping computation with memory operations."
+  "compressed_summary": "Tiling is a crucial optimization technique in GPU computing, breaking down large problems into smaller tiles that fit into fast shared memory, thereby reducing global memory traffic and enhancing data reuse. The selection of tile size is influenced by shared memory capacity, register pressure, occupancy, and compute intensity. Common tile sizes for GEMM operations range from small (64x64x16) to very large (256x256x64), depending on the architecture and whether the operation is memory or compute-bound. Hierarchical tiling involves multiple levels: grid, block, warp, and thread, each corresponding to different memory hierarchies. Implementing effective tiling strategies can lead to significant performance improvements, often achieving 10-100x speedups for memory-bound operations. Key patterns include square and rectangular tiles, K-slicing for pipelining, and register blocking for efficient computation. Constraints such as shared memory limits and thread alignment must be considered to avoid performance bottlenecks. Advanced techniques like swizzled and multi-buffered tiling can further optimize performance by reducing bank conflicts and enabling pipelining. Ultimately, tiling is the most important optimization for GPU performance, and getting it right is essential for maximizing computational efficiency."
 }

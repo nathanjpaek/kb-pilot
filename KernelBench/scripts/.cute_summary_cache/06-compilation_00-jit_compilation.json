@@ -1,32 +1,28 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/06-compilation/00-jit_compilation.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/06-compilation/00-jit_compilation.md",
   "category": "06-compilation",
   "title": "CuTe DSL for GPU Kernel Development",
   "key_concepts": [
-    "Domain-Specific Language (DSL)",
-    "GPU Kernel Optimization",
-    "Memory Management",
-    "Parallel Execution",
-    "Template Metaprogramming"
+    "Domain-Specific Language (DSL) for GPU programming",
+    "Kernel optimization",
+    "Memory management",
+    "Parallel execution"
   ],
   "critical_patterns": [
-    "Use of templates for compile-time optimizations",
-    "Memory coalescing to improve bandwidth utilization",
-    "Thread block synchronization for data consistency",
-    "Loop unrolling for performance enhancement",
-    "Tile-based computation to maximize data reuse"
+    "Use of tiling to optimize memory access patterns",
+    "Leveraging shared memory for data reuse",
+    "Thread coarsening to reduce overhead",
+    "Loop unrolling for performance improvement"
   ],
   "code_snippets": [
-    "template<typename T> __global__ void kernelFunction(T* data) { /* kernel implementation */ }",
-    "auto tile = make_tile<block_size>(data);",
-    "__syncthreads(); // Ensure all threads reach this point"
+    "kernel void exampleKernel(float* data) { __shared__ float tile[BLOCK_SIZE]; ... }",
+    "for (int i = 0; i < N; i += TILE_SIZE) { ... }"
   ],
   "constraints": [
-    "Kernel launch parameters must be carefully tuned for specific hardware",
-    "Memory alignment is crucial for performance",
-    "Limited shared memory per block",
-    "Maximum number of threads per block is hardware-dependent",
-    "Avoiding bank conflicts in shared memory access"
+    "Kernel functions must be defined with __global__",
+    "Maximum number of threads per block is 1024",
+    "Shared memory is limited to 48KB per block",
+    "Avoiding warp divergence is crucial for performance"
   ],
-  "compressed_summary": "The CuTe DSL provides a high-level abstraction for writing GPU kernels, focusing on optimizing performance through compile-time techniques and efficient memory usage. Key concepts include the use of templates to enable compile-time optimizations, which can significantly reduce runtime overhead. Memory management is critical, with patterns such as memory coalescing and tile-based computation being essential for maximizing bandwidth and data reuse. Synchronization between threads is achieved using built-in functions like __syncthreads(), ensuring data consistency across parallel executions. Constraints such as hardware-specific kernel launch parameters and memory alignment must be considered to avoid performance bottlenecks. The DSL encourages the use of loop unrolling and other optimization techniques to enhance execution speed. Developers must be aware of the limitations imposed by the hardware, such as shared memory size and the maximum number of threads per block, to fully leverage the capabilities of the GPU. Overall, CuTe DSL aims to simplify the development of efficient GPU kernels by providing a structured approach to common optimization challenges."
+  "compressed_summary": "CuTe DSL is a specialized language designed to simplify the development of GPU kernels by providing high-level abstractions and optimizations. It focuses on optimizing memory access patterns and parallel execution to achieve high performance. Key concepts include the use of tiling to manage memory efficiently, leveraging shared memory to reduce global memory accesses, and employing thread coarsening and loop unrolling to minimize execution overhead. Critical patterns involve structuring code to maximize data reuse and minimize latency, such as by using shared memory for frequently accessed data and organizing threads to avoid divergence. Constraints include adhering to the limits of the GPU architecture, such as the maximum number of threads per block and shared memory size. Developers must also be mindful of warp divergence, which can significantly impact performance. The DSL provides constructs to express these patterns succinctly, allowing for more readable and maintainable code. By using CuTe, developers can focus on algorithmic improvements while the DSL handles low-level optimizations."
 }

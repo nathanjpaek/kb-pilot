@@ -1,19 +1,19 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/02-control_flow/03-metaprogramming.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/02-control_flow/03-metaprogramming.md",
   "category": "02-control_flow",
   "title": "Compile-Time Metaprogramming in CuTe DSL",
   "key_concepts": [
     "Compile-time metaprogramming",
-    "Zero-overhead abstractions",
-    "Kernel specialization",
-    "cutlass.Constexpr"
+    "cutlass.Constexpr for compile-time constants",
+    "Zero runtime overhead",
+    "Kernel specialization"
   ],
   "critical_patterns": [
-    "Activation Function Fusion: Generate specialized kernels for each activation function.",
-    "Precision Selection: Compile-time selection of compute precision (e.g., fp16, fp32).",
-    "Tile Size Specialization: Optimize kernels for specific tile sizes.",
-    "Feature Toggles: Enable/disable features at compile time.",
-    "Architecture-Specific Dispatch: Generate code optimized for specific GPU architectures."
+    "Activation Function Fusion: Generate specialized kernels for each activation function",
+    "Precision Selection: Create kernels for different precisions",
+    "Tile Size Specialization: Optimize kernels for each tile size",
+    "Feature Toggles: Enable/disable features at compile time",
+    "Architecture-Specific Dispatch: Generate different code for each GPU architecture"
   ],
   "code_snippets": [
     "@cute.kernel\ndef compile_time_kernel(data: cute.Tensor, mode: cutlass.Constexpr):\n    if cutlass.const_expr(mode == 1):\n        fast_path(data)\n    else:\n        slow_path(data)",
@@ -22,10 +22,10 @@
     "@cute.kernel\ndef mixed_precision_gemm(A: cute.Tensor, B: cute.Tensor, C: cute.Tensor, compute_precision: cutlass.Constexpr):\n    if cutlass.const_expr(compute_precision == \"fp16\"):\n        mma = cute.make_mma_atom(cute.SM80_16x8x16_F16F16F16F16_TN)"
   ],
   "constraints": [
-    "Value of cutlass.Constexpr must be known at compile time.",
-    "More configurations increase compilation time.",
-    "Each configuration results in a separate kernel, increasing code size.",
-    "Avoid using compile-time parameters for frequently changing or data-dependent values."
+    "Value must be known at function call for cutlass.Constexpr",
+    "More configurations increase compilation time",
+    "Binary size grows with configurations",
+    "Avoid using Constexpr for frequently changing or data-dependent values"
   ],
-  "compressed_summary": "Compile-time metaprogramming in CuTe DSL enables the generation of specialized GPU kernels based on compile-time parameters, allowing for zero-overhead abstractions and optimized performance. The core concept involves using `cutlass.Constexpr` to mark parameters as compile-time constants, enabling decisions to be made during JIT compilation rather than at runtime. This approach eliminates runtime branching and allows for dead code elimination, resulting in smaller, more efficient kernels. Key patterns include Activation Function Fusion, where kernels are specialized for different activation functions, and Precision Selection, which allows for compile-time selection of compute precision such as fp16 or fp32. Tile Size Specialization optimizes kernels for specific tile sizes, while Feature Toggles enable or disable features at compile time. Architecture-Specific Dispatch generates code optimized for specific GPU architectures. Constraints include the requirement that `cutlass.Constexpr` values must be known at compile time and that more configurations lead to increased compilation time and code size. Best practices involve using compile-time parameters for configuration while keeping runtime parameters for data-dependent decisions. Metaprogramming in CuTe DSL is best suited for performance-critical decisions where the configuration is fixed or known at kernel launch time."
+  "compressed_summary": "Compile-time metaprogramming in CuTe DSL enables the generation of specialized GPU kernels by leveraging compile-time constants through the use of `cutlass.Constexpr`. This approach eliminates runtime overhead by removing branching and dead code, allowing for optimized kernel generation based on fixed configurations such as precision, architecture, and feature toggles. Key patterns include activation function fusion, precision selection, tile size specialization, feature toggles, and architecture-specific dispatch, each providing a method to tailor kernel behavior to specific needs without incurring runtime penalties. The use of compile-time constructs such as `cutlass.range_constexpr()` for loops and `cutlass.const_expr()` for conditionals allows for aggressive compiler optimizations, including loop unrolling and dead code elimination, resulting in smaller, more efficient kernels. However, developers must be cautious of increased compilation times and code size due to the proliferation of kernel variants. Metaprogramming is best suited for scenarios where configurations are known at launch time and performance is critical, while runtime parameters should be reserved for data-dependent decisions. This approach ensures type safety and allows for compile-time validation, catching configuration errors early. Best practices include using `cutlass.Constexpr` judiciously, validating configurations early, and documenting kernel modes. Avoid over-specialization and using compile-time constants for frequently changing values to maintain efficiency and manageability."
 }

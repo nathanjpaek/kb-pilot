@@ -1,10 +1,10 @@
 {
-  "file_path": "/Users/willychan/Desktop/projects/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/05-autotuning.md",
+  "file_path": "/Users/mafervelasquez/Documents/GitHub/kb-pilot/KernelBench/src/cute_reference/background_basics/08-optimization/05-autotuning.md",
   "category": "08-optimization",
   "title": "Autotuning CuTe DSL Kernels",
   "key_concepts": [
     "Parameter spaces",
-    "Search strategies",
+    "Search strategies (grid, random, bayesian)",
     "Performance measurement",
     "Caching tuned parameters",
     "Hardware-specific tuning",
@@ -12,25 +12,25 @@
   ],
   "critical_patterns": [
     "Use grid search for exhaustive exploration of parameter combinations",
-    "Random search is faster and often as effective for large parameter spaces",
-    "Bayesian optimization uses machine learning to guide the search efficiently",
+    "Random search offers faster exploration for large parameter spaces",
+    "Bayesian optimization intelligently selects configurations using machine learning",
     "Genetic algorithms evolve configurations over generations",
-    "Cache results to avoid redundant tuning",
+    "Cache tuned parameters for reuse to avoid redundant computations",
     "Tune parameters specific to problem sizes for optimal performance"
   ],
   "code_snippets": [
     "@cute.autotune(parameters={'TILE_M': [64, 128, 256], 'TILE_N': [64, 128, 256], 'TILE_K': [16, 32, 64], 'NUM_STAGES': [2, 3, 4], 'BLOCK_SIZE': [128, 256, 512]}, metric='time')",
-    "grid_search_autotune(kernel, param_space, test_args)",
-    "random_search_autotune(kernel, param_space, test_args, num_trials=50)",
+    "grid_search_autotune(kernel, param_space, test_args, num_iters=100)",
+    "random_search_autotune(kernel, param_space, test_args, num_trials=50, num_iters=100)",
     "bayesian_autotune(kernel, param_space, test_args, num_trials=30)",
-    "genetic_autotune(kernel, param_space, test_args)",
-    "cache.set(cache_key, result['params'], result['time'])"
+    "genetic_autotune(kernel, param_space, test_args, population_size=20, num_generations=10)",
+    "cache = AutotuneCache(); cache.set(key, params, time)"
   ],
   "constraints": [
-    "Ensure configurations respect hardware limits like thread count",
-    "Tune on the target hardware to ensure results are applicable",
-    "Avoid overtuning by stopping when improvements are marginal",
-    "Validate configurations to avoid invalid parameter combinations"
+    "Ensure parameter combinations do not exceed hardware limits",
+    "Tune on the target hardware for accurate results",
+    "Avoid overtuning with diminishing returns",
+    "Validate configurations to ensure they meet performance and correctness criteria"
   ],
-  "compressed_summary": "Autotuning in CuTe DSL involves automatically finding optimal kernel parameters by exploring different configurations and measuring performance. Key concepts include defining parameter spaces, employing search strategies like grid, random, Bayesian, and genetic algorithms, and measuring performance to identify the best configurations. Autotuning is critical for adapting to specific hardware and problem sizes, and caching results prevents redundant tuning. Practical patterns include starting with a coarse grid search, refining with more targeted searches, and using problem-size-specific tuning. Constraints include respecting hardware limits, tuning on the target hardware, and avoiding overtuning. Autotuning can significantly improve kernel performance, often finding configurations that are 2-5\u00d7 better than manual tuning. Best practices involve caching tuned parameters, validating correctness, and using the appropriate strategy for the problem size and hardware. Tools like Bayesian optimization libraries and frameworks like OpenTuner can aid in this process. Overall, autotuning is a powerful method to optimize GPU kernels efficiently, adapting to different hardware and problem sizes automatically."
+  "compressed_summary": "Autotuning in CuTe DSL involves automatically finding optimal kernel parameters through various search strategies such as grid search, random search, Bayesian optimization, and genetic algorithms. These methods explore parameter spaces to minimize execution time and adapt configurations to specific hardware and problem sizes. Key parameters to tune include tile sizes, pipeline depth, and block size. Autotuning can significantly outperform manual tuning, offering 2-5\u00d7 better configurations. Best practices include starting with a coarse grid search, refining with more targeted searches, caching results for reuse, and validating configurations for correctness. Constraints such as hardware limits and problem size specificity must be considered to ensure effective tuning. Tools like Bayesian optimization libraries and the OpenTuner framework can facilitate this process. The ultimate goal is to achieve optimal performance tailored to the specific hardware and problem characteristics, ensuring efficient execution across various scenarios."
 }
