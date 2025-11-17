@@ -391,6 +391,11 @@ Ensure all code is valid Python/CuTe syntax. Include proper imports, ModelNew cl
             
             candidate = self._attempt_generation_with_variation(pytorch_code, strategy, variation_hints)
             if candidate:
+                # Show raw generated code for debugging
+                print(f"\n    📝 Candidate {i+1} raw code (first 500 chars):")
+                code_preview = candidate[:500] + "..." if len(candidate) > 500 else candidate
+                print(f"    {code_preview}")
+                print(f"    (Total length: {len(candidate)} chars, {len(candidate.split(chr(10)))} lines)")
                 candidates.append(candidate)
             else:
                 print(f"    ✗ Candidate {i+1} generation failed")
@@ -404,18 +409,64 @@ Ensure all code is valid Python/CuTe syntax. Include proper imports, ModelNew cl
         candidates_with_results = []
         with ThreadPoolExecutor(max_workers=min(len(candidates), 4)) as executor:
             future_to_candidate = {
-                executor.submit(self._evaluate_candidate, code, quiet=True): code
-                for code in candidates
+                executor.submit(self._evaluate_candidate, code, quiet=True): (idx, code)
+                for idx, code in enumerate(candidates, 1)
             }
             
-            for idx, future in enumerate(as_completed(future_to_candidate), 1):
-                candidate_code = future_to_candidate[future]
+            for future in as_completed(future_to_candidate):
+                candidate_idx, candidate_code = future_to_candidate[future]
                 try:
                     eval_result = future.result()
+                    
+                    # Show the code being evaluated if it failed to compile
+                    if not eval_result.get("compiled", False):
+                        print(f"\n    🔍 Candidate {candidate_idx} failed to compile.")
+                        
+                        # Show full code
+                        code_lines = candidate_code.split('\n')
+                        print(f"    Full code ({len(code_lines)} lines, {len(candidate_code)} chars):")
+                        print("    " + "="*70)
+                        for i, line in enumerate(code_lines, 1):
+                            print(f"    {i:4d}| {line}")
+                        print("    " + "="*70)
+                        
+                        # Show detailed error information
+                        metadata = eval_result.get("metadata", {})
+                        error_msg = eval_result.get("error", "")
+                        
+                        print(f"\n    📋 Error Details:")
+                        print(f"    " + "-"*70)
+                        
+                        # Check for compilation error first
+                        if "compilation_error" in metadata:
+                            comp_error = metadata["compilation_error"]
+                            print(f"    Compilation Error:")
+                            if isinstance(comp_error, Exception):
+                                print(f"    Type: {type(comp_error).__name__}")
+                                print(f"    Message: {str(comp_error)}")
+                                import traceback
+                                tb_str = ''.join(traceback.format_exception(type(comp_error), comp_error, comp_error.__traceback__))
+                                print(f"    Traceback:\n    {tb_str.replace(chr(10), chr(10) + '    ')}")
+                            else:
+                                print(f"    {comp_error}")
+                        elif "error" in metadata:
+                            print(f"    Error (metadata): {metadata['error']}")
+                        elif error_msg:
+                            print(f"    Error (top-level): {error_msg}")
+                        elif "other_error" in metadata:
+                            print(f"    Other Error: {metadata['other_error']}")
+                        else:
+                            print(f"    No detailed error information available")
+                            print(f"    Full eval_result: {eval_result}")
+                            print(f"    Full eval_result keys: {list(eval_result.keys())}")
+                            print(f"    Full metadata: {metadata}")
+                            print(f"    Full metadata keys: {list(metadata.keys())}")
+                        
+                        print(f"    " + "-"*70)
                     candidates_with_results.append({
                         "code": candidate_code,
                         "evaluation": eval_result,
-                        "candidate_id": idx
+                        "candidate_id": candidate_idx
                     })
                     
                     compiled = eval_result.get("compiled", False)
@@ -429,13 +480,13 @@ Ensure all code is valid Python/CuTe syntax. Include proper imports, ModelNew cl
                         metadata = eval_result.get("metadata", {})
                         if compiled:
                             status = "✓"
-                            print(f"    {status} Candidate {idx}: syntax valid (syntax-only mode)")
+                            print(f"    {status} Candidate {candidate_idx}: syntax valid (syntax-only mode)")
                         else:
                             status = "✗"
                             error_msg = eval_result.get("error", "Unknown syntax error")
                             if len(error_msg) > 100:
                                 error_msg = error_msg[:100] + "..."
-                            print(f"    {status} Candidate {idx}: syntax invalid - {error_msg}")
+                            print(f"    {status} Candidate {candidate_idx}: syntax invalid - {error_msg}")
                     else:
                         status = "✓" if correct else ("⚠" if compiled else "✗")
                         speedup_str = f" speedup={speedup:.2f}×" if speedup else ""
@@ -448,7 +499,11 @@ Ensure all code is valid Python/CuTe syntax. Include proper imports, ModelNew cl
                         if not compiled:
                             # Check multiple possible error fields
                             if "compilation_error" in metadata:
-                                error_msg = str(metadata["compilation_error"])
+                                comp_err = metadata["compilation_error"]
+                                if isinstance(comp_err, Exception):
+                                    error_msg = f"{type(comp_err).__name__}: {str(comp_err)}"
+                                else:
+                                    error_msg = str(comp_err)
                             elif "error" in metadata:
                                 error_msg = str(metadata["error"])
                             elif error_msg:
@@ -457,22 +512,22 @@ Ensure all code is valid Python/CuTe syntax. Include proper imports, ModelNew cl
                                 error_msg = str(metadata["other_error"])
                             
                             if error_msg:
-                                # Show more of the error (first 200 chars)
-                                if len(error_msg) > 200:
-                                    error_info = f" (error: {error_msg[:200]}...)"
+                                # Show more of the error (first 500 chars for summary)
+                                if len(error_msg) > 500:
+                                    error_info = f" (error: {error_msg[:500]}...)"
                                 else:
                                     error_info = f" (error: {error_msg})"
                             else:
-                                error_info = " (no error details available)"
+                                error_info = " (no error details available - check full error above)"
                         elif not correct and "runtime_error" in metadata:
                             error_msg = str(metadata["runtime_error"])
                             if len(error_msg) > 200:
                                 error_msg = error_msg[:200] + "..."
                             error_info = f" (runtime: {error_msg})"
                         
-                        print(f"    {status} Candidate {idx}: compiled={compiled}, correct={correct}{speedup_str}{error_info}")
+                        print(f"    {status} Candidate {candidate_idx}: compiled={compiled}, correct={correct}{speedup_str}{error_info}")
                 except Exception as e:
-                    print(f"    ✗ Candidate {idx} evaluation error: {e}")
+                    print(f"    ✗ Candidate {candidate_idx} evaluation error: {e}")
         
         return candidates_with_results
 
@@ -501,14 +556,24 @@ Ensure all code is valid Python/CuTe syntax. Include proper imports, ModelNew cl
                 extra_ops=self.spec.ops_list,
             )
         except Exception as e:
+            print(f"    ⚠️  Generation exception: {e}")
             return None
 
         clean_code = extract_first_code(generated, ["python"])
         if not clean_code:
+            print(f"    ⚠️  Could not extract Python code from LLM response")
+            print(f"    Raw response preview (first 500 chars): {generated[:500]}...")
             forced = self._force_python_block(generated)
             if forced:
+                print(f"    ✅ Forced extraction succeeded")
                 return forced
+            print(f"    ✗ Forced extraction also failed")
             return None
+        
+        # Log if code seems suspiciously short or empty
+        if len(clean_code.strip()) < 100:
+            print(f"    ⚠️  Warning: Generated code is very short ({len(clean_code)} chars)")
+        
         return clean_code
 
     def _attempt_generation(self, pytorch_code: str, strategy: dict) -> Optional[str]:
@@ -643,7 +708,23 @@ Ensure all code is valid Python/CuTe syntax. Include proper imports, ModelNew cl
                         )
                     except Exception as e:
                         error_str = str(e)
-                        if "billing" in error_str.lower() or "spend limit" in error_str.lower() or "RESOURCE_EXHAUSTED" in error_str:
+                        # Check for Modal function not found errors (deployment/timeout issues)
+                        if "Function" in error_str and "associated with" in error_str and "not found" in error_str:
+                            if not quiet:
+                                print(f"  ⚠️ Modal function lookup error: {error_str}")
+                                print(f"  💡 This might indicate a Modal deployment issue or timeout")
+                                print(f"  💡 The code may have compiled but Modal couldn't find the evaluation function")
+                            return {
+                                "correctness": False,
+                                "compiled": False,  # Can't determine if compiled
+                                "error": f"Modal function lookup failed: {error_str}",
+                                "metadata": {
+                                    "modal_error": True,
+                                    "modal_error_type": "function_not_found",
+                                    "error": error_str
+                                }
+                            }
+                        elif "billing" in error_str.lower() or "spend limit" in error_str.lower() or "RESOURCE_EXHAUSTED" in error_str:
                             if not quiet:
                                 print(f"  ⚠️ Modal billing limit reached.")
                                 print(f"  💡 Tip: Use --syntax_only to check code without evaluation")
