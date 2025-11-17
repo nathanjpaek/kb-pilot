@@ -34,9 +34,10 @@ import numpy as np
 
 
 DOC_CACHE: Dict[str, List[Dict]] = {}
+SELECTOR_CACHE: Dict[Tuple[str, str, str], "SmartRAGSelector"] = {}
 
 TORCH_OPS = [
-    "relu", "softmax", "matmul", "conv2d", "conv3d", "linear", "sigmoid",
+    "relu", "hardtanh", "softmax", "matmul", "conv2d", "conv3d", "linear", "sigmoid",
     "tanh", "gelu", "dropout", "batch_norm", "layer_norm", "max_pool",
     "avg_pool", "transpose", "permute", "reshape", "view", "add", "mul",
     "div", "sub", "sqrt", "pow", "exp", "log", "mean", "sum", "max", "min",
@@ -106,14 +107,19 @@ class SmartRAGSelector:
     def __init__(self, correct_dsl_dir: str, kernelbench_dir: str):
         self.correct_dsl_dir = correct_dsl_dir
         self.kernelbench_dir = kernelbench_dir
+        self.example_cache: Dict[Tuple[int, int], List[Dict]] = {}
+        self.selection_cache: Dict[Tuple, List[Dict]] = {}
         self.example_cache = {}
         self.metadata_cache = {}
     
-    def select_examples(self,
-                       problem_code: str,
-                       k: int = 5,
-                       current_level: int = None,
-                       current_problem_id: int = None) -> List[Dict]:
+    def select_examples(
+        self,
+        problem_code: str,
+        k: int = 5,
+        current_level: int = None,
+        current_problem_id: int = None,
+        fast_mode: Optional[bool] = None,  # Deprecated, kept for compatibility
+    ) -> List[Dict]:
         """
         Select k best examples using multi-factor scoring.
         
@@ -127,24 +133,48 @@ class SmartRAGSelector:
             }
         """
         
-        # Extract features from target problem
+        # fast_mode is deprecated - caching makes this fast by default
+        effective_k = k
+
         target_features = self._extract_features(problem_code)
-        
-        # Get all candidate examples
+        cache_key = (
+            tuple(sorted(target_features["operations"])),
+            target_features["complexity"],
+            target_features["has_activation"],
+            target_features["has_gemm"],
+            current_level,
+            current_problem_id,
+            effective_k,
+        )
+
+        if cache_key in self.selection_cache:
+            return self.selection_cache[cache_key]
+
         candidates = self._load_all_examples(current_level, current_problem_id)
-        
-        # Score each candidate
+        candidates = self._prune_candidates(candidates)
+
         scored = []
         for candidate in candidates:
             score = self._compute_score(target_features, candidate)
             candidate["score"] = score
             scored.append(candidate)
         
-        # Sort by score (descending)
         scored.sort(key=lambda x: x["score"], reverse=True)
         
-        # Return top k
-        return scored[:k]
+        unique_candidates = []
+        seen_signatures = set()
+        for candidate in scored:
+            sig = (candidate.get("problem_name"), tuple(sorted(candidate.get("operations") or [])))
+            if sig in seen_signatures:
+                continue
+            seen_signatures.add(sig)
+            unique_candidates.append(candidate)
+            if len(unique_candidates) >= max(k, effective_k):
+                break
+
+        selected = unique_candidates[:effective_k]
+        self.selection_cache[cache_key] = selected
+        return selected
     
     def _extract_features(self, code: str) -> Dict:
         """Extract features from problem code for similarity matching"""
@@ -209,48 +239,56 @@ class SmartRAGSelector:
     def _load_all_examples(self, exclude_level: int = None, exclude_id: int = None) -> List[Dict]:
         """Load all available examples with metadata"""
         
-        examples = []
-        
-        # Scan all levels in correct_dsl_dir
+        base_key = (-1, -1)
+        if base_key not in self.example_cache:
+            self.example_cache[base_key] = self._scan_examples()
+
+        if exclude_level is None or exclude_id is None:
+            return list(self.example_cache[base_key])
+
+        filtered_key = (exclude_level, exclude_id)
+        if filtered_key not in self.example_cache:
+            filtered = [
+                ex
+                for ex in self.example_cache[base_key]
+                if not (ex["level"] == exclude_level and self._get_problem_id(ex["problem_name"]) == exclude_id)
+            ]
+            self.example_cache[filtered_key] = filtered
+        return list(self.example_cache[filtered_key])
+
+    def _scan_examples(self) -> List[Dict]:
+        examples: List[Dict] = []
         for level_dir in os.listdir(self.correct_dsl_dir):
             if not level_dir.startswith("level"):
                 continue
-            
+
             level_num = int(level_dir.replace("level", ""))
             level_path = os.path.join(self.correct_dsl_dir, level_dir)
-            
             if not os.path.isdir(level_path):
                 continue
-            
-            # Load all .py files in this level
+
             for filename in os.listdir(level_path):
                 if not filename.endswith(".py"):
                     continue
-                
-                # Skip if this is the current problem
-                if exclude_level == level_num:
-                    problem_id = int(filename.split("_")[0])
-                    if problem_id == exclude_id:
-                        continue
-                
-                # Load file
+
                 filepath = os.path.join(level_path, filename)
-                with open(filepath, "r") as f:
-                    content = f.read()
-                
-                # Extract metadata from docstring if available
+                try:
+                    with open(filepath, "r") as f:
+                        content = f.read()
+                except Exception:
+                    continue
+
                 metadata = self._extract_metadata(content)
-                
-                # Get reference problem code
                 problem_name = filename.replace(".py", "")
                 ref_code = self._get_reference_code(level_num, problem_name)
-                
-                if ref_code:
-                    features = self._extract_features(ref_code)
-                    
-                    examples.append({
+                if not ref_code:
+                    continue
+
+                features = self._extract_features(ref_code)
+                examples.append(
+                    {
                         "code": content,
-                        "solution_code": content,  # raw solution; caller can clean
+                        "solution_code": content,
                         "reference_code": ref_code,
                         "problem_name": problem_name,
                         "level": level_num,
@@ -259,9 +297,22 @@ class SmartRAGSelector:
                         "speedup": metadata.get("speedup", 0.0),
                         "compiled": metadata.get("compiled", True),
                         "correct": metadata.get("correct", True),
-                    })
-        
+                    }
+                )
         return examples
+
+    def _prune_candidates(self, candidates: List[Dict]) -> List[Dict]:
+        pruned: List[Dict] = []
+        for candidate in candidates:
+            if not candidate.get("compiled", True):
+                continue
+            if not candidate.get("correct", True):
+                continue
+            speed = candidate.get("speedup")
+            if speed is not None and speed < 0.1:
+                continue
+            pruned.append(candidate)
+        return pruned
     
     def _extract_metadata(self, code: str) -> Dict:
         """Extract metadata from kernel docstring"""
@@ -284,19 +335,33 @@ class SmartRAGSelector:
     def _get_reference_code(self, level: int, problem_name: str) -> str:
         """Get reference PyTorch code for this problem"""
         
-        # Build path to reference
+        # Build direct path to reference (faster than glob)
         problem_id = int(problem_name.split("_")[0])
-        ref_path = os.path.join(self.kernelbench_dir, f"level{level}", f"{problem_id}_*.py")
+        level_dir = os.path.join(self.kernelbench_dir, f"level{level}")
         
-        # Find matching file
+        # Try direct lookup first (most common case)
+        # Files are typically named like "53_Gemm_Scaling_Hardtanh_GELU.py"
+        # So we look for "{problem_id}_*.py"
         import glob
-        matches = glob.glob(ref_path)
+        pattern = os.path.join(level_dir, f"{problem_id}_*.py")
+        matches = glob.glob(pattern)
         
         if matches:
-            with open(matches[0], "r") as f:
-                return f.read()
+            # Use the first match (should be unique)
+            try:
+                with open(matches[0], "r") as f:
+                    return f.read()
+            except Exception:
+                pass
         
         return ""
+
+    @staticmethod
+    def _get_problem_id(problem_name: str) -> int:
+        try:
+            return int(problem_name.split("_")[0])
+        except (ValueError, IndexError):
+            return -1
     
     def _compute_score(self, target_features: Dict, candidate: Dict) -> float:
         """
@@ -347,47 +412,44 @@ class SmartRAGSelector:
 
 
 # Convenience function
-def select_smart_examples(problem_code: str,
-                         language: str,
-                         k: int = 5,
-                         current_level: int = None,
-                         current_problem_id: int = None) -> List[Dict]:
+def select_smart_examples(
+    problem_code: str,
+    language: str,
+    k: int = 5,
+    current_level: int = None,
+    current_problem_id: int = None,
+    fast_mode: Optional[bool] = None,  # Deprecated, kept for compatibility
+) -> List[Dict]:
     """
     Select k best RAG examples using smart scoring.
-    
-    Args:
-        problem_code: Reference PyTorch code
-        language: DSL language (cute, tilelang, etc)
-        k: Number of examples to retrieve
-        current_level: Current problem level (for exclusion)
-        current_problem_id: Current problem ID (for exclusion)
-        
-    Returns:
-        List of top k examples with scores
+    Caching makes this fast by default - no need for fast_mode.
     """
-    
-    REPO_TOP_PATH = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..")
-    )
-    
+
+    REPO_TOP_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     correct_dsl_dir = os.path.join(REPO_TOP_PATH, f"src/prompts/correct_{language}")
     kernelbench_dir = os.path.join(REPO_TOP_PATH, "KernelBench")
-    
-    selector = SmartRAGSelector(correct_dsl_dir, kernelbench_dir)
-    
+
+    cache_key = (language, correct_dsl_dir, kernelbench_dir)
+    selector = SELECTOR_CACHE.get(cache_key)
+    if selector is None:
+        selector = SmartRAGSelector(correct_dsl_dir, kernelbench_dir)
+        SELECTOR_CACHE[cache_key] = selector
+
     return selector.select_examples(
         problem_code=problem_code,
         k=k,
         current_level=current_level,
         current_problem_id=current_problem_id,
+        fast_mode=fast_mode,  # Ignored, kept for compatibility
     )
 
 
 def select_doc_chunks(problem_code: str,
                       language: str,
-                      max_chunks: int = 3,
+                      max_chunks: int = 2,  # Reduced from 3 for faster generation
                       current_level: int = None,
-                      current_problem_id: int = None) -> List[Dict]:
+                      current_problem_id: int = None,
+                      extra_ops: Optional[List[str]] = None) -> List[Dict]:
     """Select relevant documentation summaries for the given problem."""
     docs = _load_doc_cache(language)
     if not docs:
@@ -395,11 +457,19 @@ def select_doc_chunks(problem_code: str,
 
     features = extract_problem_features(problem_code)
     operations = features["operations"]
+    extra_ops = extra_ops or []
+    extra_ops_normalized = []
+    for op in extra_ops:
+        op_low = op.lower()
+        extra_ops_normalized.append(op_low)
+        extra_ops_normalized.append(op_low.replace("_", " "))
     code_lower = features["code_lower"]
 
     scored_docs: List[Dict] = []
 
     for doc in docs:
+        if not isinstance(doc, dict):
+            continue
         text_parts = [
             doc.get("title", ""),
             " ".join(doc.get("key_concepts", [])),
@@ -413,6 +483,10 @@ def select_doc_chunks(problem_code: str,
         for op in operations:
             if op and op in text:
                 score += 4
+
+        for op in extra_ops_normalized:
+            if op and op in text:
+                score += 6
 
         if features["has_activation"] and any(keyword in text for keyword in ["activation", "relu", "gelu", "sigmoid", "tanh"]):
             score += 2

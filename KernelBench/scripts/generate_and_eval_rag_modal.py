@@ -78,14 +78,38 @@ def configure_dspy(model_name: str, temperature: float = 0.0):
     """Configure DSPy with the specified model"""
     print(f"🤖 Configuring DSPy with model: {model_name}")
     
+    # Set max_tokens based on model capabilities
+    model_lower = model_name.lower()
+    
+    # Check if this is a reasoning model (o3, o1, etc.)
+    is_reasoning_model = 'o3' in model_lower or 'o1' in model_lower
+    
+    # Reasoning models REQUIRE temperature=1.0 and max_tokens >= 20000
+    if is_reasoning_model:
+        effective_temperature = 1.0
+        max_tokens = 20000
+        print(f"⚠️ Reasoning model detected - forcing temperature=1.0 and max_tokens=20000")
+    # GPT-4o and GPT-4o-mini support up to 16384 completion tokens
+    elif 'gpt-4o' in model_lower or 'gpt-4-turbo' in model_lower:
+        effective_temperature = temperature
+        max_tokens = 16384
+    # GPT-5 might support more
+    elif 'gpt-5' in model_lower:
+        effective_temperature = temperature
+        max_tokens = 20000
+    # Default for other models (GPT-4, GPT-3.5, etc.)
+    else:
+        effective_temperature = temperature
+        max_tokens = 8192
+    
     # Configure the language model
     if (model_name.lower() in ['gpt-5']):
-        lm = dspy.LM(model_name, temperature=temperature, max_completion_tokens=20000)
+        lm = dspy.LM(model_name, temperature=effective_temperature, max_completion_tokens=max_tokens)
     else:  
-        lm = dspy.LM(model_name, temperature=temperature, max_tokens=20000)
+        lm = dspy.LM(model_name, temperature=effective_temperature, max_tokens=max_tokens)
     dspy.configure(lm=lm)
     
-    print(f"✅ DSPy configured successfully with {model_name}")
+    print(f"✅ DSPy configured successfully with {model_name} (temperature={effective_temperature}, max_tokens={max_tokens})")
     return lm
 
 class RAGEvalConfig(Config):

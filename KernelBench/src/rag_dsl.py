@@ -31,7 +31,8 @@ class KernelRAG(dspy.Module):
     
     def __init__(self, correct_dsl_dir: str, kernelbench_dir: str, language: str = "tilelang",
                  k: int = 5, exclude_current_problem: bool = True, 
-                 current_level: int = None, current_problem_id: int = None):
+                 current_level: int = None, current_problem_id: int = None,
+                 extra_ops: Optional[List[str]] = None):
         super().__init__()
         
         # Store language and exclusion parameters
@@ -39,14 +40,19 @@ class KernelRAG(dspy.Module):
         self.exclude_current_problem = exclude_current_problem
         self.current_level = current_level
         self.current_problem_id = current_problem_id
+        self.k = k
+        self.extra_ops = [op.lower() for op in extra_ops] if extra_ops else []
         
         # Load and prepare examples
         self.examples = self._load_examples(correct_dsl_dir, kernelbench_dir)
         
-        # If we have at least one example, set up embeddings-based retrieval.
-        # Otherwise, skip retriever setup and fall back to generation without RAG context.
+        # Embeddings retriever is expensive (15-30s for 50+ examples).
+        # Disabled by default since smart selector provides better examples.
+        # Only enable if explicitly requested via RAG_USE_EMBEDDINGS=1
         self.retriever = None
-        if len(self.examples) > 0:
+        self.use_embeddings = os.getenv("RAG_USE_EMBEDDINGS", "0").lower() in ("1", "true", "yes", "on")
+        
+        if self.use_embeddings and len(self.examples) > 0:
             # Use best embedding model
             embedder = dspy.Embedder('openai/text-embedding-3-large', dimensions=3072)
 
@@ -63,7 +69,7 @@ class KernelRAG(dspy.Module):
                 corpus=corpus,
                 k=k
             )
-        else:
+        elif len(self.examples) == 0:
             print(f"Loaded 0 {self.language.upper()} examples for RAG; proceeding without retrieval context.")
         
         # DSL generation module with optimized signature
@@ -183,12 +189,59 @@ class KernelRAG(dspy.Module):
         # Create query from original code
         operations = self._extract_operations(original_code)
         query = f"Operations: {', '.join(operations)}\nCode: {original_code}"
-        
-        # Retrieve relevant examples when retriever is available
+
+        context_sections: List[str] = []
+
+        combined_ops = list({op.lower() for op in operations})
+        if self.extra_ops:
+            combined_ops.extend(self.extra_ops)
+
+        # Smart example selection (always enabled, uses caching for speed)
+        try:
+            smart_examples = select_smart_examples(
+                problem_code=original_code,
+                language=self.language,
+                k=self.k,
+                current_level=self.current_level,
+                current_problem_id=self.current_problem_id,
+                fast_mode=False,  # Use full scoring, but caching makes it fast
+            )
+        except Exception as exc:
+            print(f"⚠️ Smart example selection failed: {exc}")
+            smart_examples = []
+
+        if smart_examples:
+            context_sections.append(self._format_smart_example_context(smart_examples))
+
+        # Documentation chunks (enabled by default, can be disabled via RAG_SKIP_DOCS=1)
+        skip_docs = os.getenv("RAG_SKIP_DOCS", "0").lower() in ("1", "true", "yes", "on")
+        doc_chunks = []
+        if not skip_docs:
+            try:
+                doc_chunks = select_doc_chunks(
+                    problem_code=original_code,
+                    language=self.language,
+                    current_level=self.current_level,
+                    current_problem_id=self.current_problem_id,
+                    extra_ops=combined_ops,
+                )
+            except Exception as exc:
+                print(f"⚠️ Doc chunk selection failed: {exc}")
+                doc_chunks = []
+
+        if doc_chunks:
+            context_sections.append(self._format_doc_context(doc_chunks))
+
         if self.retriever is not None:
             retrieved = self.retriever(query).passages
-            context = self._format_context(retrieved)
+            embed_context = self._format_context(retrieved)
+            if embed_context.strip():
+                context_sections.append(embed_context)
+
+        if context_sections:
+            context = "\n\n".join(section for section in context_sections if section.strip())
         else:
+            print(f"No RAG context found for {self.language.upper()} – generating without retrieval support.")
             context = ""
         
         # Generate optimized DSL code
@@ -234,25 +287,56 @@ Optimized {self.language.upper()} Code:
         
         return "\n".join(context_parts)
 
-    def _format_example_context(self, examples: List[DSLExample]) -> str:
-        """Format smart-selected examples into retrieval context"""
-        context_parts = []
-        print(f"\n📋 Retrieved {len(examples)} RAG examples for Level {self.current_level} Problem {self.current_problem_id}:")
-        for i, example in enumerate(examples, 1):
-            context_parts.append(f"""
-Example {i} - {example.problem_name}:
+    def _format_smart_example_context(self, examples: List[Dict], max_lines: int = 150) -> str:
+        """
+        Format smart examples as context, truncating long code to reduce prompt size.
+        
+        Args:
+            examples: List of example dicts with reference_code and code
+            max_lines: Maximum lines to include per code block (default 150)
+        """
+        lines = []
+        print(f"\n📋 Smart selector returned {len(examples)} examples for Level {self.current_level} Problem {self.current_problem_id}:")
+        for idx, example in enumerate(examples, 1):
+            problem_name = example.get("problem_name", "unknown")
+            score = example.get("score", 0.0)
+            speedup = example.get("speedup")
+            ops = example.get("operations") or []
+            reference_code = example.get("reference_code", "")
+            solution_code = example.get("code", "")
+            
+            # Truncate long code examples to reduce prompt size
+            ref_lines = reference_code.split('\n')
+            sol_lines = solution_code.split('\n')
+            
+            ref_truncated = len(ref_lines) > max_lines
+            sol_truncated = len(sol_lines) > max_lines
+            
+            ref_code_final = '\n'.join(ref_lines[:max_lines])
+            sol_code_final = '\n'.join(sol_lines[:max_lines])
+            
+            if ref_truncated:
+                ref_code_final += f"\n# ... (truncated, showing first {max_lines} of {len(ref_lines)} lines)"
+            if sol_truncated:
+                sol_code_final += f"\n# ... (truncated, showing first {max_lines} of {len(sol_lines)} lines)"
+            
+            print(f"  {idx}. {problem_name} | score={score:.1f} | ops={','.join(ops) or 'none'} | speedup={speedup}")
+            lines.append(
+                f"""
+Smart Example {idx} - {problem_name} (score {score:.1f}):
 
 Original PyTorch Code:
 ```python
-{example.original_code}
+{ref_code_final}
 ```
 
 Optimized {self.language.upper()} Code:
 ```python
-{example.dsl_solution}
+{sol_code_final}
 ```
-""")
-        return "\n".join(context_parts)
+"""
+            )
+        return "\n".join(lines)
 
     def _format_doc_context(self, doc_chunks: List[Dict]) -> str:
         """Format documentation summaries as context"""
@@ -274,9 +358,10 @@ Optimized {self.language.upper()} Code:
 
 def create_kernel_rag(correct_dsl_dir: str, kernelbench_dir: str, language: str = "tilelang",
                       k: int = 5, exclude_current_problem: bool = True, 
-                      current_level: int = None, current_problem_id: int = None) -> KernelRAG:
+                      current_level: int = None, current_problem_id: int = None,
+                      extra_ops: Optional[List[str]] = None) -> KernelRAG:
     """Create high-performance kernel DSL RAG system"""
-    return KernelRAG(correct_dsl_dir, kernelbench_dir, language, k, exclude_current_problem, current_level, current_problem_id)
+    return KernelRAG(correct_dsl_dir, kernelbench_dir, language, k, exclude_current_problem, current_level, current_problem_id, extra_ops=extra_ops)
 
 
 def generate_dsl_with_rag(original_code: str, 
@@ -288,7 +373,8 @@ def generate_dsl_with_rag(original_code: str,
                           k: int = 5,
                           exclude_current_problem: bool = True,
                           current_level: int = None,
-                          current_problem_id: int = None) -> str:
+                          current_problem_id: int = None,
+                          extra_ops: Optional[List[str]] = None) -> str:
     """
     Generate DSL code using RAG - simplified interface
     
@@ -299,7 +385,7 @@ def generate_dsl_with_rag(original_code: str,
     """
     
     # Create RAG system
-    rag = create_kernel_rag(correct_dsl_dir, kernelbench_dir, language, k, exclude_current_problem, current_level, current_problem_id)
+    rag = create_kernel_rag(correct_dsl_dir, kernelbench_dir, language, k, exclude_current_problem, current_level, current_problem_id, extra_ops=extra_ops)
     
     # Prepare comprehensive guidelines with speed focus
     lang_upper = language.upper()

@@ -6,6 +6,8 @@ Supports multiple DSLs: TileLang, ThunderKittens, CUDA, etc.
 """
 
 import os
+from typing import List, Optional
+
 from .rag_dsl import generate_dsl_with_rag
 
 
@@ -25,7 +27,8 @@ def prompt_generate_custom_dsl_rag_enhanced(
     problem_description: str = "",
     k: int = 5,
     current_level: int = None,
-    current_problem_id: int = None
+    current_problem_id: int = None,
+    extra_ops: Optional[List[str]] = None,
 ) -> str:
     """
     Generate kernel DSL code using RAG with enhanced prompting.
@@ -60,13 +63,41 @@ def prompt_generate_custom_dsl_rag_enhanced(
             k=k,
             exclude_current_problem=True,
             current_level=current_level,
-            current_problem_id=current_problem_id
+            current_problem_id=current_problem_id,
+            extra_ops=extra_ops,
         )
         
         # For TileLang and CuTe, wrap in a single python fence to aid simple extractors.
         # For ThunderKittens/CUDA, return raw so multiple fenced blocks (cpp + python) remain detectable.
         if language in ["tilelang", "cute"]:
-            return f"```python\n{result}\n```"
+            # Check if result already has a code fence - if so, clean it up and return
+            result_stripped = result.strip()
+            
+            # Remove any existing fences (handle double fences, etc.)
+            while result_stripped.startswith("```python"):
+                # Find the closing fence
+                lines = result_stripped.split('\n')
+                if len(lines) > 1:
+                    # Remove first line (```python)
+                    result_stripped = '\n'.join(lines[1:])
+                    # Remove closing fence if present
+                    if result_stripped.endswith("```"):
+                        result_stripped = result_stripped[:-3].rstrip()
+                else:
+                    break
+            
+            # Also handle generic ``` fences
+            while result_stripped.startswith("```"):
+                lines = result_stripped.split('\n')
+                if len(lines) > 1:
+                    result_stripped = '\n'.join(lines[1:])
+                    if result_stripped.endswith("```"):
+                        result_stripped = result_stripped[:-3].rstrip()
+                else:
+                    break
+            
+            # Now wrap with a single clean fence
+            return f"```python\n{result_stripped}\n```"
         return result
         
     except Exception as e:
