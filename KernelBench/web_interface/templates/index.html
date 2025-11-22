@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kernel Generation Agent - Interactive Demo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💡 CuTe Kernel Generation Agent</h1>
+            <p class="subtitle">Generate optimized CuTe DSL GPU kernels with real-time reasoning</p>
+            <div class="header-actions">
+                <button id="info-toggle-btn" class="btn-info">ℹ️ Learn More</button>
+            </div>
+        </header>
+
+        <!-- Info Section (collapsible) -->
+        <section class="info-section" id="info-section" style="display: none;">
+            <div class="info-tabs">
+                <button class="info-tab active" data-tab="about">What is a Kernel?</button>
+                <button class="info-tab" data-tab="why">Why Optimize?</button>
+                <button class="info-tab" data-tab="how">How It Works</button>
+                <button class="info-tab" data-tab="example">Example Walkthrough</button>
+            </div>
+
+            <div class="info-content">
+                <div class="info-tab-content active" id="tab-about">
+                    <h3>So... what is a GPU Kernel?</h3>
+                    <p>A GPU kernel is a small program that runs on thousands of parallel threads on a Graphics Processing Unit (GPU). Unlike CPU code that executes sequentially, kernels are designed to execute the same instructions across many data points simultaneously.</p>
+                    <p>Think of it like this: if a CPU is one chef carefully making a dish step-by-step, a GPU kernel is the same recipe given to thousands of chefs who all start cooking their own portion at once. That's why GPUs are so good at things like matrix multiplications and training neural networks. You're essentially doing the same operation on tons of data, all in parallel.</p>
+                    
+                    <h4>🗝 Key Characteristics:</h4>
+                    <ul>
+                        <li><strong>Parallel Execution:</strong> Kernels can process thousands of threads at once, which is perfect for data-parallel work like matrix operations or running forward passes through neural networks.</li>
+                        <li><strong>Memory Hierarchy:</strong> How you manage GPU memory (global, shared, registers) makes or breaks performance. A poorly optimized kernel can be 10x slower just from bad memory access patterns.</li>
+                        <li><strong>Hardware-Specific:</strong> The best kernels are tuned for specific GPU architectures – things like CUDA core count, Tensor Core availability, and memory bandwidth all matter.</li>
+                    </ul>
+
+                    <h4>📖 Common Use Cases:</h4>
+                    <p>You'll see GPU kernels everywhere in deep learning and scientific computing:</p>
+                    <ul>
+                        <li>Matrix multiplication (GEMM) and other linear algebra ops</li>
+                        <li>Convolutions for CNNs</li>
+                        <li>Element-wise operations like ReLU, Sigmoid, or even just adding two tensors</li>
+                        <li>Reductions (sum, max, mean across dimensions)</li>
+                        <li>Fused operations – combining multiple ops into one kernel to avoid memory round-trips</li>
+                    </ul>
+                </div>
+
+                <div class="info-tab-content" id="tab-why">
+                    <h3>Why Optimize GPU Kernels?</h3>
+                    <p>Optimizing GPU kernels can provide significant performance improvements over generic implementations, often achieving 10-100× speedups.</p>
+                    
+                    <h4>Performance Benefits:</h4>
+                    <ul>
+                        <li><strong>Speed:</strong> Custom kernels can be 10-100× faster than generic PyTorch operations by eliminating overhead and optimizing memory access patterns.</li>
+                        <li><strong>Efficiency:</strong> Better memory utilization reduces power consumption and increases throughput.</li>
+                        <li><strong>Cost Savings:</strong> Faster kernels mean less GPU time needed, reducing cloud computing costs.</li>
+                        <li><strong>Real-Time Applications:</strong> Essential for applications requiring low latency (real-time inference, gaming, robotics).</li>
+                    </ul>
+
+                    <h4>Optimization Techniques:</h4>
+                    <ul>
+                        <li><strong>Tiling:</strong> Breaking work into tiles that fit in fast GPU memory (shared memory, registers)</li>
+                        <li><strong>Memory Coalescing:</strong> Organizing memory access patterns to maximize bandwidth</li>
+                        <li><strong>Fusion:</strong> Combining multiple operations into a single kernel to reduce memory traffic</li>
+                        <li><strong>Thread Organization:</strong> Optimal thread block sizes and grid configurations for hardware utilization</li>
+                        <li><strong>Special Hardware:</strong> Utilizing Tensor Cores, Tensor Memory Accelerator (TMA), and other GPU-specific features</li>
+                    </ul>
+                </div>
+
+                <div class="info-tab-content" id="tab-how">
+                    <h3>How Does This Tool Work?</h3>
+                    <p>This tool uses Retrieval-Augmented Generation (RAG) combined with test-time scaling to automatically generate optimized GPU kernels from PyTorch reference code.</p>
+                    
+                    <h4>The Process:</h4>
+                    <ol>
+                        <li><strong>Input:</strong> You provide PyTorch reference code and describe what the kernel should do.</li>
+                        <li><strong>RAG Retrieval:</strong> The system retrieves similar, previously solved kernel examples from a knowledge base.</li>
+                        <li><strong>Code Generation:</strong> A large language model generates optimized DSL (CuTe/TileLang) code using retrieved examples and documentation.</li>
+                        <li><strong>Test-Time Scaling:</strong> Multiple candidate kernels are generated with different optimization strategies (tile sizes, thread configurations).</li>
+                        <li><strong>Evaluation:</strong> Each candidate is compiled and evaluated for correctness and performance on real GPU hardware.</li>
+                        <li><strong>Selection:</strong> The best performing, correct kernel is selected and displayed.</li>
+                    </ol>
+
+                    <h4>Key Features:</h4>
+                    <ul>
+                        <li><strong>Real-Time Reasoning:</strong> Watch the agent's "train of thought" as it generates kernels</li>
+                        <li><strong>Multiple Candidates:</strong> Test-time scaling generates and evaluates multiple optimized variants</li>
+                        <li><strong>Automatic Evaluation:</strong> Compiles and tests kernels on real GPU hardware (via Modal)</li>
+                        <li><strong>Interactive Chat:</strong> Ask follow-up questions about the generated kernel</li>
+                    </ul>
+                </div>
+
+                <div class="info-tab-content" id="tab-example">
+                    <h3>Example Walkthrough</h3>
+                    <p>Here's a step-by-step example of generating an optimized kernel:</p>
+                    
+                    <h4>Example: Matrix Multiplication with ReLU</h4>
+                    
+                    <div class="example-step">
+                        <h5>Step 1: Describe the Purpose</h5>
+                        <pre class="example-code">This kernel performs matrix multiplication (A @ B) followed by ReLU activation. 
+It's used in a transformer attention layer and needs to handle large batch sizes 
+with dimensions (batch, seq_len, hidden_dim).</pre>
+                    </div>
+
+                    <div class="example-step">
+                        <h5>Step 2: Provide PyTorch Reference</h5>
+                        <pre class="example-code"><code>import torch
+import torch.nn as nn
+
+class MatMulReLU(nn.Module):
+    def __init__(self, in_features, out_features):
+        super().__init__()
+        self.linear = nn.Linear(in_features, out_features)
+    
+    def forward(self, x):
+        return torch.relu(self.linear(x))</code></pre>
+                    </div>
+
+                    <div class="example-step">
+                        <h5>Step 3: Generate Kernel</h5>
+                        <p>The agent will:</p>
+                        <ul>
+                            <li>Retrieve similar matrix multiplication kernels from the knowledge base</li>
+                            <li>Generate optimized CuTe DSL code with tiling and fusion</li>
+                            <li>Test multiple candidates with different tile sizes</li>
+                            <li>Select the best performing correct kernel</li>
+                        </ul>
+                    </div>
+
+                    <div class="example-step">
+                        <h5>Step 4: Review Results</h5>
+                        <p>You'll see:</p>
+                        <ul>
+                            <li>✅ <strong>Compilation status</strong>: Whether the kernel compiles successfully</li>
+                            <li>✅ <strong>Correctness</strong>: Whether outputs match the PyTorch reference</li>
+                            <li>⚡ <strong>Speedup</strong>: Performance improvement (e.g., "2.5× faster than PyTorch")</li>
+                            <li>📝 <strong>Generated code</strong>: The optimized CuTe DSL kernel you can use</li>
+                        </ul>
+                    </div>
+
+                    <div class="example-step">
+                        <h5>Step 5: Ask Questions</h5>
+                        <p>Use the chat to ask:</p>
+                        <ul>
+                            <li>"What's the speedup compared to PyTorch?"</li>
+                            <li>"How does this kernel optimize memory access?"</li>
+                            <li>"Explain the tiling strategy used here"</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="main-content">
+            <!-- Input Section -->
+            <section class="input-section">
+                <h2>Generate Kernel</h2>
+                <form id="generation-form">
+                    <!-- General Purpose Section -->
+                    <div class="form-group purpose-group">
+                        <label for="purpose">General Purpose / What does this kernel do?</label>
+                        <textarea id="purpose" name="purpose" rows="4" 
+                                  placeholder="Describe the general purpose of this kernel. What operation does it perform? What is the use case?&#10;&#10;Example: &quot;This kernel performs matrix multiplication followed by ReLU activation, optimized for large batch sizes and sparse matrices. Used in the forward pass of a transformer attention layer.&quot;"></textarea>
+                    </div>
+
+                    <!-- PyTorch Reference Section -->
+                    <div class="form-group">
+                        <label for="pytorch_code">PyTorch Reference Code:</label>
+                        <textarea id="pytorch_code" name="pytorch_code" rows="12" 
+                                  placeholder="Paste your PyTorch reference implementation here...&#10;&#10;Example:&#10;import torch&#10;import torch.nn as nn&#10;&#10;class MyModel(nn.Module):&#10;    def __init__(self):&#10;        super().__init__()&#10;        self.linear = nn.Linear(1024, 512)&#10;    &#10;    def forward(self, x):&#10;        return torch.relu(self.linear(x))"></textarea>
+                        <div class="form-hint">You can paste one or multiple PyTorch reference implementations</div>
+                    </div>
+
+                    <!-- Configuration Options -->
+                    <div class="form-section-divider">
+                        <h3>Configuration</h3>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="language">Target DSL:</label>
+                        <select id="language" name="language">
+                            <option value="cute" selected>CuTe</option>
+                            <option value="tilelang">TileLang</option>
+                            <option value="tk">ThunderKittens</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="gpu">GPU Architecture:</label>
+                            <select id="gpu" name="gpu">
+                                <option value="H100" selected>H100</option>
+                                <option value="L40S">L40S</option>
+                                <option value="A100">A100</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="rag_k">RAG Examples (k):</label>
+                            <input type="number" id="rag_k" name="rag_k" value="5" min="1" max="10">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="test_time_scaling" checked>
+                                Enable Test-Time Scaling
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="measure_performance" checked>
+                                Measure Performance
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="generate-btn" class="btn-primary">
+                        <span id="generate-btn-text">Generate Kernel</span>
+                        <span id="generate-btn-loading" class="loading-spinner" style="display: none;">⏳</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- Output Section -->
+            <section class="output-section">
+                <h2>Agent's Reasoning <span id="status-badge" class="status-badge"></span></h2>
+                <div id="reasoning-output" class="reasoning-output">
+                    <p class="placeholder">The agent's reasoning will appear here in real-time...</p>
+                </div>
+            </section>
+
+            <!-- Generated Kernel Section -->
+            <section class="kernel-section" id="kernel-section" style="display: none;">
+                <h2>Generated Kernel</h2>
+                <div class="kernel-header">
+                    <button id="copy-kernel-btn" class="btn-secondary">📋 Copy</button>
+                    <button id="download-kernel-btn" class="btn-secondary">💾 Download</button>
+                </div>
+                <pre id="kernel-code" class="kernel-code"></pre>
+                
+                <div id="evaluation-results" class="evaluation-results"></div>
+            </section>
+
+            <!-- Chat Section -->
+            <section class="chat-section" id="chat-section" style="display: none;">
+                <h2>💬 Ask Questions About the Kernel</h2>
+                <div id="chat-messages" class="chat-messages">
+                    <!-- Chat messages will appear here -->
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" id="chat-input" placeholder="Ask a question about the generated kernel..." 
+                           class="chat-input">
+                    <button id="chat-send-btn" class="btn-primary">Send</button>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+        // Info section toggle and tabs
+        document.addEventListener('DOMContentLoaded', () => {
+            const infoToggleBtn = document.getElementById('info-toggle-btn');
+            const infoSection = document.getElementById('info-section');
+            const infoTabs = document.querySelectorAll('.info-tab');
+            const tabContents = document.querySelectorAll('.info-tab-content');
+
+            infoToggleBtn.addEventListener('click', () => {
+                const isVisible = infoSection.style.display !== 'none';
+                infoSection.style.display = isVisible ? 'none' : 'block';
+                infoToggleBtn.textContent = isVisible ? 'ℹ️ Learn More' : '✕ Close';
+            });
+
+            infoTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const targetTab = tab.dataset.tab;
+                    
+                    // Remove active class from all tabs and contents
+                    infoTabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(c => c.classList.remove('active'));
+                    
+                    // Add active class to clicked tab and corresponding content
+                    tab.classList.add('active');
+                    document.getElementById(`tab-${targetTab}`).classList.add('active');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+
