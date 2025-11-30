@@ -24,9 +24,6 @@ CuTe:
 Example: python KernelBench/multiturn_optimizer_willy.py --level 1 --problem_id 1 --language cute
 """
 
-
-
-
 import os
 import sys
 import traceback
