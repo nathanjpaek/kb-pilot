@@ -183,3 +183,5 @@ KernelBench/reasoning_data/
 KernelBench/KernelBook/dataset_permissive.parquet
 
 KernelBench/ThunderKittens/
+
+KernelBench/scripts/.cute_summary_cache/
