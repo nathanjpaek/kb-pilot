@@ -591,24 +591,39 @@ def main(config: RAGEvalConfig):
         print(f"Result: {kernel_exec_result}")
         print(f"{'='*60}")
         
-        # Save successful kernels
-        if kernel_exec_result.correctness:
-            if config.eval_file_path is None:
-                # Map language to correct directory (tilelang, cute, thunderkittens, cuda, etc.)
-                base_dir = f"src/prompts/correct_{config.language}/level{config.level}"
-                
-                os.makedirs(base_dir, exist_ok=True)
+        # Save kernels (both correct and incorrect for debugging)
+        # Save incorrect kernels too, but mark them clearly
+        if config.eval_file_path is None:
+            # Map language to correct directory (tilelang, cute, thunderkittens, cuda, etc.)
+            base_dir = f"src/prompts/correct_{config.language}/level{config.level}"
+            
+            os.makedirs(base_dir, exist_ok=True)
+            
+            # For incorrect kernels, add a suffix to the filename
+            if kernel_exec_result.correctness:
                 base_path = f"{base_dir}/{config.level}_{config.problem_id}.py"
                 path = base_path
-                
-                # Extract speedup ratio from current result
+            else:
+                # Save incorrect kernels with a suffix
+                base_path = f"{base_dir}/{config.level}_{config.problem_id}_incorrect.py"
+                path = base_path
+                print(f"⚠️  Kernel failed correctness check - saving as {os.path.basename(path)} for debugging")
+            
+            # Extract speedup ratio from current result (if available)
+            try:
                 eval_str = str(kernel_exec_result)
-                current_ratio = float(eval_str.split("speedup_ratio': ")[1].split("}")[0])
-                
-                # If file exists (and we are generating new kernels), compare speedup ratios
-                if not config.eval_only and os.path.exists(path):
-                    with open(path, 'r') as f:
-                        existing_content = f.read()
+                if "speedup_ratio" in eval_str:
+                    current_ratio = float(eval_str.split("speedup_ratio': ")[1].split("}")[0])
+                else:
+                    current_ratio = 0.0
+            except:
+                current_ratio = 0.0
+            
+            # Only compare and potentially skip if kernel is correct AND file exists
+            if kernel_exec_result.correctness and not config.eval_only and os.path.exists(path):
+                with open(path, 'r') as f:
+                    existing_content = f.read()
+                    try:
                         existing_eval = existing_content.split('Evaluation Result:\n')[1].split('\n"""')[0]
                         existing_ratio = float(existing_eval.split("speedup_ratio': ")[1].split("}")[0])
                         
@@ -617,13 +632,19 @@ def main(config: RAGEvalConfig):
                             return
                         else:
                             print(f"💾 Replacing kernel - current speedup ratio {current_ratio:.2f} better than existing {existing_ratio:.2f}")
-                else:
-                    print(f"💾 Writing new {config.language} kernel to {path}")
+                    except:
+                        # If we can't parse existing ratio, just save it
+                        print(f"💾 Replacing existing kernel (could not parse existing speedup)")
             else:
-                path = config.eval_file_path
+                if kernel_exec_result.correctness:
+                    print(f"💾 Writing new {config.language} kernel to {path}")
+                else:
+                    print(f"💾 Writing incorrect {config.language} kernel to {path} (for debugging)")
+        else:
+            path = config.eval_file_path
 
-            with open(path, "w") as f:
-                f.write(f'''"""
+        with open(path, "w") as f:
+            f.write(f'''"""
 Problem Name: {problem_name}
 Generated using DSPy RAG with {config.dspy_model}
 RAG Examples: {config.rag_k}
@@ -632,22 +653,22 @@ Evaluation Result:
 """
 
 {custom_cuda}''')
-            
-            # For ThunderKittens, also save the .cu file in the same directory
-            if config.language == "thunderkittens" and not config.eval_only:
-                cu_save_path = path.replace(".py", ".cu")
-                # cu_code was extracted earlier, save it
-                if 'cu_code' in locals():
-                    with open(cu_save_path, "w") as f:
-                        f.write(cu_code)
-                    print(f"💾 Also saved .cu kernel to {cu_save_path}")
-                else:
-                    # Copy from correct_tk/custom_tk.cu if it exists
-                    tk_cu_source = os.path.join(REPO_TOP_DIR, f"src/prompts/correct_{config.language}/level{config.level}")
-                    if os.path.exists(tk_cu_source):
-                        import shutil
-                        shutil.copy(tk_cu_source, cu_save_path)
-                        print(f"💾 Copied .cu kernel to {cu_save_path}")
+        
+        # For ThunderKittens, also save the .cu file in the same directory
+        if config.language == "thunderkittens" and not config.eval_only:
+            cu_save_path = path.replace(".py", ".cu")
+            # cu_code was extracted earlier, save it
+            if 'cu_code' in locals():
+                with open(cu_save_path, "w") as f:
+                    f.write(cu_code)
+                print(f"💾 Also saved .cu kernel to {cu_save_path}")
+            else:
+                # Copy from correct_tk/custom_tk.cu if it exists
+                tk_cu_source = os.path.join(REPO_TOP_DIR, f"src/prompts/correct_{config.language}/level{config.level}")
+                if os.path.exists(tk_cu_source):
+                    import shutil
+                    shutil.copy(tk_cu_source, cu_save_path)
+                    print(f"💾 Copied .cu kernel to {cu_save_path}")
         
         if config.log_eval_result:
             with open(os.path.join(config.logdir, f"rag_eval_result_level_{config.level}_problem_{config.problem_id}.txt"), "w") as f:
