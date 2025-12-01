@@ -173,7 +173,6 @@ class MatMulReLU(nn.Module):
                         <label for="pytorch_code">PyTorch Reference Code:</label>
                         <textarea id="pytorch_code" name="pytorch_code" rows="12" 
                                   placeholder="Paste your PyTorch reference implementation here...&#10;&#10;Example:&#10;import torch&#10;import torch.nn as nn&#10;&#10;class MyModel(nn.Module):&#10;    def __init__(self):&#10;        super().__init__()&#10;        self.linear = nn.Linear(1024, 512)&#10;    &#10;    def forward(self, x):&#10;        return torch.relu(self.linear(x))"></textarea>
-                        <div class="form-hint">You can paste one or multiple PyTorch reference implementations</div>
                     </div>
 
                     <!-- Configuration Options -->
@@ -192,21 +191,6 @@ class MatMulReLU(nn.Module):
                         <div class="form-group">
                             <label for="rag_k">RAG Examples (k):</label>
                             <input type="number" id="rag_k" name="rag_k" value="5" min="1" max="10">
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="test_time_scaling" checked>
-                                Enable Test-Time Scaling
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="measure_performance" checked>
-                                Measure Performance
-                            </label>
                         </div>
                     </div>
 
