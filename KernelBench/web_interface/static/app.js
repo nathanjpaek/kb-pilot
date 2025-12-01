@@ -178,7 +178,7 @@ function handleStreamMessage(data) {
             appendLogEntry(content, 'success');
             if (metadata) {
                 evaluationResults = metadata;
-                displayEvaluationResults(metadata);
+                // displayEvaluationResults(metadata);
             }
             break;
             
