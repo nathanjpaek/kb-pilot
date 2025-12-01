@@ -26,7 +26,6 @@ from web_interface.kernel_agent_wrapper import (
     generate_kernel_streaming,
     KernelSpec
 )
-from scripts.kernel_agent_cli import gather_spec_from_flags, KernelSpec as CLI_KernelSpec
 import argparse
 
 app = Flask(__name__, 
@@ -181,49 +180,17 @@ def get_session(session_id):
 
 
 def _create_spec_from_request(data: dict):
-    """Create KernelSpec from request data"""
-    # Map request fields to spec fields
-    spec_dict = {
-        'language': data.get('language', 'cute'),
-        'gpu': data.get('gpu', 'H100'),
-        'rag_k': data.get('rag_k', 5),
-        'model_name': data.get('model', 'openai/o3'),
-        'fast_model': data.get('fast_model', 'openai/gpt-4o'),
-        'temperature': data.get('temperature', 1.0),
-        'pytorch_reference': data.get('pytorch_code', ''),
-        'operation_description': data.get('purpose') or data.get('description', ''),
-        'ops_sequence': data.get('ops', ''),
-        'input_shapes': data.get('shapes', ''),
-        'dtype': data.get('dtype', ''),
-        'target_speedup': data.get('target_speedup'),
-        'additional_constraints': data.get('constraints', ''),
-        'problem_label': data.get('problem_label', ''),
-        'current_level': data.get('level'),
-        'current_problem_id': data.get('problem_id'),
-        'max_attempts': data.get('max_attempts', 3),
-        'measure_performance': data.get('measure_performance', True),
-        'num_correct_trials': data.get('num_correct_trials', 5),
-        'num_perf_trials': data.get('num_perf_trials', 100),
-        'use_modal': data.get('use_modal', True),
-        'test_time_scaling': data.get('test_time_scaling', True),
-        'num_candidates': data.get('num_candidates', 4),
-        'syntax_only': data.get('syntax_only', False),
-    }
-    
-    # Get paper and guideline prompts based on language
-    from scripts.kernel_agent_cli import GUIDELINE_BY_LANG
-    language = spec_dict['language'].lower()
-    if language in GUIDELINE_BY_LANG:
-        paper_prompt, guideline_prompt = GUIDELINE_BY_LANG[language]
-        spec_dict['paper_prompt'] = paper_prompt
-        spec_dict['guideline_prompt'] = guideline_prompt
-    else:
-        spec_dict['paper_prompt'] = ''
-        spec_dict['guideline_prompt'] = ''
-    
-    # Create KernelSpec object
-    from scripts.kernel_agent_cli import KernelSpec
-    return KernelSpec(**spec_dict)
+    """Create KernelSpec from request data - simplified for generation only"""
+    spec = KernelSpec(
+        language=data.get('language', 'cute'),
+        gpu=data.get('gpu', 'H100'),
+        rag_k=data.get('rag_k', 5),
+        model_name=data.get('model', 'openai/o3'),
+        temperature=data.get('temperature', 1.0),
+        pytorch_reference=data.get('pytorch_code', ''),
+        operation_description=data.get('purpose') or data.get('description', ''),
+    )
+    return spec
 
 
 def _generate_answer(question: str, kernel_code: str, evaluation: dict, spec: KernelSpec) -> str:

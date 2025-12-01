@@ -15,32 +15,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initializeEventListeners() {
     const form = document.getElementById('generation-form');
-    form.addEventListener('submit', handleGenerateSubmit);
+    if (form) {
+        form.addEventListener('submit', handleGenerateSubmit);
+        console.log('Form submit listener attached');
+    } else {
+        console.error('Form not found!');
+    }
     
     const chatInput = document.getElementById('chat-input');
     const chatSendBtn = document.getElementById('chat-send-btn');
     
-    chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            handleChatSend();
-        }
-    });
+    if (chatInput) {
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleChatSend();
+            }
+        });
+    }
     
-    chatSendBtn.addEventListener('click', handleChatSend);
+    if (chatSendBtn) {
+        chatSendBtn.addEventListener('click', handleChatSend);
+    }
     
-    document.getElementById('copy-kernel-btn').addEventListener('click', copyKernel);
-    document.getElementById('download-kernel-btn').addEventListener('click', downloadKernel);
+    const copyBtn = document.getElementById('copy-kernel-btn');
+    const downloadBtn = document.getElementById('download-kernel-btn');
+    
+    if (copyBtn) copyBtn.addEventListener('click', copyKernel);
+    if (downloadBtn) downloadBtn.addEventListener('click', downloadKernel);
 }
 
 async function handleGenerateSubmit(e) {
     e.preventDefault();
     
-    // Get form data
+    // Get form data - language and gpu are fixed in the UI (not inputs)
     const formData = {
         session_id: `session_${Date.now()}`,
-        language: document.getElementById('language').value,
-        gpu: document.getElementById('gpu').value,
-        rag_k: parseInt(document.getElementById('rag_k').value),
+        language: 'cute',  // Fixed to CuTe-DSL as shown in UI
+        gpu: 'H100',  // Fixed to H100 as shown in UI
+        rag_k: parseInt(document.getElementById('rag_k').value) || 5,
         pytorch_code: document.getElementById('pytorch_code').value,
         purpose: document.getElementById('purpose').value,
         description: document.getElementById('purpose').value, // Map purpose to description for backend
@@ -80,6 +92,8 @@ function startStreaming(formData) {
         eventSource.close();
     }
     
+    console.log('Starting generation with formData:', formData);
+    
     // Create new EventSource for Server-Sent Events
     fetch('/api/generate', {
         method: 'POST',
@@ -88,8 +102,11 @@ function startStreaming(formData) {
         },
         body: JSON.stringify(formData)
     }).then(response => {
+        console.log('Response status:', response.status);
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            return response.text().then(text => {
+                throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
+            });
         }
         
         const reader = response.body.getReader();
@@ -99,11 +116,14 @@ function startStreaming(formData) {
         function readStream() {
             reader.read().then(({ done, value }) => {
                 if (done) {
+                    console.log('Stream complete');
                     handleStreamComplete();
                     return;
                 }
                 
-                buffer += decoder.decode(value, { stream: true });
+                const chunk = decoder.decode(value, { stream: true });
+                console.log('Received chunk:', chunk);
+                buffer += chunk;
                 const lines = buffer.split('\n');
                 buffer = lines.pop() || ''; // Keep incomplete line in buffer
                 
@@ -111,9 +131,10 @@ function startStreaming(formData) {
                     if (line.startsWith('data: ')) {
                         try {
                             const data = JSON.parse(line.slice(6));
+                            console.log('Parsed message:', data);
                             handleStreamMessage(data);
                         } catch (e) {
-                            console.error('Error parsing stream message:', e);
+                            console.error('Error parsing stream message:', e, 'Line:', line);
                         }
                     }
                 }
@@ -200,7 +221,8 @@ function handleGenerationComplete(data) {
     document.getElementById('generate-btn-loading').style.display = 'none';
     
     if (data && data.result) {
-        generatedKernelCode = data.result.code || document.getElementById('kernel-code').textContent;
+        // Store the code with proper formatting from the result
+        generatedKernelCode = data.result.code;
         evaluationResults = data.result.evaluation || {};
         
         // Show kernel section
@@ -302,9 +324,7 @@ function updateStatus(status, text) {
 }
 
 function resetUI() {
-    document.getElementById('kernel-section').style.display = 'none';
-    document.getElementById('chat-section').style.display = 'none';
-    document.getElementById('kernel-code').textContent = '';
+    document.getElementById('kernel-code').textContent = 'Generated kernel code will appear here...';
     document.getElementById('evaluation-results').innerHTML = '';
     document.getElementById('chat-messages').innerHTML = '';
     generatedKernelCode = null;
@@ -379,7 +399,8 @@ function addChatMessage(message, role) {
 }
 
 function copyKernel() {
-    const kernelCode = document.getElementById('kernel-code').textContent;
+    // Use the stored generatedKernelCode which has proper formatting
+    const kernelCode = generatedKernelCode || document.getElementById('kernel-code').textContent;
     if (!kernelCode) {
         alert('No kernel code to copy');
         return;

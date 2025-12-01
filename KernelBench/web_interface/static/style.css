@@ -266,6 +266,32 @@ input[type="checkbox"] {
     box-shadow: 0 4px 12px rgba(118, 185, 0, 0.3);
 }
 
+.btn-copy-large {
+    padding: 16px 32px;
+    border: none;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    background: linear-gradient(135deg, #76b900 0%, #5a8f00 100%);
+    color: white;
+    box-shadow: 0 6px 20px rgba(118, 185, 0, 0.4);
+    transition: all 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.btn-copy-large:hover {
+    background: linear-gradient(135deg, #8ed100 0%, #76b900 100%);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(118, 185, 0, 0.5);
+}
+
+.btn-copy-large:active {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(118, 185, 0, 0.4);
+}
+
 .loading-spinner {
     animation: spin 1s linear infinite;
 }
