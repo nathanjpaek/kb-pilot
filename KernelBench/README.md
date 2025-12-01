@@ -2,6 +2,13 @@
 
 This codebase is heavily based on the KernelBench codebase!
 
+As such it requires:
+1. A logged-in Modal account
+2. An OpenAI API Key with sufficient credits
+3. A conda environment with the sufficient prerequisite packages installed.
+
+We have instructions below but if you have trouble please contact Willy or Mafer for assistance! We are more than happy to demo the project and prove that it does indeed compile/work (there is just a lot of dependencies and annoying technical details to get setup in the first place)
+
 **Prerequisites:**
 - Activate conda environment: `conda activate kb-pilot` (or your environment name)
 - Set OpenAI API key (for kernel generation): `export OPENAI_API_KEY=your_key_here`

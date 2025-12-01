@@ -55,7 +55,8 @@ from scripts.generate_and_eval_rag_modal import (
 
 # Prompts for TK/CuTe generation
 from scripts.tk_guideline_prompt import TK_GUIDELINE_PROMPT
-from scripts.cute_guideline_prompt import CUTE_GUIDELINE_PROMPT
+# from scripts.cute_guideline_prompt import CUTE_GUIDELINE_PROMPT
+CUTE_GUIDELINE_PROMPT = ""
 
 # IMPORTANT: THESE ARE THE KERNEL FIXING LOOP CONFIGURATIONS
 class TKFixLoopConfig(Config):
