@@ -46,19 +46,22 @@ function initializeEventListeners() {
 
 async function handleGenerateSubmit(e) {
     e.preventDefault();
+    console.log('Form submitted!');
     
     // Get form data - language and gpu are fixed in the UI (not inputs)
     const formData = {
         session_id: `session_${Date.now()}`,
         language: 'cute',  // Fixed to CuTe-DSL as shown in UI
         gpu: 'H100',  // Fixed to H100 as shown in UI
-        rag_k: parseInt(document.getElementById('rag_k').value) || 5,
-        pytorch_code: document.getElementById('pytorch_code').value,
-        purpose: document.getElementById('purpose').value,
-        description: document.getElementById('purpose').value, // Map purpose to description for backend
-        test_time_scaling: document.getElementById('test_time_scaling').checked,
-        measure_performance: document.getElementById('measure_performance').checked,
+        rag_k: parseInt(document.getElementById('rag_k')?.value) || 5,
+        pytorch_code: document.getElementById('pytorch_code')?.value || '',
+        purpose: document.getElementById('purpose')?.value || '',
+        description: document.getElementById('purpose')?.value || '',
+        test_time_scaling: false,  // Disabled - we just want single generation
+        measure_performance: false,  // Disabled - no evaluation
     };
+    
+    console.log('Form data:', formData);
     
     if (!formData.pytorch_code.trim()) {
         alert('Please provide PyTorch reference code');
@@ -166,12 +169,18 @@ function handleStreamMessage(data) {
         case 'code':
             // Accumulate code in a dedicated section
             const codeContainer = document.getElementById('kernel-code');
-            if (codeContainer.textContent === '') {
+            if (codeContainer.textContent === '' || codeContainer.textContent === 'Generated kernel code will appear here...') {
                 codeContainer.textContent = content;
             } else {
                 codeContainer.textContent += '\n' + content;
             }
             appendLogEntry(content, 'code');
+            break;
+        
+        case 'rag_example':
+            // Display RAG example
+            displayRagExample(metadata);
+            appendLogEntry(content, 'info');
             break;
             
         case 'result':
@@ -327,8 +336,67 @@ function resetUI() {
     document.getElementById('kernel-code').textContent = 'Generated kernel code will appear here...';
     document.getElementById('evaluation-results').innerHTML = '';
     document.getElementById('chat-messages').innerHTML = '';
+    // Clear RAG examples
+    const ragContainer = document.getElementById('rag-examples-container');
+    if (ragContainer) {
+        ragContainer.innerHTML = '<p class="placeholder">Similar examples will appear here after generation starts...</p>';
+    }
     generatedKernelCode = null;
     evaluationResults = null;
+}
+
+function displayRagExample(example) {
+    const container = document.getElementById('rag-examples-container');
+    if (!container) return;
+    
+    // Remove placeholder if exists
+    const placeholder = container.querySelector('.placeholder');
+    if (placeholder) {
+        placeholder.remove();
+    }
+    
+    const exampleBox = document.createElement('div');
+    exampleBox.className = 'rag-example-box';
+    
+    const scoreDisplay = example.score ? `Score: ${example.score.toFixed(2)}` : '';
+    
+    exampleBox.innerHTML = `
+        <div class="rag-example-header">
+            <div class="example-info">
+                <span class="example-number">#${example.index}</span>
+                <span class="example-name">${example.problem_name || 'Example ' + example.index}</span>
+                ${scoreDisplay ? `<span class="example-score">${scoreDisplay}</span>` : ''}
+            </div>
+            <button class="rag-example-copy-btn" onclick="copyRagExample(${example.index})">📋 Copy DSL</button>
+        </div>
+        <div class="rag-example-content">
+            <div class="rag-example-panel">
+                <h4>Original PyTorch</h4>
+                <pre class="rag-example-code" id="rag-ref-${example.index}">${escapeHtml(example.reference_code || 'N/A')}</pre>
+            </div>
+            <div class="rag-example-panel">
+                <h4>CuTe DSL Solution</h4>
+                <pre class="rag-example-code" id="rag-dsl-${example.index}">${escapeHtml(example.dsl_code || 'N/A')}</pre>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(exampleBox);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function copyRagExample(index) {
+    const dslCode = document.getElementById(`rag-dsl-${index}`);
+    if (dslCode) {
+        navigator.clipboard.writeText(dslCode.textContent).then(() => {
+            alert('DSL code copied to clipboard!');
+        });
+    }
 }
 
 // Chat functionality

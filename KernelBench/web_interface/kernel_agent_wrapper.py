@@ -183,8 +183,43 @@ class StreamingKernelAgent:
                     GUIDELINE_BY_LANG["cute"]
                 )
                 
-                # Call RAG generation
+                # First, retrieve RAG examples to show them
                 self._log(f"📚 Retrieving {self.spec.rag_k} similar examples...", "log")
+                
+                from src.example_selector_mafer import select_smart_examples
+                
+                try:
+                    rag_examples = select_smart_examples(
+                        problem_code=self.spec.pytorch_reference,
+                        language=self.spec.language,
+                        k=self.spec.rag_k,
+                        current_level=self.spec.current_level,
+                        current_problem_id=self.spec.current_problem_id,
+                        fast_mode=False,
+                    )
+                    
+                    # Send RAG examples to frontend
+                    if rag_examples:
+                        self._log(f"✅ Found {len(rag_examples)} similar examples", "log")
+                        for i, example in enumerate(rag_examples, 1):
+                            example_data = {
+                                "index": i,
+                                "problem_name": example.get("problem_name", f"Example {i}"),
+                                "score": example.get("score", 0),
+                                "reference_code": example.get("reference_code", ""),
+                                "dsl_code": example.get("code", ""),
+                            }
+                            self.output_queue.put(StreamMessage(
+                                type="rag_example",
+                                content=f"Example {i}: {example_data['problem_name']}",
+                                metadata=example_data,
+                                timestamp=__import__('time').time()
+                            ))
+                except Exception as e:
+                    self._log(f"⚠️ Could not retrieve examples: {e}", "log")
+                
+                # Now call RAG generation
+                self._log("🤖 Generating optimized kernel...", "log")
                 
                 from src.prompt_constructor_rag import prompt_generate_custom_dsl_rag_enhanced
                 

@@ -512,6 +512,125 @@ input[type="checkbox"] {
     flex: 1;
 }
 
+/* RAG Examples Section */
+.rag-section {
+    grid-column: 1 / -1;
+    margin-top: 20px;
+}
+
+.rag-description {
+    color: #555;
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.rag-examples-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.rag-examples-container .placeholder {
+    color: #888;
+    font-style: italic;
+    padding: 20px;
+    text-align: center;
+    background: #f5f5f5;
+    border-radius: 8px;
+}
+
+.rag-example-box {
+    background: #1e1e1e;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid #76b900;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.rag-example-header {
+    background: linear-gradient(135deg, #76b900 0%, #5a8f00 100%);
+    color: white;
+    padding: 12px 20px;
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.rag-example-header .example-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.rag-example-header .example-number {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+.rag-example-header .example-score {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+}
+
+.rag-example-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+}
+
+.rag-example-panel {
+    padding: 15px;
+    border-right: 1px solid #333;
+}
+
+.rag-example-panel:last-child {
+    border-right: none;
+}
+
+.rag-example-panel h4 {
+    color: #76b900;
+    font-size: 12px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.rag-example-code {
+    color: #d4d4d4;
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background: #1a1a1a;
+    padding: 10px;
+    border-radius: 6px;
+}
+
+.rag-example-copy-btn {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.rag-example-copy-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
 /* Scrollbar styling */
 .reasoning-output::-webkit-scrollbar,
 .kernel-code::-webkit-scrollbar,
